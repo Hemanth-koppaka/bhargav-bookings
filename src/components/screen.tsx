@@ -30,7 +30,7 @@ export function ScreenHeader({
       <div className="mx-auto grid max-w-3xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-6 py-4">
         {back ? (
           <Link
-            to={back}
+            to={back as never}
             className="-ml-2 inline-flex h-10 w-10 shrink-0 items-center justify-center text-foreground/70 transition-opacity hover:opacity-60"
             aria-label="Back"
           >
