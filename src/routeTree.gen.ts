@@ -10,11 +10,26 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ArtistRouteImport } from './routes/artist'
 import { Route as BookRouteImport } from './routes/book'
+import { Route as ConfirmedRouteImport } from './routes/confirmed'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as DetailsRouteImport } from './routes/details'
+import { Route as HoursRouteImport } from './routes/hours'
+import { Route as ManageRouteImport } from './routes/manage'
+import { Route as ReviewRouteImport } from './routes/review'
+import { Route as ServicesRouteImport } from './routes/services'
+import { Route as StudioRouteImport } from './routes/studio'
+import { Route as TimeRouteImport } from './routes/time'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArtistRoute = ArtistRouteImport.update({
+  id: '/artist',
+  path: '/artist',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookRoute = BookRouteImport.update({
@@ -22,31 +37,153 @@ const BookRoute = BookRouteImport.update({
   path: '/book',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConfirmedRoute = ConfirmedRouteImport.update({
+  id: '/confirmed',
+  path: '/confirmed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DetailsRoute = DetailsRouteImport.update({
+  id: '/details',
+  path: '/details',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HoursRoute = HoursRouteImport.update({
+  id: '/hours',
+  path: '/hours',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManageRoute = ManageRouteImport.update({
+  id: '/manage',
+  path: '/manage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewRoute = ReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ServicesRoute = ServicesRouteImport.update({
+  id: '/services',
+  path: '/services',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudioRoute = StudioRouteImport.update({
+  id: '/studio',
+  path: '/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TimeRoute = TimeRouteImport.update({
+  id: '/time',
+  path: '/time',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/artist': typeof ArtistRoute
   '/book': typeof BookRoute
+  '/confirmed': typeof ConfirmedRoute
+  '/contact': typeof ContactRoute
+  '/details': typeof DetailsRoute
+  '/hours': typeof HoursRoute
+  '/manage': typeof ManageRoute
+  '/review': typeof ReviewRoute
+  '/services': typeof ServicesRoute
+  '/studio': typeof StudioRoute
+  '/time': typeof TimeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/artist': typeof ArtistRoute
   '/book': typeof BookRoute
+  '/confirmed': typeof ConfirmedRoute
+  '/contact': typeof ContactRoute
+  '/details': typeof DetailsRoute
+  '/hours': typeof HoursRoute
+  '/manage': typeof ManageRoute
+  '/review': typeof ReviewRoute
+  '/services': typeof ServicesRoute
+  '/studio': typeof StudioRoute
+  '/time': typeof TimeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/artist': typeof ArtistRoute
   '/book': typeof BookRoute
+  '/confirmed': typeof ConfirmedRoute
+  '/contact': typeof ContactRoute
+  '/details': typeof DetailsRoute
+  '/hours': typeof HoursRoute
+  '/manage': typeof ManageRoute
+  '/review': typeof ReviewRoute
+  '/services': typeof ServicesRoute
+  '/studio': typeof StudioRoute
+  '/time': typeof TimeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/book'
+  fullPaths:
+    | '/'
+    | '/artist'
+    | '/book'
+    | '/confirmed'
+    | '/contact'
+    | '/details'
+    | '/hours'
+    | '/manage'
+    | '/review'
+    | '/services'
+    | '/studio'
+    | '/time'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/book'
-  id: '__root__' | '/' | '/book'
+  to:
+    | '/'
+    | '/artist'
+    | '/book'
+    | '/confirmed'
+    | '/contact'
+    | '/details'
+    | '/hours'
+    | '/manage'
+    | '/review'
+    | '/services'
+    | '/studio'
+    | '/time'
+  id:
+    | '__root__'
+    | '/'
+    | '/artist'
+    | '/book'
+    | '/confirmed'
+    | '/contact'
+    | '/details'
+    | '/hours'
+    | '/manage'
+    | '/review'
+    | '/services'
+    | '/studio'
+    | '/time'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ArtistRoute: typeof ArtistRoute
   BookRoute: typeof BookRoute
+  ConfirmedRoute: typeof ConfirmedRoute
+  ContactRoute: typeof ContactRoute
+  DetailsRoute: typeof DetailsRoute
+  HoursRoute: typeof HoursRoute
+  ManageRoute: typeof ManageRoute
+  ReviewRoute: typeof ReviewRoute
+  ServicesRoute: typeof ServicesRoute
+  StudioRoute: typeof StudioRoute
+  TimeRoute: typeof TimeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +195,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/artist': {
+      id: '/artist'
+      path: '/artist'
+      fullPath: '/artist'
+      preLoaderRoute: typeof ArtistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/book': {
       id: '/book'
       path: '/book'
@@ -65,12 +209,85 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/confirmed': {
+      id: '/confirmed'
+      path: '/confirmed'
+      fullPath: '/confirmed'
+      preLoaderRoute: typeof ConfirmedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/details': {
+      id: '/details'
+      path: '/details'
+      fullPath: '/details'
+      preLoaderRoute: typeof DetailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hours': {
+      id: '/hours'
+      path: '/hours'
+      fullPath: '/hours'
+      preLoaderRoute: typeof HoursRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manage': {
+      id: '/manage'
+      path: '/manage'
+      fullPath: '/manage'
+      preLoaderRoute: typeof ManageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/review': {
+      id: '/review'
+      path: '/review'
+      fullPath: '/review'
+      preLoaderRoute: typeof ReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/services': {
+      id: '/services'
+      path: '/services'
+      fullPath: '/services'
+      preLoaderRoute: typeof ServicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/studio': {
+      id: '/studio'
+      path: '/studio'
+      fullPath: '/studio'
+      preLoaderRoute: typeof StudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/time': {
+      id: '/time'
+      path: '/time'
+      fullPath: '/time'
+      preLoaderRoute: typeof TimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ArtistRoute: ArtistRoute,
   BookRoute: BookRoute,
+  ConfirmedRoute: ConfirmedRoute,
+  ContactRoute: ContactRoute,
+  DetailsRoute: DetailsRoute,
+  HoursRoute: HoursRoute,
+  ManageRoute: ManageRoute,
+  ReviewRoute: ReviewRoute,
+  ServicesRoute: ServicesRoute,
+  StudioRoute: StudioRoute,
+  TimeRoute: TimeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
