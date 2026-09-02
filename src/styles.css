@@ -210,3 +210,9 @@
     transform: translate3d(var(--drift, 20px), 100vh, 0) rotate(220deg);
   }
 }
+
+@keyframes hb-sheen {
+  0% { transform: translateX(-60%); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: translateX(60%); opacity: 0; }
+}
