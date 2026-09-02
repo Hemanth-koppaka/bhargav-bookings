@@ -6,7 +6,7 @@ import { BUSINESS, formatLongDate, inr, minuteLabel } from "@/lib/salon";
 
 export const Route = createFileRoute("/confirmed")({
   validateSearch: (search: Record<string, unknown>) => ({
-    ref: typeof search.ref === "string" ? search.ref : "",
+    ref: typeof search['ref'] === "string" ? search['ref'] : "",
   }),
   head: () => ({
     meta: [

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { Page, Screen, ScreenHeader, StickyBar, PrimaryAction } from "@/components/screen";
-import { useBooking } from "@/lib/booking-store";
+import { useBooking, type Customer } from "@/lib/booking-store";
 
 export const Route = createFileRoute("/details")({
   head: () => ({
@@ -55,14 +55,13 @@ function DetailsScreen() {
     e?.preventDefault();
     setTouched(true);
     if (!valid) return;
-    update({
-      customer: {
-        name: name.trim(),
-        phone: phone.trim(),
-        email: email.trim(),
-        notes: notes.trim() || undefined,
-      },
-    });
+    const customer: Customer = {
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      ...(notes.trim() ? { notes: notes.trim() } : {}),
+    };
+    update({ customer });
     navigate({ to: "/review" });
   };
 

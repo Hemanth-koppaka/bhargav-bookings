@@ -43,7 +43,7 @@ function ContactScreen() {
         <div className="mt-10">
           <div className="eyebrow">WhatsApp</div>
           <a
-            href={`https://wa.me/${BUSINESS.phones[0].replace("+", "")}`}
+            href={`https://wa.me/${(BUSINESS.phones[0] ?? "").replace("+", "")}`}
             target="_blank"
             rel="noreferrer"
             className="label-caps mt-3 inline-flex border-b border-foreground/30 pb-1"
