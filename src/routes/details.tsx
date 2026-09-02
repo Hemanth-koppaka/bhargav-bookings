@@ -55,14 +55,13 @@ function DetailsScreen() {
     e?.preventDefault();
     setTouched(true);
     if (!valid) return;
-    update({
-      customer: {
-        name: name.trim(),
-        phone: phone.trim(),
-        email: email.trim(),
-        notes: notes.trim() || undefined,
-      },
-    });
+    const customer: Customer = {
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      ...(notes.trim() ? { notes: notes.trim() } : {}),
+    };
+    update({ customer });
     navigate({ to: "/review" });
   };
 
