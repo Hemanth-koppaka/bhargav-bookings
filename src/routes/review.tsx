@@ -42,7 +42,7 @@ function ReviewScreen() {
 
   const confirm = () => {
     const b = commitBooking();
-    if (b) navigate({ to: "/confirmed", search: { ref: b.reference } });
+    if (b) navigate({ to: "/confirmed", search: { ref: b.reference, seq: 1 } });
   };
 
   return (
