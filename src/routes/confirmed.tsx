@@ -6,9 +6,9 @@ import logo from "@/assets/logo.png.asset.json";
 import portrait from "@/assets/portrait.jpg.asset.json";
 
 export const Route = createFileRoute("/confirmed")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { ref: string; seq?: 1 } => ({
     ref: typeof search["ref"] === "string" ? search["ref"] : "",
-    seq: search["seq"] === 1 || search["seq"] === "1" ? 1 : undefined,
+    ...(search["seq"] === 1 || search["seq"] === "1" ? { seq: 1 as const } : {}),
   }),
   head: () => ({
     meta: [
