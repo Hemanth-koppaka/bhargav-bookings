@@ -242,7 +242,15 @@ function ConfirmedScreen() {
     if (booking) void saveConfirmationImage(booking, serviceLine);
   }, [booking, serviceLine]);
 
-  if (!hydrated) return null;
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-[100svh] items-center justify-center bg-[#0B0B0B] text-[#E8E1D8]">
+        <p className="text-[0.65rem] tracking-[0.34em] text-[#E8E1D8]/60 uppercase">
+          Preparing your confirmation
+        </p>
+      </div>
+    );
+  }
 
   if (!booking) {
     return (
@@ -281,7 +289,7 @@ function ConfirmedScreen() {
             src={logo.url}
             alt="Hair by Bhargav"
             className={
-              "relative w-44 max-w-[52vw] object-contain transition-all duration-[1600ms] ease-out sm:w-56 " +
+              "relative w-44 max-w-[52vw] object-contain brightness-0 invert transition-all duration-[1600ms] ease-out sm:w-56 " +
               (scene === "logo" ? "scale-100 opacity-100 blur-0" : "scale-[0.96] opacity-0 blur-md")
             }
           />
