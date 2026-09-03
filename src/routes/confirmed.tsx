@@ -217,6 +217,21 @@ function ConfirmedScreen() {
     t.push(setTimeout(() => setLine2(true), 5200));
     t.push(setTimeout(() => setScene("card"), 7400));
     t.push(setTimeout(() => setStamped(true), 7900));
+    // Safety: never trap the user on a dark scene if anything stalls.
+    t.push(
+      setTimeout(() => {
+        setScene("card");
+        setStamped(true);
+      }, 9000),
+    );
+    // If the portrait fails to load, skip the portrait scene entirely.
+    const probe = new Image();
+    probe.onerror = () => {
+      t.forEach(clearTimeout);
+      setScene("card");
+      setStamped(true);
+    };
+    probe.src = portrait.url;
     return () => t.forEach(clearTimeout);
   }, [hydrated, booking, seq]);
 
@@ -314,7 +329,7 @@ function ConfirmedScreen() {
       <div
         className={
           "relative z-10 transition-opacity duration-[1400ms] ease-out " +
-          (scene === "card" ? "opacity-100" : "opacity-0")
+          (scene === "card" ? "opacity-100" : "pointer-events-none opacity-0")
         }
       >
         <img
