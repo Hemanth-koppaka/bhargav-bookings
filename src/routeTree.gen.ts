@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ArtistRouteImport } from './routes/artist'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as ConfirmedRouteImport } from './routes/confirmed'
@@ -21,10 +22,21 @@ import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ServicesRouteImport } from './routes/services'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as TimeRouteImport } from './routes/time'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminAppointmentsRouteImport } from './routes/admin.appointments'
+import { Route as AdminCalendarRouteImport } from './routes/admin.calendar'
+import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
+import { Route as AdminServicesRouteImport } from './routes/admin.services'
+import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ArtistRoute = ArtistRouteImport.update({
@@ -82,9 +94,40 @@ const TimeRoute = TimeRouteImport.update({
   path: '/time',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAppointmentsRoute = AdminAppointmentsRouteImport.update({
+  id: '/appointments',
+  path: '/appointments',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminCalendarRoute = AdminCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminCustomersRoute = AdminCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminServicesRoute = AdminServicesRouteImport.update({
+  id: '/services',
+  path: '/services',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/artist': typeof ArtistRoute
   '/book': typeof BookRoute
   '/confirmed': typeof ConfirmedRoute
@@ -96,6 +139,12 @@ export interface FileRoutesByFullPath {
   '/services': typeof ServicesRoute
   '/studio': typeof StudioRoute
   '/time': typeof TimeRoute
+  '/admin/appointments': typeof AdminAppointmentsRoute
+  '/admin/calendar': typeof AdminCalendarRoute
+  '/admin/customers': typeof AdminCustomersRoute
+  '/admin/services': typeof AdminServicesRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -110,10 +159,17 @@ export interface FileRoutesByTo {
   '/services': typeof ServicesRoute
   '/studio': typeof StudioRoute
   '/time': typeof TimeRoute
+  '/admin/appointments': typeof AdminAppointmentsRoute
+  '/admin/calendar': typeof AdminCalendarRoute
+  '/admin/customers': typeof AdminCustomersRoute
+  '/admin/services': typeof AdminServicesRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin': typeof AdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/artist': typeof ArtistRoute
   '/book': typeof BookRoute
   '/confirmed': typeof ConfirmedRoute
@@ -125,11 +181,18 @@ export interface FileRoutesById {
   '/services': typeof ServicesRoute
   '/studio': typeof StudioRoute
   '/time': typeof TimeRoute
+  '/admin/appointments': typeof AdminAppointmentsRoute
+  '/admin/calendar': typeof AdminCalendarRoute
+  '/admin/customers': typeof AdminCustomersRoute
+  '/admin/services': typeof AdminServicesRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/artist'
     | '/book'
     | '/confirmed'
@@ -141,6 +204,12 @@ export interface FileRouteTypes {
     | '/services'
     | '/studio'
     | '/time'
+    | '/admin/appointments'
+    | '/admin/calendar'
+    | '/admin/customers'
+    | '/admin/services'
+    | '/admin/settings'
+    | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -155,9 +224,16 @@ export interface FileRouteTypes {
     | '/services'
     | '/studio'
     | '/time'
+    | '/admin/appointments'
+    | '/admin/calendar'
+    | '/admin/customers'
+    | '/admin/services'
+    | '/admin/settings'
+    | '/admin'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/artist'
     | '/book'
     | '/confirmed'
@@ -169,10 +245,17 @@ export interface FileRouteTypes {
     | '/services'
     | '/studio'
     | '/time'
+    | '/admin/appointments'
+    | '/admin/calendar'
+    | '/admin/customers'
+    | '/admin/services'
+    | '/admin/settings'
+    | '/admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
   ArtistRoute: typeof ArtistRoute
   BookRoute: typeof BookRoute
   ConfirmedRoute: typeof ConfirmedRoute
@@ -193,6 +276,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/artist': {
@@ -272,11 +362,74 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TimeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/appointments': {
+      id: '/admin/appointments'
+      path: '/appointments'
+      fullPath: '/admin/appointments'
+      preLoaderRoute: typeof AdminAppointmentsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/calendar': {
+      id: '/admin/calendar'
+      path: '/calendar'
+      fullPath: '/admin/calendar'
+      preLoaderRoute: typeof AdminCalendarRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/customers': {
+      id: '/admin/customers'
+      path: '/customers'
+      fullPath: '/admin/customers'
+      preLoaderRoute: typeof AdminCustomersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/services': {
+      id: '/admin/services'
+      path: '/services'
+      fullPath: '/admin/services'
+      preLoaderRoute: typeof AdminServicesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
+interface AdminRouteChildren {
+  AdminAppointmentsRoute: typeof AdminAppointmentsRoute
+  AdminCalendarRoute: typeof AdminCalendarRoute
+  AdminCustomersRoute: typeof AdminCustomersRoute
+  AdminServicesRoute: typeof AdminServicesRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminAppointmentsRoute: AdminAppointmentsRoute,
+  AdminCalendarRoute: AdminCalendarRoute,
+  AdminCustomersRoute: AdminCustomersRoute,
+  AdminServicesRoute: AdminServicesRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
   ArtistRoute: ArtistRoute,
   BookRoute: BookRoute,
   ConfirmedRoute: ConfirmedRoute,
