@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useBooking, servicesOf, type Booking } from "@/lib/booking-store";
 import { BUSINESS, formatLongDate, minuteLabel, SLOT_MINUTES } from "@/lib/salon";
-import logo from "@/assets/logo.png.asset.json";
 import portrait from "@/assets/portrait.jpg.asset.json";
 
 export const Route = createFileRoute("/confirmed")({
@@ -25,11 +24,6 @@ export const Route = createFileRoute("/confirmed")({
 });
 
 /* ── helpers ─────────────────────────────────────────────── */
-
-function prefersReducedMotion() {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -184,56 +178,15 @@ async function saveConfirmationImage(booking: Booking, serviceLine: string) {
 
 /* ── screen ──────────────────────────────────────────────── */
 
-type Scene = "logo" | "portrait" | "card";
-
 function ConfirmedScreen() {
-  const { ref, seq } = Route.useSearch();
+  const { ref } = Route.useSearch();
   const { bookings, hydrated, resetDraft } = useBooking();
   const booking = bookings.find((b) => b.reference === ref);
-
-  const [scene, setScene] = useState<Scene>("card");
-  const [line1, setLine1] = useState(false);
-  const [line2, setLine2] = useState(false);
-  const [stamped, setStamped] = useState(false);
-  const started = useRef(false);
 
   useEffect(() => {
     if (hydrated && booking) resetDraft();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, Boolean(booking)]);
-
-  useEffect(() => {
-    if (!hydrated || !booking || started.current) return;
-    started.current = true;
-    if (seq !== 1 || prefersReducedMotion()) {
-      setScene("card");
-      setStamped(true);
-      return;
-    }
-    setScene("logo");
-    const t: Array<ReturnType<typeof setTimeout>> = [];
-    t.push(setTimeout(() => setScene("portrait"), 2600));
-    t.push(setTimeout(() => setLine1(true), 3400));
-    t.push(setTimeout(() => setLine2(true), 5200));
-    t.push(setTimeout(() => setScene("card"), 7400));
-    t.push(setTimeout(() => setStamped(true), 7900));
-    // Safety: never trap the user on a dark scene if anything stalls.
-    t.push(
-      setTimeout(() => {
-        setScene("card");
-        setStamped(true);
-      }, 9000),
-    );
-    // If the portrait fails to load, skip the portrait scene entirely.
-    const probe = new Image();
-    probe.onerror = () => {
-      t.forEach(clearTimeout);
-      setScene("card");
-      setStamped(true);
-    };
-    probe.src = portrait.url;
-    return () => t.forEach(clearTimeout);
-  }, [hydrated, booking, seq]);
 
   const services = booking ? servicesOf(booking) : [];
   const serviceLine = services.map((s) => s.name).join(" · ") || "Appointment";
@@ -244,8 +197,8 @@ function ConfirmedScreen() {
 
   if (!hydrated) {
     return (
-      <div className="flex min-h-[100svh] items-center justify-center bg-[#0B0B0B] text-[#E8E1D8]">
-        <p className="text-[0.65rem] tracking-[0.34em] text-[#E8E1D8]/60 uppercase">
+      <div className="flex min-h-[100svh] items-center justify-center bg-background text-foreground">
+        <p className="eyebrow animate-pulse">
           Preparing your confirmation
         </p>
       </div>
@@ -254,13 +207,14 @@ function ConfirmedScreen() {
 
   if (!booking) {
     return (
-      <div className="flex min-h-[100svh] items-center justify-center bg-[#0B0B0B] px-6 text-[#E8E1D8]">
+      <div className="flex min-h-[100svh] items-center justify-center bg-background px-6 text-foreground">
         <div className="text-center">
+          <div className="eyebrow">Hair by Bhargav</div>
           <h1 className="font-display text-4xl">Booking not found</h1>
-          <p className="mt-3 text-sm text-[#E8E1D8]/60">
+          <p className="mt-3 text-sm text-muted-foreground">
             We couldn't find that reference on this device.
           </p>
-          <Link to="/" className="label-caps mt-8 inline-flex border-b border-[#C9A96A]/50 pb-1">
+          <Link to="/" className="label-caps mt-8 inline-flex border-b border-accent pb-1">
             Return home
           </Link>
         </div>
@@ -269,107 +223,23 @@ function ConfirmedScreen() {
   }
 
   return (
-    <div className="relative min-h-[100svh] overflow-hidden bg-[#0B0B0B] text-[#E8E1D8]">
-      {/* Scene 1 — logo reveal */}
-      <div
-        className={
-          "pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-[#0B0B0B] transition-opacity duration-[1200ms] ease-out " +
-          (scene === "logo" ? "opacity-100" : "opacity-0")
-        }
-        aria-hidden={scene !== "logo"}
-      >
-        <div className="relative">
-          <div
-            className={
-              "absolute -inset-x-24 inset-y-0 bg-[linear-gradient(100deg,transparent_35%,rgba(201,169,106,0.28)_50%,transparent_65%)] " +
-              (scene === "logo" ? "animate-[hb-sheen_2.4s_ease-in-out_forwards]" : "opacity-0")
-            }
-          />
-          <img
-            src={logo.url}
-            alt="Hair by Bhargav"
-            className={
-              "relative w-44 max-w-[52vw] object-contain brightness-0 invert transition-all duration-[1600ms] ease-out sm:w-56 " +
-              (scene === "logo" ? "scale-100 opacity-100 blur-0" : "scale-[0.96] opacity-0 blur-md")
-            }
-          />
-        </div>
-      </div>
-
-      {/* Scene 2 — portrait + personal message */}
-      <div
-        className={
-          "pointer-events-none fixed inset-0 z-30 transition-opacity duration-[1400ms] ease-out " +
-          (scene === "portrait" ? "opacity-100" : "opacity-0")
-        }
-        aria-hidden={scene !== "portrait"}
-      >
-        <img
-          src={portrait.url}
-          alt="Bhargav"
-          className={
-            "h-full w-full object-cover grayscale transition-transform duration-[7000ms] ease-out " +
-            (scene === "portrait" ? "scale-105" : "scale-100")
-          }
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(11,11,11,0.55),rgba(11,11,11,0.35)_35%,rgba(11,11,11,0.95))]" />
-        <div className="absolute inset-x-0 bottom-[16vh] px-8 text-center">
-          <p
-            className={
-              "font-display text-3xl leading-snug transition-all duration-[1200ms] ease-out sm:text-5xl " +
-              (line1 ? "translate-y-0 opacity-100 blur-0" : "translate-y-3 opacity-0 blur-[3px]")
-            }
-          >
-            Bhargav is getting ready…
-          </p>
-          <p
-            className={
-              "mt-3 font-display text-3xl italic leading-snug text-[#C9A96A] transition-all duration-[1200ms] ease-out sm:text-5xl " +
-              (line2 ? "translate-y-0 opacity-100 blur-0" : "translate-y-3 opacity-0 blur-[3px]")
-            }
-          >
-            …for you.
-          </p>
-        </div>
-      </div>
-
-      {/* Scene 3 — confirmation card */}
-      <div
-        className={
-          "relative z-10 transition-opacity duration-[1400ms] ease-out " +
-          (scene === "card" ? "opacity-100" : "pointer-events-none opacity-0")
-        }
-      >
-        <img
-          src={portrait.url}
-          alt=""
-          aria-hidden
-          className="pointer-events-none fixed inset-0 h-full w-full object-cover opacity-[0.13] grayscale"
-        />
-        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(120%_80%_at_50%_0%,rgba(23,23,23,0.4),rgba(11,11,11,0.96))]" />
-
-        <div className="relative mx-auto flex min-h-[100svh] max-w-md flex-col justify-center px-6 py-10 sm:max-w-lg">
-          <div className="border border-[#C9A96A]/25 bg-[#0B0B0B]/60 px-6 py-8 backdrop-blur-[2px] sm:px-9 sm:py-10">
+    <div className="relative min-h-[100svh] overflow-hidden bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-accent" />
+      <div className="relative mx-auto flex min-h-[100svh] max-w-md flex-col justify-center px-6 py-10 sm:max-w-lg">
+          <div className="fade-rise border border-accent/40 bg-card px-6 py-8 shadow-[0_24px_80px_-48px_var(--color-foreground)] sm:px-9 sm:py-10">
             <div className="text-center">
-              <div className="text-[0.6rem] tracking-[0.42em] text-[#C9A96A] uppercase">
+              <div className="eyebrow text-accent-foreground">
                 Hair by Bhargav
               </div>
-              <h1
-                className={
-                  "mt-5 font-display text-[1.7rem] tracking-[0.16em] uppercase transition-all duration-700 ease-out sm:text-3xl " +
-                  (stamped ? "scale-100 opacity-100 blur-0" : "scale-[1.14] opacity-0 blur-[2px]")
-                }
-              >
+              <div className="mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-full border border-accent text-2xl text-accent-foreground" aria-hidden="true">
+                ✓
+              </div>
+              <h1 className="mt-5 font-display text-3xl sm:text-4xl">
                 Booking Confirmed
               </h1>
-              <div
-                className={
-                  "mx-auto mt-4 h-px bg-[#C9A96A]/50 transition-all delay-200 duration-700 ease-out " +
-                  (stamped ? "w-16 opacity-100" : "w-0 opacity-0")
-                }
-              />
+              <div className="mx-auto mt-4 h-px w-16 bg-accent" />
               <p className="mt-5 font-display text-2xl">{booking.customer.name}</p>
-              <p className="mt-1 text-[0.72rem] tracking-[0.28em] text-[#E8E1D8]/45 uppercase">
+              <p className="eyebrow mt-1">
                 {booking.reference}
               </p>
             </div>
@@ -387,10 +257,10 @@ function ConfirmedScreen() {
               />
             </dl>
 
-            <div className="mt-8 border-t border-[#E8E1D8]/10 pt-6 text-center">
+            <div className="mt-8 border-t border-hairline pt-6 text-center">
               <p className="font-display text-2xl italic">Your chair is waiting.</p>
-              <p className="mt-1 font-display text-xl text-[#E8E1D8]/70">See you soon.</p>
-              <p className="mt-3 text-[0.7rem] tracking-[0.3em] text-[#C9A96A] uppercase">
+              <p className="mt-1 font-display text-xl text-muted-foreground">See you soon.</p>
+              <p className="eyebrow mt-3 text-accent-foreground">
                 — Bhargav
               </p>
             </div>
@@ -399,24 +269,23 @@ function ConfirmedScreen() {
           <div className="mt-6 space-y-3">
             <button
               onClick={() => downloadIcs(booking, serviceLine)}
-              className="w-full border border-[#C9A96A]/50 px-6 py-4 text-[0.7rem] tracking-[0.3em] text-[#E8E1D8] uppercase transition-colors duration-300 hover:border-[#C9A96A] hover:bg-[#C9A96A]/10"
+              className="label-caps w-full bg-foreground px-6 py-4 text-background transition-opacity hover:opacity-88"
             >
               Add to calendar
             </button>
             <button
               onClick={onSave}
-              className="w-full border border-[#E8E1D8]/20 px-6 py-4 text-[0.7rem] tracking-[0.3em] text-[#E8E1D8]/85 uppercase transition-colors duration-300 hover:border-[#E8E1D8]/50"
+              className="label-caps w-full border border-foreground/25 px-6 py-4 transition-colors hover:border-foreground"
             >
               Save confirmation
             </button>
             <Link
               to="/"
-              className="block py-2 text-center text-[0.7rem] tracking-[0.3em] text-[#E8E1D8]/50 uppercase transition-opacity hover:opacity-70"
+              className="label-caps block py-2 text-center text-muted-foreground transition-colors hover:text-foreground"
             >
               Back to home
             </Link>
           </div>
-        </div>
       </div>
     </div>
   );
@@ -425,9 +294,9 @@ function ConfirmedScreen() {
 function Row({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
-      <dt className="text-[0.6rem] tracking-[0.34em] text-[#E8E1D8]/45 uppercase">{label}</dt>
+      <dt className="eyebrow">{label}</dt>
       <dd className="mt-1.5 font-display text-xl leading-snug">{value}</dd>
-      {sub ? <dd className="mt-1 text-[0.8rem] text-[#E8E1D8]/55">{sub}</dd> : null}
+      {sub ? <dd className="mt-1 text-[0.8rem] text-muted-foreground">{sub}</dd> : null}
     </div>
   );
 }
