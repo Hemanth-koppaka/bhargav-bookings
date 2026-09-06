@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { Page, Screen, ScreenHeader, StickyBar, PrimaryAction } from "@/components/screen";
 import { useBooking } from "@/lib/booking-store";
 import { formatDuration, inr, menuFor } from "@/lib/salon";
@@ -25,112 +25,104 @@ function ServicesScreen() {
   const { draft, hydrated, toggleService, selected, totalSlots, totalPrice, hasFromPricing } =
     useBooking();
   const navigate = useNavigate();
-  const [open, setOpen] = useState<string | null>("hair");
+  const [active, setActive] = useState<string | null>(null);
 
   useEffect(() => {
     if (hydrated && !draft.audience) navigate({ to: "/book" });
   }, [hydrated, draft.audience, navigate]);
 
-  if (!draft.audience) return null;
-  const menu = menuFor(draft.audience);
+  const menu = draft.audience ? menuFor(draft.audience) : [];
+  const activeId = active ?? menu[0]?.id ?? null;
+  const category = menu.find((c) => c.id === activeId) ?? menu[0];
+
+  if (!draft.audience || !category) return null;
 
   return (
     <Page>
       <ScreenHeader back="/book" title="Step 2 of 5" step={draft.audience === "men" ? "Men" : "Women"} />
       <Screen>
-        <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
-          The <span className="italic">menu.</span>
+        <h1 className="mt-1 font-display text-4xl leading-tight sm:text-5xl">
+          {draft.audience === "men" ? "Men's" : "Women's"} <span className="italic">services</span>
         </h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Select one or more services. Times are added together.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">Select your services.</p>
 
-        <div className="mt-8">
-          {menu.map((c) => {
-            const isOpen = open === c.id;
-            const count = c.services.filter((s) => draft.serviceIds.includes(s.id)).length;
-            return (
-              <div key={c.id} className="hairline-b">
+        <div className="-mx-6 mt-6 overflow-x-auto px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max gap-2 pb-1">
+            {menu.map((c) => {
+              const on = c.id === category.id;
+              const count = c.services.filter((s) => draft.serviceIds.includes(s.id)).length;
+              return (
                 <button
-                  onClick={() => setOpen(isOpen ? null : c.id)}
-                  className="flex w-full items-center justify-between gap-4 py-5 text-left"
+                  key={c.id}
+                  onClick={() => setActive(c.id)}
+                  className={
+                    "label-caps whitespace-nowrap rounded-full border px-4 py-2.5 transition-all duration-300 " +
+                    (on
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-foreground/18 text-foreground/70 hover:border-foreground/45")
+                  }
                 >
-                  <span className="font-display text-2xl">{c.title}</span>
-                  <span className="flex items-center gap-3">
-                    {count > 0 ? (
-                      <span className="label-caps text-accent-foreground/70">{count}</span>
-                    ) : null}
+                  {c.title}
+                  {count > 0 ? (
+                    <span className={on ? "ml-2 opacity-70" : "ml-2 text-accent-foreground"}>{count}</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div key={category.id} className="slide-in mt-7">
+          {category.blurb ? (
+            <p className="mb-5 max-w-md text-xs leading-relaxed text-muted-foreground">
+              {category.blurb}
+            </p>
+          ) : null}
+          <ul>
+            {category.services.map((s) => {
+              const on = draft.serviceIds.includes(s.id);
+              return (
+                <li key={s.id} className="hairline-b">
+                  <button
+                    onClick={() => toggleService(s.id)}
+                    aria-pressed={on}
+                    className={
+                      "flex w-full items-center gap-4 py-4 text-left transition-colors duration-200 " +
+                      (on ? "text-foreground" : "")
+                    }
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[0.95rem]">{s.name}</span>
+                      <span className="mt-1 block text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground">
+                        {formatDuration(s.slots)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-display text-xl">
+                      {inr(s.price)}
+                      {s.from ? "+" : ""}
+                    </span>
                     <span
                       className={
-                        "text-foreground/50 transition-transform duration-300 " +
-                        (isOpen ? "rotate-45" : "")
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all duration-300 " +
+                        (on
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-foreground/25 text-foreground/60")
                       }
                     >
-                      +
+                      {on ? (
+                        <Check className="h-4 w-4" strokeWidth={1.75} />
+                      ) : (
+                        <Plus className="h-4 w-4" strokeWidth={1.25} />
+                      )}
                     </span>
-                  </span>
-                </button>
-                {isOpen ? (
-                  <div className="pb-6">
-                    {c.blurb ? (
-                      <p className="mb-5 max-w-md text-xs leading-relaxed text-muted-foreground">
-                        {c.blurb}
-                      </p>
-                    ) : null}
-                    <ul className="space-y-1">
-                      {c.services.map((s) => {
-                        const on = draft.serviceIds.includes(s.id);
-                        return (
-                          <li key={s.id}>
-                            <button
-                              onClick={() => toggleService(s.id)}
-                              className={
-                                "flex w-full items-start gap-4 border px-4 py-3.5 text-left transition-colors duration-200 " +
-                                (on
-                                  ? "border-foreground/45 bg-card"
-                                  : "border-transparent hover:border-foreground/15")
-                              }
-                            >
-                              <span
-                                className={
-                                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center border transition-colors " +
-                                  (on ? "border-foreground bg-foreground" : "border-foreground/30")
-                                }
-                              >
-                                {on ? (
-                                  <Check
-                                    className="h-3 w-3 text-background"
-                                    strokeWidth={2}
-                                  />
-                                ) : null}
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="flex flex-wrap items-baseline justify-between gap-x-4">
-                                  <span className="text-[0.95rem]">{s.name}</span>
-                                  <span className="text-sm text-muted-foreground">
-                                    {inr(s.price)}
-                                    {s.from ? " onwards" : ""}
-                                  </span>
-                                </span>
-                                <span className="mt-1 block text-[0.7rem] tracking-[0.14em] uppercase text-muted-foreground">
-                                  {formatDuration(s.slots)}
-                                </span>
-                                {s.note ? (
-                                  <span className="mt-2 block text-xs leading-relaxed text-muted-foreground">
-                                    {s.note}
-                                  </span>
-                                ) : null}
-                              </span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
+                  </button>
+                  {on && s.note ? (
+                    <p className="-mt-1 pb-4 text-xs leading-relaxed text-muted-foreground">{s.note}</p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </Screen>
 
