@@ -27,7 +27,7 @@ export function ScreenHeader({
 }) {
   return (
     <header className="sticky top-0 z-30 bg-background/92 backdrop-blur-md hairline-b safe-t">
-      <div className="mx-auto grid max-w-3xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-6 py-4">
+      <div className="mx-auto grid max-w-3xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-6 py-3.5">
         {back ? (
           <Link
             to={back as never}
@@ -40,8 +40,16 @@ export function ScreenHeader({
           <span className="h-10 w-10" />
         )}
         <div className="min-w-0 text-center">
-          {title ? <div className="label-caps truncate">{title}</div> : null}
-          {step ? <div className="eyebrow mt-1">{step}</div> : null}
+          <Link to="/" aria-label="Hair by Bhargav" className="inline-flex">
+            <Wordmark className="h-7 soft-fade" />
+          </Link>
+          {title || step ? (
+            <div className="mt-1 flex items-center justify-center gap-2 truncate">
+              {title ? <span className="eyebrow">{title}</span> : null}
+              {title && step ? <span className="eyebrow">·</span> : null}
+              {step ? <span className="eyebrow">{step}</span> : null}
+            </div>
+          ) : null}
         </div>
         <div className="flex h-10 w-10 shrink-0 items-center justify-end">{right}</div>
       </div>
