@@ -74,7 +74,7 @@ export function Screen({
         className,
       )}
     >
-      <div className="fade-rise">{children}</div>
+      <div className="page-in">{children}</div>
     </main>
   );
 }
