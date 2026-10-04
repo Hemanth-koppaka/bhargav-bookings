@@ -35,7 +35,7 @@ function Home() {
     <div className="h-[100svh] overflow-hidden bg-background lg:h-auto lg:overflow-visible lg:min-h-screen lg:grid lg:min-h-screen lg:grid-cols-[1fr_0.85fr]">
       {/* Left / mobile column */}
       <div className="flex h-[100svh] flex-col lg:h-auto lg:min-h-screen">
-        <header className="flex items-center justify-between px-6 pt-5 safe-t lg:px-14 lg:pt-10">
+        <div className="safe-t"><header className="flex items-center justify-between px-6 pt-5 lg:px-14 lg:pt-10">
           <Wordmark className="h-10 lg:h-12" />
           <a
             href={`tel:${BUSINESS.phones[0]}`}
@@ -44,7 +44,7 @@ function Home() {
           >
             <Phone className="h-4 w-4" strokeWidth={1.25} />
           </a>
-        </header>
+        </header></div>
 
         <main className="flex min-h-0 flex-1 flex-col justify-center px-6 py-4 lg:py-12 lg:px-14">
           <div className="fade-rise">

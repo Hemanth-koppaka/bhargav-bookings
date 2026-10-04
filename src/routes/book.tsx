@@ -59,7 +59,7 @@ function BookEntry() {
               <button
                 key={o.key}
                 onClick={() => choose(o.key)}
-                className="group relative flex h-[clamp(130px,21svh,175px)] w-full overflow-hidden rounded-2xl border border-foreground/8 bg-card text-left shadow-[0_8px_24px_-14px_color-mix(in_oklab,var(--ink)_30%,transparent)] transition-all duration-200 ease-out active:scale-[0.98] active:border-accent"
+                className="group relative flex h-[clamp(130px,23svh,175px)] w-full overflow-hidden rounded-2xl border border-foreground/8 bg-card text-left shadow-[0_8px_24px_-14px_color-mix(in_oklab,var(--ink)_30%,transparent)] transition-all duration-200 ease-out active:scale-[0.98] active:border-accent"
               >
                 <img
                   src={o.img}
@@ -75,7 +75,7 @@ function BookEntry() {
                     {o.sub}
                   </span>
                 </span>
-                <span className="absolute right-4 bottom-3 z-10 text-lg text-accent transition-transform duration-200 group-active:translate-x-0.5">
+                <span className="absolute right-3 bottom-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-card/85 text-sm text-accent backdrop-blur-sm transition-transform duration-200 group-active:translate-x-0.5">
                   →
                 </span>
               </button>
