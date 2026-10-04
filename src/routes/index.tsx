@@ -32,10 +32,10 @@ const quickLinks = [
 
 function Home() {
   return (
-    <div className="min-h-[100svh] bg-background lg:grid lg:min-h-screen lg:grid-cols-[1fr_0.85fr]">
+    <div className="h-[100svh] overflow-hidden bg-background lg:h-auto lg:overflow-visible lg:min-h-screen lg:grid lg:min-h-screen lg:grid-cols-[1fr_0.85fr]">
       {/* Left / mobile column */}
-      <div className="flex min-h-[100svh] flex-col lg:min-h-screen">
-        <header className="flex items-center justify-between px-6 pt-6 safe-t lg:px-14 lg:pt-10">
+      <div className="flex h-[100svh] flex-col lg:h-auto lg:min-h-screen">
+        <div className="safe-t"><header className="flex items-center justify-between px-6 pt-5 lg:px-14 lg:pt-10">
           <Wordmark className="h-10 lg:h-12" />
           <a
             href={`tel:${BUSINESS.phones[0]}`}
@@ -44,24 +44,24 @@ function Home() {
           >
             <Phone className="h-4 w-4" strokeWidth={1.25} />
           </a>
-        </header>
+        </header></div>
 
-        <main className="flex flex-1 flex-col justify-center px-6 py-12 lg:px-14">
+        <main className="flex min-h-0 flex-1 flex-col justify-center px-6 py-4 lg:py-12 lg:px-14">
           <div className="fade-rise">
             <div className="eyebrow">{BUSINESS.locationShort}</div>
 
-            <h1 className="mt-7 font-display text-[3.6rem] leading-[0.92] tracking-[-0.015em] sm:text-7xl lg:text-8xl">
+            <h1 className="mt-[clamp(1rem,3svh,1.75rem)] font-display text-[clamp(3rem,14vw,3.6rem)] leading-[0.92] tracking-[-0.015em] sm:text-7xl lg:text-8xl">
               Reserve
               <br />
               <span className="italic text-foreground/85">your chair.</span>
             </h1>
 
-            <p className="mt-7 max-w-sm text-[0.95rem] leading-relaxed text-muted-foreground">
+            <p className="mt-[clamp(1rem,3svh,1.75rem)] max-w-sm text-[0.9rem] lg:text-[0.95rem] leading-relaxed text-muted-foreground">
               Hair, beauty and makeover by B. Bhargav. Choose a service, pick a time that is
               genuinely free, and you're booked.
             </p>
 
-            <div className="mt-11 max-w-sm space-y-3">
+            <div className="mt-[clamp(1.5rem,5svh,2.75rem)] max-w-sm space-y-3">
               <Link
                 to="/book"
                 className="label-caps group flex w-full items-center justify-between gap-4 bg-foreground px-6 py-4.5 text-background transition-colors duration-300 hover:bg-foreground/88"
@@ -79,13 +79,13 @@ function Home() {
           </div>
         </main>
 
-        <nav className="grid grid-cols-3 hairline-t">
+        <nav className="grid grid-cols-3 hairline-t safe-b lg:pb-0">
           {quickLinks.map((l, i) => (
             <Link
               key={l.to}
               to={l.to}
               className={
-                "label-caps py-5 text-center text-foreground/70 transition-colors hover:text-foreground" +
+                "label-caps py-4 lg:py-5 text-center text-foreground/70 transition-colors hover:text-foreground" +
                 (i < 2 ? " border-r border-hairline" : "")
               }
             >
@@ -93,7 +93,7 @@ function Home() {
             </Link>
           ))}
         </nav>
-        <div className="safe-b hairline-t lg:hidden">
+        <div className="hidden">
           <Link to="/artist" className="eyebrow block py-4 text-center">
             The Artist · D. Bhargav
           </Link>
