@@ -19,7 +19,7 @@ export const Route = createFileRoute("/details")({
 });
 
 const field =
-  "w-full border-0 border-b border-foreground/20 bg-transparent px-0 py-3 text-[1.05rem] outline-none transition-colors placeholder:text-foreground/30 focus:border-foreground";
+  "w-full border-0 border-b border-foreground/20 bg-transparent px-0 py-3 text-[1.05rem] outline-none scroll-mb-40 aria-[invalid=true]:border-destructive transition-colors placeholder:text-foreground/30 focus:border-foreground";
 
 function DetailsScreen() {
   const { draft, hydrated, update } = useBooking();
@@ -73,7 +73,7 @@ function DetailsScreen() {
           Who should we <span className="italic">expect?</span>
         </h1>
 
-        <form className="mt-10 space-y-8" onSubmit={submit}>
+        <form noValidate className="mt-8 space-y-6 sm:mt-10" onSubmit={submit}>
           <div>
             <label className="eyebrow" htmlFor="name">
               Full name
@@ -85,10 +85,10 @@ function DetailsScreen() {
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
               autoComplete="name"
+              enterKeyHint="next"
+              aria-invalid={touched && !validName}
             />
-            {touched && !validName ? (
-              <p className="mt-2 text-xs text-destructive">Please enter your name.</p>
-            ) : null}
+            <p role="alert" className="mt-2 min-h-4 text-xs text-destructive">{touched && !validName ? "Please enter your name." : ""}</p>
           </div>
 
           <div>
@@ -101,12 +101,13 @@ function DetailsScreen() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="10-digit mobile"
+              type="tel"
               inputMode="tel"
+              enterKeyHint="next"
+              aria-invalid={touched && !validPhone}
               autoComplete="tel"
             />
-            {touched && !validPhone ? (
-              <p className="mt-2 text-xs text-destructive">Enter a valid 10-digit number.</p>
-            ) : null}
+            <p role="alert" className="mt-2 min-h-4 text-xs text-destructive">{touched && !validPhone ? "Enter a valid 10-digit number." : ""}</p>
           </div>
 
           <div>
@@ -119,11 +120,14 @@ function DetailsScreen() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@email.com"
+              type="email"
+              inputMode="email"
               autoComplete="email"
+              autoCapitalize="off"
+              enterKeyHint="next"
+              aria-invalid={touched && !validEmail}
             />
-            {touched && !validEmail ? (
-              <p className="mt-2 text-xs text-destructive">That email doesn't look right.</p>
-            ) : null}
+            <p role="alert" className="mt-2 min-h-4 text-xs text-destructive">{touched && !validEmail ? "That email doesn't look right." : ""}</p>
           </div>
 
           <div>

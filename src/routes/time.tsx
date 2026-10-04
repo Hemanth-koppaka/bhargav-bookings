@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Page, Screen, ScreenHeader, StickyBar, PrimaryAction } from "@/components/screen";
 import { useBooking } from "@/lib/booking-store";
 import {
@@ -35,6 +35,13 @@ function TimeScreen() {
     if (hydrated && selected.length === 0) navigate({ to: "/book" });
   }, [hydrated, selected.length, navigate]);
 
+  const dayRow = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    dayRow.current
+      ?.querySelector<HTMLElement>('[aria-pressed="true"]')
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [draft.date, hydrated]);
+
   const days = useMemo(() => calendarDays(56, now), [now]);
   const slots = useMemo(
     () => (draft.date ? availableSlots(draft.date, totalSlots, now) : []),
@@ -52,17 +59,19 @@ function TimeScreen() {
           We're closed on Tuesdays. Slots run 10:00 AM to 8:00 PM.
         </p>
 
-        <div className="-mx-6 mt-9 overflow-x-auto px-6 pb-2">
-          <div className="flex gap-2">
+        <div ref={dayRow} aria-label="Choose a date" className="-mx-6 mt-8 overflow-x-auto overscroll-x-contain scroll-px-6 px-6 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max gap-2">
             {days.map((d) => {
               const on = draft.date === d.iso;
               return (
                 <button
                   key={d.iso}
                   disabled={!d.selectable}
+                  aria-pressed={on}
+                  aria-label={d.date.toDateString() + (d.selectable ? "" : " (closed)")}
                   onClick={() => update({ date: d.iso, time: null })}
                   className={
-                    "flex w-16 shrink-0 flex-col items-center border py-3 transition-colors duration-200 " +
+                    "flex w-[3.75rem] shrink-0 flex-col items-center border py-3 transition-colors duration-200 " +
                     (on
                       ? "border-foreground bg-foreground text-background"
                       : d.selectable
@@ -88,16 +97,17 @@ function TimeScreen() {
         {draft.date ? (
           <div className="mt-10">
             <div className="eyebrow">{formatLongDate(draft.date)}</div>
-            <div className="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-4">
+            <div className="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
               {slots.map((s) => {
                 const on = draft.time === s.minute;
                 return (
                   <button
                     key={s.minute}
                     disabled={!s.available}
+                    aria-pressed={on}
                     onClick={() => update({ time: s.minute })}
                     className={
-                      "border py-3.5 text-[0.78rem] tracking-[0.08em] transition-colors duration-200 " +
+                      "min-h-12 whitespace-nowrap border px-1 py-3 text-[0.78rem] tracking-[0.08em] transition-colors duration-200 " +
                       (on
                         ? "border-foreground bg-foreground text-background"
                         : s.available
