@@ -105,7 +105,8 @@ function Home() {
         <img
           src={founder.url}
           alt="B. Bhargav, founder and chief stylist"
-          className="h-full w-full object-cover grayscale"
+          className="h-full w-full bg-muted object-cover grayscale"
+          decoding="async"
         />
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-10">
           <div className="eyebrow text-white/60">Founder · Chief Stylist</div>

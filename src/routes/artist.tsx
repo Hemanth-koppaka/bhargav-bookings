@@ -29,7 +29,8 @@ function ArtistScreen() {
         <img
           src={founder.url}
           alt="D. Bhargav, founder and chief stylist"
-          className="mt-2 aspect-4/5 w-full object-cover grayscale"
+          className="mt-2 aspect-4/5 w-full bg-muted object-cover grayscale"
+          decoding="async"
           loading="lazy"
         />
         <div className="eyebrow mt-8">Founder · Chief Stylist</div>

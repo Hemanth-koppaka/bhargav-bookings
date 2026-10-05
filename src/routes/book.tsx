@@ -64,7 +64,9 @@ function BookEntry() {
                 <img
                   src={o.img}
                   alt=""
-                  className="absolute inset-y-0 right-0 h-full w-[62%] object-cover"
+                  className="absolute inset-y-0 right-0 h-full w-[62%] bg-muted object-cover"
+                  decoding="async"
+                  fetchPriority="high"
                   style={{ objectPosition: o.pos }}
                 />
                 <span className="absolute inset-y-0 right-0 w-[62%] bg-gradient-to-r from-card via-card/10 to-transparent" />
