@@ -40,10 +40,10 @@ function ManageScreen() {
     ? bookings.find((b) => b.reference === foundRef)
     : undefined;
 
-  const lookup = () => {
-    const b = findBooking(reference, phone);
+  const lookup = async () => {
+    const b = await findBooking(reference, phone);
     if (!b) {
-      setError("No booking matches that reference and number on this device.");
+      setError("No booking matches that reference and number ");
       setFoundRef(null);
       return;
     }
