@@ -29,7 +29,7 @@ export type BookingRow = {
   customer: { name: string; phone: string; email: string; notes?: string };
   status: "confirmed" | "cancelled";
   source: "online" | "walk-in";
-  meta: Record<string, unknown>;
+  meta: Record<string, string | number | boolean | null>;
   createdAt: string;
 };
 
@@ -55,7 +55,7 @@ function toRow(r: any): BookingRow {
 export const getSalonConfig = createServerFn({ method: "GET" }).handler(async () => {
   const sb = await db();
   const { data } = await sb.from("salon_config").select("data").eq("id", 1).maybeSingle();
-  return { config: (data?.data ?? {}) as Record<string, unknown> };
+  return { configJson: JSON.stringify(data?.data ?? {}) };
 });
 
 export const getBusySlots = createServerFn({ method: "GET" })
