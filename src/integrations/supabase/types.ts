@@ -14,7 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      admin_secret: {
+        Row: {
+          id: number
+          pin: string
+        }
+        Insert: {
+          id?: number
+          pin: string
+        }
+        Update: {
+          id?: number
+          pin?: string
+        }
+        Relationships: []
+      }
+      bookings: {
+        Row: {
+          audience: string
+          created_at: string
+          customer: Json
+          date: string
+          meta: Json
+          reference: string
+          service_ids: string[]
+          slots: number
+          source: string
+          status: string
+          time: number
+          updated_at: string
+        }
+        Insert: {
+          audience: string
+          created_at?: string
+          customer: Json
+          date: string
+          meta?: Json
+          reference: string
+          service_ids?: string[]
+          slots?: number
+          source?: string
+          status?: string
+          time: number
+          updated_at?: string
+        }
+        Update: {
+          audience?: string
+          created_at?: string
+          customer?: Json
+          date?: string
+          meta?: Json
+          reference?: string
+          service_ids?: string[]
+          slots?: number
+          source?: string
+          status?: string
+          time?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      salon_config: {
+        Row: {
+          data: Json
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          data?: Json
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          data?: Json
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -326,9 +326,11 @@ export const formatDuration = (slots: number) => {
 
 /* ── Availability ────────────────────────────────────────────── */
 
-export const OPEN_MINUTE = 10 * 60; // 10:00
-export const CLOSE_MINUTE = 20 * 60; // 20:00
-export const TOTAL_SLOTS = (CLOSE_MINUTE - OPEN_MINUTE) / SLOT_MINUTES; // 20
+export let OPEN_MINUTE = 10 * 60; // 10:00 — admin-editable via applyConfig
+export let CLOSE_MINUTE = 20 * 60; // 20:00
+export let TOTAL_SLOTS = (CLOSE_MINUTE - OPEN_MINUTE) / SLOT_MINUTES;
+export let ACCEPTING_BOOKINGS = true;
+export let MAX_ADVANCE_DAYS = 56;
 
 export const toISO = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -338,7 +340,11 @@ export const fromISO = (iso: string) => {
   return new Date(parts[0] ?? 1970, (parts[1] ?? 1) - 1, parts[2] ?? 1);
 };
 
-export const isClosed = (iso: string) => fromISO(iso).getDay() === 2; // Tuesday
+const DAY_INDEX = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const isClosed = (iso: string) => {
+  const name = DAY_INDEX[fromISO(iso).getDay()];
+  return WEEK.some((w) => w.day === name && w.closed);
+};
 
 export const minuteLabel = (min: number) => {
   const h24 = Math.floor(min / 60);
@@ -357,8 +363,13 @@ export const formatLongDate = (iso: string) => {
 };
 
 /** Slot start-times (in minutes from midnight) that can fit `slotsNeeded`. */
-export function availableSlots(iso: string, slotsNeeded: number, now = new Date()) {
-  if (isClosed(iso)) return [];
+export function availableSlots(
+  iso: string,
+  slotsNeeded: number,
+  now = new Date(),
+  busy: { time: number; slots: number }[] = [],
+) {
+  if (isClosed(iso) || !ACCEPTING_BOOKINGS) return [];
   const isToday = toISO(now) === iso;
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const out: { minute: number; available: boolean }[] = [];
@@ -366,13 +377,15 @@ export function availableSlots(iso: string, slotsNeeded: number, now = new Date(
     const start = OPEN_MINUTE + i * SLOT_MINUTES;
     const fits = start + Math.max(1, slotsNeeded) * SLOT_MINUTES <= CLOSE_MINUTE;
     const future = !isToday || start >= nowMin + 30;
-    out.push({ minute: start, available: fits && future });
+    const end = start + Math.max(1, slotsNeeded) * SLOT_MINUTES;
+    const clash = busy.some((b) => start < b.time + b.slots * SLOT_MINUTES && b.time < end);
+    out.push({ minute: start, available: fits && future && !clash });
   }
   return out;
 }
 
 /** Next 60 bookable calendar days (Tuesdays excluded from selection). */
-export function calendarDays(count = 56, now = new Date()) {
+export function calendarDays(count = MAX_ADVANCE_DAYS, now = new Date()) {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const days: { iso: string; date: Date; selectable: boolean }[] = [];
   for (let i = 0; i < count; i++) {
@@ -382,4 +395,59 @@ export function calendarDays(count = 56, now = new Date()) {
     days.push({ iso, date: d, selectable: !isClosed(iso) });
   }
   return days;
+}
+
+/* ── Admin-editable configuration ────────────────────────────── */
+
+export type SalonConfig = {
+  business?: Partial<typeof BUSINESS>;
+  week?: { day: string; closed: boolean }[];
+  openMinute?: number;
+  closeMinute?: number;
+  accepting?: boolean;
+  maxAdvanceDays?: number;
+  menMenu?: Category[];
+  womenMenu?: Category[];
+};
+
+const DEFAULTS = {
+  business: structuredClone(BUSINESS),
+  week: structuredClone(WEEK),
+  men: structuredClone(MEN_MENU),
+  women: structuredClone(WOMEN_MENU),
+};
+
+export function defaultConfig(): Required<SalonConfig> {
+  return {
+    business: structuredClone(DEFAULTS.business),
+    week: structuredClone(DEFAULTS.week),
+    openMinute: 10 * 60,
+    closeMinute: 20 * 60,
+    accepting: true,
+    maxAdvanceDays: 56,
+    menMenu: structuredClone(DEFAULTS.men),
+    womenMenu: structuredClone(DEFAULTS.women),
+  };
+}
+
+function replaceArray<T>(target: T[], next: T[]) {
+  target.splice(0, target.length, ...next);
+}
+
+let appliedKey = "";
+/** Mutates the shared menu/business data in place so every screen sees admin edits. */
+export function applyConfig(cfg: SalonConfig | null | undefined) {
+  const full = { ...defaultConfig(), ...(cfg ?? {}) };
+  const key = JSON.stringify(full);
+  if (key === appliedKey) return;
+  appliedKey = key;
+  Object.assign(BUSINESS, DEFAULTS.business, full.business);
+  replaceArray(WEEK, full.week);
+  replaceArray(MEN_MENU, full.menMenu);
+  replaceArray(WOMEN_MENU, full.womenMenu);
+  OPEN_MINUTE = full.openMinute;
+  CLOSE_MINUTE = Math.max(full.closeMinute, full.openMinute + SLOT_MINUTES);
+  TOTAL_SLOTS = (CLOSE_MINUTE - OPEN_MINUTE) / SLOT_MINUTES;
+  ACCEPTING_BOOKINGS = full.accepting;
+  MAX_ADVANCE_DAYS = full.maxAdvanceDays;
 }
