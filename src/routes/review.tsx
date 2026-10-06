@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Page, Screen, ScreenHeader, StickyBar, PrimaryAction, Rule } from "@/components/screen";
 import { useBooking } from "@/lib/booking-store";
 import { formatDuration, formatLongDate, inr, minuteLabel } from "@/lib/salon";
@@ -31,6 +31,8 @@ function ReviewScreen() {
     commitBooking,
   } = useBooking();
   const navigate = useNavigate();
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const ready = Boolean(draft.date && draft.time != null && draft.customer && selected.length);
 
@@ -40,9 +42,14 @@ function ReviewScreen() {
 
   if (!ready || !draft.customer || !draft.date || draft.time == null) return null;
 
-  const confirm = () => {
-    const b = commitBooking();
-    if (b) navigate({ to: "/confirmed", search: { ref: b.reference, seq: 1 } });
+  const confirm = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError("");
+    const res = await commitBooking();
+    setSaving(false);
+    if ("error" in res) setSaveError(res.error);
+    else navigate({ to: "/confirmed", search: { ref: res.booking.reference, seq: 1 } });
   };
 
   return (

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { findService, type Audience, type Service } from "./salon";
+import { createBooking, findMyBooking, updateMyBooking } from "./salon.functions";
 
 export type BookingStatus = "confirmed" | "cancelled";
 
@@ -52,8 +53,8 @@ type Ctx = {
   totalPrice: number;
   hasFromPricing: boolean;
   bookings: Booking[];
-  commitBooking: () => Booking | null;
-  findBooking: (reference: string, phone: string) => Booking | undefined;
+  commitBooking: () => Promise<{ booking: Booking } | { error: string }>;
+  findBooking: (reference: string, phone: string) => Promise<Booking | undefined>;
   cancelBooking: (reference: string) => void;
   rescheduleBooking: (reference: string, date: string, time: number) => void;
   hydrated: boolean;
@@ -136,8 +137,9 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       removeService: (id) =>
         setDraft((d) => ({ ...d, serviceIds: d.serviceIds.filter((x) => x !== id), time: null })),
       resetDraft: () => setDraft(EMPTY),
-      commitBooking: () => {
-        if (!draft.audience || !draft.date || draft.time == null || !draft.customer) return null;
+      commitBooking: async () => {
+        if (!draft.audience || !draft.date || draft.time == null || !draft.customer)
+          return { error: "Your booking is incomplete." };
         const booking: Booking = {
           reference: makeReference(),
           audience: draft.audience,
@@ -148,24 +150,52 @@ export function BookingProvider({ children }: { children: ReactNode }) {
           status: "confirmed",
           createdAt: new Date().toISOString(),
         };
+        try {
+          const res = await createBooking({
+            data: { ...booking, slots: Math.max(1, totalSlots), customer: { ...booking.customer, email: booking.customer.email ?? "" } },
+          });
+          if (!res.ok) return { error: res.error };
+        } catch {
+          return { error: "We couldn't reach the salon. Check your connection and try again." };
+        }
         setBookings((b) => [booking, ...b]);
-        return booking;
+        return { booking };
       },
-      findBooking: (reference, phone) => {
-        const ref = reference.trim().toUpperCase();
-        const digits = phone.replace(/\D/g, "").slice(-10);
-        return bookings.find(
-          (b) =>
-            b.reference.toUpperCase() === ref &&
-            b.customer.phone.replace(/\D/g, "").slice(-10) === digits,
-        );
+      findBooking: async (reference, phone) => {
+        try {
+          const { booking: r } = await findMyBooking({ data: { reference, phone } });
+          if (!r) return undefined;
+          const found: Booking = {
+            reference: r.reference,
+            audience: r.audience,
+            serviceIds: r.serviceIds,
+            date: r.date,
+            time: r.time,
+            customer: r.customer,
+            status: r.status,
+            createdAt: r.createdAt,
+          };
+          setBookings((b) => [found, ...b.filter((x) => x.reference !== found.reference)]);
+          return found;
+        } catch {
+          return undefined;
+        }
       },
-      cancelBooking: (reference) =>
+      cancelBooking: (reference) => {
+        const bk = bookings.find((x) => x.reference === reference);
+        if (bk) void updateMyBooking({ data: { reference, phone: bk.customer.phone, action: "cancel" } });
         setBookings((b) =>
           b.map((x) => (x.reference === reference ? { ...x, status: "cancelled" as const } : x)),
-        ),
-      rescheduleBooking: (reference, date, time) =>
-        setBookings((b) => b.map((x) => (x.reference === reference ? { ...x, date, time } : x))),
+        );
+      },
+      rescheduleBooking: (reference, date, time) => {
+        const bk = bookings.find((x) => x.reference === reference);
+        if (bk)
+          void updateMyBooking({
+            data: { reference, phone: bk.customer.phone, action: "reschedule", date, time },
+          });
+        setBookings((b) => b.map((x) => (x.reference === reference ? { ...x, date, time } : x)));
+      },
     };
   }, [draft, bookings, hydrated]);
 
