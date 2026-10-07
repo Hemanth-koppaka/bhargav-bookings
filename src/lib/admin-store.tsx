@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { findService, toISO, type Audience, type Service } from "./salon";
-import { useBooking, type Booking, type Customer } from "./booking-store";
+import { type Booking, type Customer } from "./booking-store";
+import { adminCheckPin, adminListBookings, adminUpsertBooking, adminChangePin, type BookingRow } from "./salon.functions";
 
 /* ── Types ───────────────────────────────────────────────────── */
 
@@ -110,7 +111,8 @@ function makeRef() {
 type Ctx = {
   hydrated: boolean;
   authed: boolean;
-  signIn: (pin: string) => boolean;
+  signIn: (pin: string) => Promise<boolean>;
+  refresh: () => void;
   signOut: () => void;
 
   appointments: Appointment[];
@@ -135,7 +137,8 @@ type Ctx = {
 const AdminContext = createContext<Ctx | null>(null);
 
 export function AdminProvider({ children }: { children: ReactNode }) {
-  const { bookings, rescheduleBooking } = useBooking();
+  const [rows, setRows] = useState<BookingRow[]>([]);
+  const [pinCode, setPinCode] = useState("");
 
   const [hydrated, setHydrated] = useState(false);
   const [authed, setAuthed] = useState(false);
@@ -149,9 +152,28 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setWalkIns(read<WalkIn[]>(WALKIN_KEY, []));
     setStaff(read<Staff[]>(STAFF_KEY, DEFAULT_STAFF));
     setSettings({ ...DEFAULT_SETTINGS, ...read<Partial<AdminSettings>>(SETTINGS_KEY, {}) });
-    setAuthed(window.sessionStorage.getItem(SESSION_KEY) === "1");
+    const saved = window.sessionStorage.getItem(SESSION_KEY) ?? "";
+    if (saved.length >= 4) {
+      setPinCode(saved);
+      setAuthed(true);
+    }
     setHydrated(true);
   }, []);
+
+  const load = (pin: string) =>
+    adminListBookings({ data: { pin } })
+      .then((r) => setRows(r.bookings))
+      .catch(() => {
+        setAuthed(false);
+        window.sessionStorage.removeItem(SESSION_KEY);
+      });
+
+  useEffect(() => {
+    if (!authed || !pinCode) return;
+    void load(pinCode);
+    const t = window.setInterval(() => void load(pinCode), 30000);
+    return () => window.clearInterval(t);
+  }, [authed, pinCode]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -194,24 +216,43 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     };
 
     const appointments: Appointment[] = [
-      ...bookings.map((b) => build(b, "online", b.status === "cancelled")),
-      ...walkIns.map((w) => build(w, "walk-in", false)),
+      ...rows.map((r) => {
+        const a = build(r, r.source, r.status === "cancelled");
+        const m = r.meta as Partial<ApptMeta>;
+        a.meta = r.status === "cancelled" ? { ...DEFAULT_META, ...m, status: "cancelled" } : { ...DEFAULT_META, ...m };
+        return a;
+      }),
+      ...walkIns.filter((w) => !rows.some((r) => r.reference === w.reference)).map((w) => build(w, "walk-in", false)),
     ].sort((a, z) => (a.date === z.date ? a.time - z.time : a.date < z.date ? -1 : 1));
 
-    const patchMeta = (reference: string, patch: Partial<ApptMeta>) =>
-      setMetas((m) => ({ ...m, [reference]: { ...DEFAULT_META, ...m[reference], ...patch } }));
+    const patchMeta = (reference: string, patch: Partial<ApptMeta>) => {
+      const row = rows.find((r) => r.reference === reference);
+      const next = { ...DEFAULT_META, ...metas[reference], ...(row?.meta as Partial<ApptMeta>), ...patch };
+      setMetas((m) => ({ ...m, [reference]: next }));
+      setRows((rs) => rs.map((r) => (r.reference === reference ? { ...r, meta: next, status: patch.status === "cancelled" ? "cancelled" : patch.status ? "confirmed" : r.status } : r)));
+      void adminUpsertBooking({
+        data: {
+          pin: pinCode,
+          reference,
+          patch: { meta: next, ...(patch.status ? { status: patch.status === "cancelled" ? "cancelled" : "confirmed" } : {}) },
+        },
+      }).catch(() => {});
+    };
 
     return {
       hydrated,
       authed,
-      signIn: (pin) => {
-        const ok = pin.trim() === settings.pin;
+      signIn: async (pin) => {
+        const p = pin.trim();
+        const { ok } = await adminCheckPin({ data: { pin: p } }).catch(() => ({ ok: false }));
         if (ok) {
+          setPinCode(p);
           setAuthed(true);
-          window.sessionStorage.setItem(SESSION_KEY, "1");
+          window.sessionStorage.setItem(SESSION_KEY, p);
         }
         return ok;
       },
+      refresh: () => void load(pinCode),
       signOut: () => {
         setAuthed(false);
         window.sessionStorage.removeItem(SESSION_KEY);
@@ -224,11 +265,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setPayment: (reference, payment, amount) => patchMeta(reference, { payment, amount }),
       setNote: (reference, note) => patchMeta(reference, { note }),
       reschedule: (reference, date, time) => {
-        if (reference.startsWith("WI-")) {
-          setWalkIns((w) => w.map((x) => (x.reference === reference ? { ...x, date, time } : x)));
-        } else {
-          rescheduleBooking(reference, date, time);
-        }
+        setRows((rs) => rs.map((r) => (r.reference === reference ? { ...r, date, time } : r)));
+        void adminUpsertBooking({ data: { pin: pinCode, reference, patch: { date, time } } }).catch(() => {});
       },
 
       addWalkIn: (input) => {
@@ -237,8 +275,27 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           reference: makeRef(),
           createdAt: new Date().toISOString(),
         };
-        setWalkIns((w) => [entry, ...w]);
-        return build(entry, "walk-in", false);
+        const appt = build(entry, "walk-in", false);
+        setRows((rs) => [
+          { ...entry, slots: appt.slots, status: "confirmed", source: "walk-in", meta: {} },
+          ...rs,
+        ]);
+        void adminUpsertBooking({
+          data: {
+            pin: pinCode,
+            reference: entry.reference,
+            insert: {
+              audience: entry.audience,
+              serviceIds: entry.serviceIds,
+              date: entry.date,
+              time: entry.time,
+              slots: appt.slots,
+              customer: { ...entry.customer, email: entry.customer.email ?? "" },
+              source: "walk-in",
+            },
+          },
+        }).catch(() => {});
+        return appt;
       },
 
       staff,
@@ -252,9 +309,18 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       removeStaff: (id) => setStaff((s) => s.filter((x) => x.id !== id)),
 
       settings,
-      updateSettings: (patch) => setSettings((s) => ({ ...s, ...patch })),
+      updateSettings: (patch) => {
+        if (patch.pin && /^\d{4,8}$/.test(patch.pin)) {
+          const next = patch.pin;
+          void adminChangePin({ data: { pin: pinCode, next } }).then(() => {
+            setPinCode(next);
+            window.sessionStorage.setItem(SESSION_KEY, next);
+          });
+        }
+        setSettings((s) => ({ ...s, ...patch }));
+      },
     };
-  }, [bookings, walkIns, metas, staff, settings, hydrated, authed, rescheduleBooking]);
+  }, [rows, walkIns, metas, staff, settings, hydrated, authed, pinCode]);
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;
 }

@@ -42,9 +42,9 @@ function AdminLayout() {
           <h1 className="mt-3 font-display text-4xl leading-tight">Enter your access code</h1>
           <form
             className="mt-10"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              if (!signIn(pin)) setError("That code doesn't match.");
+              if (!(await signIn(pin))) setError("That code doesn't match.");
               else setError("");
             }}
           >
@@ -69,7 +69,7 @@ function AdminLayout() {
             </button>
           </form>
           <p className="mt-6 text-[0.7rem] leading-relaxed text-muted-foreground">
-            This console stays on this device only.
+            Bookings from every device appear here.
           </p>
         </div>
       </div>
