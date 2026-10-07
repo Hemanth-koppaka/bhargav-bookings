@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Page, Screen, ScreenHeader, StickyBar, PrimaryAction } from "@/components/screen";
 import { useBooking } from "@/lib/booking-store";
+import { getBusySlots } from "@/lib/salon.functions";
 import {
   availableSlots,
   calendarDays,
@@ -43,9 +44,21 @@ function TimeScreen() {
   }, [draft.date, hydrated]);
 
   const days = useMemo(() => calendarDays(56, now), [now]);
+  const [busy, setBusy] = useState<{ time: number; slots: number }[]>([]);
+  useEffect(() => {
+    if (!draft.date) return;
+    let live = true;
+    setBusy([]);
+    getBusySlots({ data: { date: draft.date } })
+      .then((r) => live && setBusy(r.busy))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [draft.date]);
   const slots = useMemo(
-    () => (draft.date ? availableSlots(draft.date, totalSlots, now) : []),
-    [draft.date, totalSlots, now],
+    () => (draft.date ? availableSlots(draft.date, totalSlots, now, busy) : []),
+    [draft.date, totalSlots, now, busy],
   );
 
   return (

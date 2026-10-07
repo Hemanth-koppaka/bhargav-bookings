@@ -43,7 +43,7 @@ function ManageScreen() {
   const lookup = async () => {
     const b = await findBooking(reference, phone);
     if (!b) {
-      setError("No booking matches that reference and number ");
+      setError("No booking matches that reference and mobile number. Please check both and try again.");
       setFoundRef(null);
       return;
     }
