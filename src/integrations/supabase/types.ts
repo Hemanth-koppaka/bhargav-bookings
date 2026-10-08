@@ -38,6 +38,7 @@ export type Database = {
           meta: Json
           reference: string
           service_ids: string[]
+          services_snapshot: Json
           slots: number
           source: string
           status: string
@@ -52,6 +53,7 @@ export type Database = {
           meta?: Json
           reference: string
           service_ids?: string[]
+          services_snapshot?: Json
           slots?: number
           source?: string
           status?: string
@@ -66,10 +68,62 @@ export type Database = {
           meta?: Json
           reference?: string
           service_ids?: string[]
+          services_snapshot?: Json
           slots?: number
           source?: string
           status?: string
           time?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      opening_exceptions: {
+        Row: {
+          closing_time: string | null
+          date: string
+          is_open: boolean
+          note: string
+          opening_time: string | null
+          updated_at: string
+        }
+        Insert: {
+          closing_time?: string | null
+          date: string
+          is_open?: boolean
+          note?: string
+          opening_time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          closing_time?: string | null
+          date?: string
+          is_open?: boolean
+          note?: string
+          opening_time?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      opening_hours: {
+        Row: {
+          closing_time: string
+          day_of_week: number
+          is_open: boolean
+          opening_time: string
+          updated_at: string
+        }
+        Insert: {
+          closing_time?: string
+          day_of_week: number
+          is_open?: boolean
+          opening_time?: string
+          updated_at?: string
+        }
+        Update: {
+          closing_time?: string
+          day_of_week?: number
+          is_open?: boolean
+          opening_time?: string
           updated_at?: string
         }
         Relationships: []
@@ -89,6 +143,113 @@ export type Database = {
           data?: Json
           id?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      service_categories: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string
+          display_order: number
+          gender: string
+          id: string
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          display_order?: number
+          gender: string
+          id: string
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          display_order?: number
+          gender?: string
+          id?: string
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          active: boolean
+          category_id: string
+          created_at: string
+          description: string
+          display_order: number
+          duration_minutes: number
+          gender: string
+          id: string
+          name: string
+          price: number
+          price_from: boolean
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category_id: string
+          created_at?: string
+          description?: string
+          display_order?: number
+          duration_minutes?: number
+          gender: string
+          id: string
+          name: string
+          price?: number
+          price_from?: boolean
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category_id?: string
+          created_at?: string
+          description?: string
+          display_order?: number
+          duration_minutes?: number
+          gender?: string
+          id?: string
+          name?: string
+          price?: number
+          price_from?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "service_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
         }
         Relationships: []
       }
