@@ -49,7 +49,12 @@ export const BUSINESS = {
   ],
 };
 
-export const WEEK = [
+export type WeekDay = { day: string; closed: boolean; open?: number; close?: number };
+export type DateException = { closed: boolean; open?: number; close?: number; note?: string };
+/** Specific dates that override the weekly pattern (holidays, special hours). */
+export const EXCEPTIONS: Record<string, DateException> = {};
+
+export const WEEK: WeekDay[] = [
   { day: "Monday", closed: false },
   { day: "Tuesday", closed: true },
   { day: "Wednesday", closed: false },
@@ -342,8 +347,19 @@ export const fromISO = (iso: string) => {
 
 const DAY_INDEX = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const isClosed = (iso: string) => {
+  const ex = EXCEPTIONS[iso];
+  if (ex) return ex.closed;
   const name = DAY_INDEX[fromISO(iso).getDay()];
   return WEEK.some((w) => w.day === name && w.closed);
+};
+
+/** Opening and closing minute for a date (exception → weekday → salon default). */
+export const hoursFor = (iso: string) => {
+  const ex = EXCEPTIONS[iso];
+  const w = WEEK.find((x) => x.day === DAY_INDEX[fromISO(iso).getDay()]);
+  const open = ex && !ex.closed && ex.open != null ? ex.open : (w?.open ?? OPEN_MINUTE);
+  const close = ex && !ex.closed && ex.close != null ? ex.close : (w?.close ?? CLOSE_MINUTE);
+  return { open, close: Math.max(close, open + SLOT_MINUTES) };
 };
 
 export const minuteLabel = (min: number) => {
@@ -373,9 +389,11 @@ export function availableSlots(
   const isToday = toISO(now) === iso;
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const out: { minute: number; available: boolean }[] = [];
-  for (let i = 0; i < TOTAL_SLOTS; i++) {
-    const start = OPEN_MINUTE + i * SLOT_MINUTES;
-    const fits = start + Math.max(1, slotsNeeded) * SLOT_MINUTES <= CLOSE_MINUTE;
+  const h = hoursFor(iso);
+  const count = (h.close - h.open) / SLOT_MINUTES;
+  for (let i = 0; i < count; i++) {
+    const start = h.open + i * SLOT_MINUTES;
+    const fits = start + Math.max(1, slotsNeeded) * SLOT_MINUTES <= h.close;
     const future = !isToday || start >= nowMin + 30;
     const end = start + Math.max(1, slotsNeeded) * SLOT_MINUTES;
     const clash = busy.some((b) => start < b.time + b.slots * SLOT_MINUTES && b.time < end);
@@ -401,7 +419,8 @@ export function calendarDays(count = MAX_ADVANCE_DAYS, now = new Date()) {
 
 export type SalonConfig = {
   business?: Partial<typeof BUSINESS>;
-  week?: { day: string; closed: boolean }[];
+  week?: WeekDay[];
+  exceptions?: Record<string, DateException>;
   openMinute?: number;
   closeMinute?: number;
   accepting?: boolean;
@@ -421,6 +440,7 @@ export function defaultConfig(): Required<SalonConfig> {
   return {
     business: structuredClone(DEFAULTS.business),
     week: structuredClone(DEFAULTS.week),
+    exceptions: {},
     openMinute: 10 * 60,
     closeMinute: 20 * 60,
     accepting: true,
@@ -443,6 +463,8 @@ export function applyConfig(cfg: SalonConfig | null | undefined) {
   appliedKey = key;
   Object.assign(BUSINESS, DEFAULTS.business, full.business);
   replaceArray(WEEK, full.week);
+  for (const k of Object.keys(EXCEPTIONS)) delete EXCEPTIONS[k];
+  Object.assign(EXCEPTIONS, full.exceptions);
   replaceArray(MEN_MENU, full.menMenu);
   replaceArray(WOMEN_MENU, full.womenMenu);
   OPEN_MINUTE = full.openMinute;
