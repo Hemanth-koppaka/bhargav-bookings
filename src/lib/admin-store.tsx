@@ -112,6 +112,7 @@ function makeRef() {
 type Ctx = {
   hydrated: boolean;
   authed: boolean;
+  pin: string;
   signIn: (pin: string) => Promise<boolean>;
   refresh: () => void;
   signOut: () => void;
@@ -309,6 +310,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         setStaff((s) => s.map((x) => (x.id === id ? { ...x, active: !x.active } : x))),
       removeStaff: (id) => setStaff((s) => s.filter((x) => x.id !== id)),
 
+      pin: pinCode,
       settings,
       updateSettings: (patch) => {
         if (patch.pin && /^\d{4,8}$/.test(patch.pin)) {
