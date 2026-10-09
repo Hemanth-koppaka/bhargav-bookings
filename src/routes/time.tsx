@@ -5,9 +5,12 @@ import { useBooking } from "@/lib/booking-store";
 import { getBusySlots } from "@/lib/salon.functions";
 import {
   availableSlots,
+  breaksFor,
   calendarDays,
   formatDuration,
   formatLongDate,
+  hoursFor,
+  isClosed,
   minuteLabel,
 } from "@/lib/salon";
 
@@ -60,6 +63,8 @@ function TimeScreen() {
     () => (draft.date ? availableSlots(draft.date, totalSlots, now, busy) : []),
     [draft.date, totalSlots, now, busy],
   );
+  const selectedHours = draft.date ? hoursFor(draft.date) : null;
+  const selectedBreaks = draft.date ? breaksFor(draft.date) : [];
 
   return (
     <Page>
@@ -69,7 +74,7 @@ function TimeScreen() {
           When suits <span className="italic">you?</span>
         </h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          We're closed on Tuesdays. Slots run 10:00 AM to 8:00 PM.
+          Choose a day and time. Blocked, closed, booked, and break periods are shown unavailable.
         </p>
 
         <div ref={dayRow} aria-label="Choose a date" className="-mx-6 mt-8 overflow-x-auto overscroll-x-contain scroll-px-6 px-6 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -110,6 +115,16 @@ function TimeScreen() {
         {draft.date ? (
           <div className="mt-10">
             <div className="eyebrow">{formatLongDate(draft.date)}</div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {isClosed(draft.date)
+                ? "Salon closed"
+                : selectedHours
+                  ? `Open ${minuteLabel(selectedHours.open)} — ${minuteLabel(selectedHours.close)}`
+                  : ""}
+              {selectedBreaks.length
+                ? ` · Break ${selectedBreaks.map((b) => `${minuteLabel(b.start)}–${minuteLabel(b.end)}`).join(", ")}`
+                : ""}
+            </p>
             <div className="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
               {slots.map((s) => {
                 const on = draft.time === s.minute;

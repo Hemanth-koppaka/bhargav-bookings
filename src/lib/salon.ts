@@ -49,8 +49,21 @@ export const BUSINESS = {
   ],
 };
 
-export type WeekDay = { day: string; closed: boolean; open?: number; close?: number };
-export type DateException = { closed: boolean; open?: number; close?: number; note?: string };
+export type TimeRange = { start: number; end: number };
+export type WeekDay = {
+  day: string;
+  closed: boolean;
+  open?: number;
+  close?: number;
+  breaks?: TimeRange[];
+};
+export type DateException = {
+  closed: boolean;
+  open?: number;
+  close?: number;
+  breaks?: TimeRange[];
+  note?: string;
+};
 /** Specific dates that override the weekly pattern (holidays, special hours). */
 export const EXCEPTIONS: Record<string, DateException> = {};
 
@@ -362,6 +375,26 @@ export const hoursFor = (iso: string) => {
   return { open, close: Math.max(close, open + SLOT_MINUTES) };
 };
 
+const normaliseBreaks = (ranges: TimeRange[] | undefined, dayOpen: number, dayClose: number) =>
+  (ranges ?? [])
+    .map((r) => ({
+      start: Math.max(dayOpen, Math.min(r.start, dayClose)),
+      end: Math.max(dayOpen, Math.min(r.end, dayClose)),
+    }))
+    .filter((r) => r.end > r.start)
+    .sort((a, b) => a.start - b.start);
+
+export const breaksFor = (iso: string) => {
+  const ex = EXCEPTIONS[iso];
+  const w = WEEK.find((x) => x.day === DAY_INDEX[fromISO(iso).getDay()]);
+  const { open, close } = hoursFor(iso);
+  const ranges = ex && !ex.closed && ex.breaks ? ex.breaks : w?.breaks;
+  return normaliseBreaks(ranges, open, close);
+};
+
+export const intersectsBreak = (iso: string, start: number, end: number) =>
+  breaksFor(iso).some((r) => start < r.end && r.start < end);
+
 export const minuteLabel = (min: number) => {
   const h24 = Math.floor(min / 60);
   const m = min % 60;
@@ -390,6 +423,7 @@ export function availableSlots(
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const out: { minute: number; available: boolean }[] = [];
   const h = hoursFor(iso);
+  const breaks = breaksFor(iso);
   const count = (h.close - h.open) / SLOT_MINUTES;
   for (let i = 0; i < count; i++) {
     const start = h.open + i * SLOT_MINUTES;
@@ -397,7 +431,8 @@ export function availableSlots(
     const future = !isToday || start >= nowMin + 30;
     const end = start + Math.max(1, slotsNeeded) * SLOT_MINUTES;
     const clash = busy.some((b) => start < b.time + b.slots * SLOT_MINUTES && b.time < end);
-    out.push({ minute: start, available: fits && future && !clash });
+    const inBreak = breaks.some((r) => start < r.end && r.start < end);
+    out.push({ minute: start, available: fits && future && !clash && !inBreak });
   }
   return out;
 }

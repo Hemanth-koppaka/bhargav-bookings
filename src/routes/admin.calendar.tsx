@@ -3,11 +3,11 @@ import { useState } from "react";
 import { AdminShell, Panel, StatusPill } from "@/components/admin";
 import { useAdmin, todayISO } from "@/lib/admin-store";
 import {
-  OPEN_MINUTE,
-  CLOSE_MINUTE,
+  breaksFor,
   SLOT_MINUTES,
   calendarDays,
   formatLongDate,
+  hoursFor,
   isClosed,
   minuteLabel,
 } from "@/lib/salon";
@@ -32,9 +32,11 @@ function CalendarScreen() {
   const days = calendarDays(28);
   const list = byDate(iso).filter((a) => a.meta.status !== "cancelled");
   const closed = isClosed(iso);
+  const hours = hoursFor(iso);
+  const dayBreaks = breaksFor(iso);
 
   const rows: { minute: number; label: string }[] = [];
-  for (let m = OPEN_MINUTE; m < CLOSE_MINUTE; m += SLOT_MINUTES) {
+  for (let m = hours.open; m < hours.close; m += SLOT_MINUTES) {
     rows.push({ minute: m, label: minuteLabel(m) });
   }
 
@@ -71,11 +73,13 @@ function CalendarScreen() {
       <Panel className="mt-6 p-0">
         {closed ? (
           <p className="py-16 text-center text-sm text-muted-foreground">
-            The salon is closed on Tuesdays.
+            The salon is closed for this day.
           </p>
         ) : (
           <div className="divide-y divide-hairline">
             {rows.map((r) => {
+              const slotEnd = r.minute + SLOT_MINUTES;
+              const inBreak = dayBreaks.some((b) => r.minute < b.end && b.start < slotEnd);
               const here = list.filter(
                 (a) => a.time <= r.minute && r.minute < a.time + a.slots * SLOT_MINUTES,
               );
@@ -102,7 +106,18 @@ function CalendarScreen() {
                         </div>
                       ))
                     ) : (
-                      <div className="h-6 border-l-2 border-hairline/60" />
+                      <div
+                        className={cn(
+                          "h-6 border-l-2",
+                          inBreak ? "border-destructive/40 bg-destructive/6" : "border-hairline/60",
+                        )}
+                      >
+                        {inBreak ? (
+                          <span className="pl-2 text-[0.6rem] uppercase tracking-[0.14em] text-destructive/70">
+                            Break
+                          </span>
+                        ) : null}
+                      </div>
                     )}
                   </div>
                 </div>

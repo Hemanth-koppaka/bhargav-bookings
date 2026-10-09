@@ -58,6 +58,9 @@ const toMin = (t: string | null | undefined) => {
   const [h, m] = t.split(":").map(Number);
   return (h ?? 0) * 60 + (m ?? 0);
 };
+const hhmm = (t: string) => t.slice(0, 5);
+
+type PersistedBreaks = Record<string, { start: string; end: string }[]>;
 
 /** Builds the full salon configuration from the online tables. */
 async function loadConfig() {
@@ -77,6 +80,8 @@ async function loadConfig() {
     string,
     Record<string, unknown>
   >;
+  const hoursSetting = (set["business_hours"] ?? {}) as { breaksByDay?: PersistedBreaks };
+  const breaksByDay = hoursSetting.breaksByDay ?? {};
   const menu = (g: string) =>
     (cats.data ?? [])
       .filter((c) => c.gender === g)
@@ -114,7 +119,16 @@ async function loadConfig() {
     const order = [1, 2, 3, 4, 5, 6, 0];
     config["week"] = order.map((d) => {
       const h = hours.data!.find((x) => x.day_of_week === d)!;
-      return { day: DAYS[d], closed: !h.is_open, open: toMin(h.opening_time), close: toMin(h.closing_time) };
+      const breaks = (breaksByDay[String(d)] ?? [])
+        .map((b) => ({ start: toMin(b.start), end: toMin(b.end) }))
+        .filter((b): b is { start: number; end: number } => b.start != null && b.end != null && b.end > b.start);
+      return {
+        day: DAYS[d],
+        closed: !h.is_open,
+        open: toMin(h.opening_time),
+        close: toMin(h.closing_time),
+        breaks,
+      };
     });
   }
   const men = menu("men");
@@ -240,6 +254,7 @@ export const updateMyBooking = createServerFn({ method: "POST" })
 /* ── Admin (access code) ────────────────────────────────────── */
 
 const pinOnly = z.object({ pin: z.string().max(32) });
+const hhmmTime = z.string().regex(/^\d{2}:\d{2}$/);
 
 export const adminCheckPin = createServerFn({ method: "POST" })
   .inputValidator((d) => pinOnly.parse(d))
@@ -317,6 +332,77 @@ export const adminSaveConfig = createServerFn({ method: "POST" })
       const value = { ...((cur?.value as object) ?? {}), ...(c.accepting !== undefined ? { accepting: c.accepting } : {}), ...(c.maxAdvanceDays !== undefined ? { maxAdvanceDays: c.maxAdvanceDays } : {}) };
       await sb.from("site_settings").upsert({ key: "booking", value });
     }
+    return { ok: true };
+  });
+
+const businessHourInput = z.object({
+  day: z.number().int().min(0).max(6),
+  open: z.boolean(),
+  from: hhmmTime,
+  to: hhmmTime,
+  breaks: z.array(z.object({ start: hhmmTime, end: hhmmTime })).max(6),
+});
+
+export const adminSaveBusinessHours = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    pinOnly.extend({ hours: z.array(businessHourInput).length(7) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const sb = await assertPin(data.pin);
+    const sorted = [...data.hours].sort((a, b) => a.day - b.day);
+    const seen = new Set<number>();
+    const breaksByDay: PersistedBreaks = {};
+
+    for (const h of sorted) {
+      if (seen.has(h.day)) throw new Error("Duplicate day in schedule");
+      seen.add(h.day);
+      const open = toMin(h.from) ?? 0;
+      const close = toMin(h.to) ?? 0;
+      if (h.open && close <= open) throw new Error("Closing time must be after opening time");
+
+      const normalizedBreaks = (h.open ? h.breaks : [])
+        .map((b) => ({ start: toMin(b.start) ?? 0, end: toMin(b.end) ?? 0 }))
+        .sort((a, b) => a.start - b.start);
+
+      for (let i = 0; i < normalizedBreaks.length; i++) {
+        const b = normalizedBreaks[i]!;
+        if (b.end <= b.start) throw new Error("Break end must be after break start");
+        if (b.start < open || b.end > close) {
+          throw new Error("Breaks must be inside opening hours");
+        }
+        if (i > 0 && b.start < normalizedBreaks[i - 1]!.end) {
+          throw new Error("Break periods cannot overlap");
+        }
+      }
+
+      breaksByDay[String(h.day)] = normalizedBreaks.map((b) => ({
+        start: hhmm(`${String(Math.floor(b.start / 60)).padStart(2, "0")}:${String(b.start % 60).padStart(2, "0")}`),
+        end: hhmm(`${String(Math.floor(b.end / 60)).padStart(2, "0")}:${String(b.end % 60).padStart(2, "0")}`),
+      }));
+    }
+    if (seen.size !== 7) throw new Error("All 7 days are required");
+
+    const { error: hoursError } = await sb.from("opening_hours").upsert(
+      sorted.map((h) => ({
+        day_of_week: h.day,
+        is_open: h.open,
+        opening_time: h.from,
+        closing_time: h.to,
+      })),
+    );
+    if (hoursError) throw new Error("Couldn't save opening hours");
+
+    const { data: cur } = await sb
+      .from("site_settings")
+      .select("value")
+      .eq("key", "business_hours")
+      .maybeSingle();
+    const value = { ...((cur?.value as Record<string, unknown>) ?? {}), breaksByDay };
+    const { error: settingError } = await sb
+      .from("site_settings")
+      .upsert({ key: "business_hours", value });
+    if (settingError) throw new Error("Couldn't save break periods");
+
     return { ok: true };
   });
 
