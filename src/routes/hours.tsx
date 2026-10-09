@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Page, Screen, ScreenHeader } from "@/components/screen";
-import { BUSINESS, WEEK } from "@/lib/salon";
+import { BUSINESS, WEEK, minuteLabel } from "@/lib/salon";
 
 export const Route = createFileRoute("/hours")({
   head: () => ({
@@ -36,7 +36,9 @@ function HoursScreen() {
                   "text-sm " + (d.closed ? "text-foreground/35 italic" : "text-muted-foreground")
                 }
               >
-                {d.closed ? "Closed" : "10:00 AM — 8:00 PM"}
+                {d.closed
+                  ? "Closed"
+                  : `${minuteLabel(d.open ?? 10 * 60)} — ${minuteLabel(d.close ?? 20 * 60)}`}
               </span>
             </li>
           ))}
