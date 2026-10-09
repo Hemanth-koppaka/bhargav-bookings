@@ -13,6 +13,8 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { BookingProvider } from "../lib/booking-store";
 import { AdminProvider } from "../lib/admin-store";
+import { getSalonConfig } from "../lib/salon.functions";
+import { applyConfig } from "../lib/salon";
 
 function NotFoundComponent() {
   return (
@@ -97,6 +99,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", type: "image/png", href: "/favicon.png" },
     ],
   }),
+  loader: async () => {
+    try {
+      return await getSalonConfig();
+    } catch {
+      return { configJson: "{}" };
+    }
+  },
+  staleTime: 60_000,
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -119,6 +129,8 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const { configJson } = Route.useLoaderData();
+  applyConfig(JSON.parse(configJson));
 
   return (
     <QueryClientProvider client={queryClient}>

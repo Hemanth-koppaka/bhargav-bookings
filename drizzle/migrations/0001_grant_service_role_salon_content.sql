@@ -1,0 +1,1 @@
+GRANT ALL ON public.service_categories, public.services, public.opening_hours, public.opening_exceptions, public.site_settings TO service_role;

@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { findService, toISO, type Audience, type Service } from "./salon";
 import { type Booking, type Customer } from "./booking-store";
-import { adminCheckPin, adminListBookings, adminUpsertBooking, adminChangePin, type BookingRow } from "./salon.functions";
+import { adminCheckPin, adminListBookings, adminUpsertBooking, adminChangePin,
+  adminSaveConfig, type BookingRow } from "./salon.functions";
 
 /* ── Types ───────────────────────────────────────────────────── */
 
@@ -316,6 +317,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
             setPinCode(next);
             window.sessionStorage.setItem(SESSION_KEY, next);
           });
+        }
+        if (patch.acceptingBookings !== undefined) {
+          void adminSaveConfig({ data: { pin: pinCode, config: { accepting: patch.acceptingBookings } } });
         }
         setSettings((s) => ({ ...s, ...patch }));
       },
