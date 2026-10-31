@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { adminReferencePhotos } from "@/lib/photos.functions";
 import { AdminShell, Panel, Stat, StatusPill, TinyButton, inputClass } from "@/components/admin";
 import {
   todayISO,
@@ -41,6 +42,42 @@ const NEXT: Record<ApptStatus, ApptStatus | null> = {
   cancelled: null,
 };
 
+/** The guest's reference photos, fetched on demand as short-lived private links. */
+function RefPhotos({ reference, count }: { reference: string; count: number }) {
+  const { pin } = useAdmin();
+  const [urls, setUrls] = useState<string[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    adminReferencePhotos({ data: { pin, reference } })
+      .then((r) => live && setUrls(r.urls))
+      .catch(() => live && setFailed(true));
+    return () => {
+      live = false;
+    };
+  }, [pin, reference]);
+  return (
+    <div className="mb-4">
+      <div className="eyebrow">Reference photos · deleted when completed</div>
+      <div className="mt-2 flex gap-2">
+        {failed ? (
+          <span className="text-xs text-destructive">Couldn't load photos.</span>
+        ) : urls === null ? (
+          Array.from({ length: count }, (_, i) => <span key={i} className="h-20 w-20 animate-pulse rounded-md bg-muted" />)
+        ) : urls.length === 0 ? (
+          <span className="text-xs text-muted-foreground">Photos have been removed.</span>
+        ) : (
+          urls.map((u) => (
+            <a key={u} href={u} target="_blank" rel="noreferrer" className="press block">
+              <img src={u} alt="Guest reference" className="h-20 w-20 rounded-md object-cover" />
+            </a>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ApptRow({ a }: { a: Appointment }) {
   const { setStatus, setPayment, setStaff, staff } = useAdmin();
   const [open, setOpen] = useState(false);
@@ -76,6 +113,10 @@ export function ApptRow({ a }: { a: Appointment }) {
 
       {open ? (
         <div className="pb-5">
+          {a.customer.notes ? (
+            <p className="mb-4 text-sm leading-relaxed text-muted-foreground">“{a.customer.notes}”</p>
+          ) : null}
+          {a.customer.photos?.length ? <RefPhotos reference={a.reference} count={a.customer.photos.length} /> : null}
           <div className="flex flex-wrap gap-2">
             {next ? (
               <TinyButton onClick={() => setStatus(a.reference, next)}>

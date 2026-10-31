@@ -254,18 +254,62 @@ export function ServiceGlyph({
   );
 }
 
-/** Round icon tile used in service lists; fills dark and animates when selected. */
+/**
+ * Visual for a service or category in lists: the salon's photo when one has
+ * been uploaded (admin → Menu), otherwise the animated line icon.
+ */
 export function ServiceIconTile({
   kind,
   active,
   size = "md",
+  photo,
+  framed,
   className,
 }: {
   kind: IconKind;
   active?: boolean | undefined;
   size?: "sm" | "md" | "lg";
+  photo?: string | undefined;
+  /** Give icons the same footprint as photos, so mixed lists stay aligned. */
+  framed?: boolean | undefined;
   className?: string;
 }) {
+  const box = size === "sm" ? "h-14 w-14" : size === "lg" ? "h-24 w-32" : "h-[4.5rem] w-24";
+  if (!photo && framed) {
+    return (
+      <span
+        className={cn(
+          "flex shrink-0 items-center justify-center rounded-md transition-colors duration-300",
+          active ? "bg-ink text-champagne" : "bg-champagne/16 text-bronze",
+          box,
+          className,
+        )}
+      >
+        <ServiceGlyph kind={kind} active={active} className={size === "sm" ? "h-6 w-6" : "h-7 w-7"} />
+      </span>
+    );
+  }
+  if (photo) {
+    return (
+      <span
+        className={cn(
+          "relative shrink-0 overflow-hidden rounded-md bg-muted",
+          box,
+          active && "photo-pop ring-2 ring-ink ring-offset-2 ring-offset-background",
+          className,
+        )}
+      >
+        <img src={photo} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+        {active ? (
+          <span className="pop-in absolute right-1 bottom-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-champagne">
+            <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        ) : null}
+      </span>
+    );
+  }
   const dims = size === "sm" ? "h-9 w-9" : size === "lg" ? "h-14 w-14" : "h-12 w-12";
   const glyph = size === "sm" ? "h-[18px] w-[18px]" : size === "lg" ? "h-7 w-7" : "h-6 w-6";
   return (

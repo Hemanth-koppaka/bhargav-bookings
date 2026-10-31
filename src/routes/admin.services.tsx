@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ImagePlus, Loader2 } from "lucide-react";
+import { adminSaveMedia } from "@/lib/photos.functions";
+import { loadImageFile, shrinkImage } from "@/lib/image";
 import { AdminShell, Panel, TinyButton, inputClass } from "@/components/admin";
 import {
   adminGetContent,
@@ -134,13 +137,33 @@ function ServicesAdmin() {
 
   const refresh = () => setRefreshTick((n) => n + 1);
 
-  const getServicePayload = (service: AdminService, patch: Partial<Pick<AdminService, "price" | "active">>) => ({
+  const media = useMemo(
+    () => JSON.parse(content?.mediaJson ?? "{}") as Record<string, string>,
+    [content?.mediaJson],
+  );
+
+  const saveMinutes = async (service: AdminService, minutes: number) => {
+    setRowState((s) => ({ ...s, [service.id]: { saving: true, message: "", error: "" } }));
+    try {
+      await adminSaveService({ data: getServicePayload(service, { minutes }) });
+      setRowState((s) => ({ ...s, [service.id]: { saving: false, message: `Duration set to ${formatMinutes(minutes)}.` } }));
+      refresh();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unable to save duration.";
+      setRowState((s) => ({ ...s, [service.id]: { saving: false, error: message } }));
+    }
+  };
+
+  const getServicePayload = (
+    service: AdminService,
+    patch: Partial<Pick<AdminService, "price" | "active" | "minutes">>,
+  ) => ({
     pin,
     id: service.id,
     categoryId: service.categoryId,
     name: service.name,
     description: service.description,
-    minutes: service.minutes,
+    minutes: patch.minutes ?? service.minutes,
     price: patch.price ?? service.price,
     from: service.from,
     order: service.order,
@@ -326,11 +349,14 @@ function ServicesAdmin() {
 
           {grouped.map(({ category, services: categoryServices }) => (
             <Panel key={category.id} className="p-0">
-              <div className="border-b border-hairline px-5 py-4">
-                <div className="eyebrow">{category.name}</div>
-                {category.description ? (
-                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{category.description}</p>
-                ) : null}
+              <div className="flex items-start gap-4 border-b border-hairline px-5 py-4">
+                <MediaTile mediaKey={`cat:${category.id}`} url={media[`cat:${category.id}`]} onChange={refresh} />
+                <div className="min-w-0">
+                  <div className="eyebrow">{category.name}</div>
+                  {category.description ? (
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{category.description}</p>
+                  ) : null}
+                </div>
               </div>
 
               {categoryServices.length ? (
@@ -347,11 +373,23 @@ function ServicesAdmin() {
                         )}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0">
+                          <MediaTile mediaKey={`svc:${service.id}`} url={media[`svc:${service.id}`]} onChange={refresh} />
+                          <div className="min-w-0 flex-1">
                             <div className="text-sm">{service.name}</div>
-                            <div className="mt-1 text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
-                              {formatMinutes(service.minutes)}
-                            </div>
+                            <label className="mt-1.5 inline-flex items-center gap-2 text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
+                              Duration
+                              <select
+                                className={cn(inputClass, "w-auto py-1 text-xs normal-case tracking-normal")}
+                                value={service.minutes}
+                                onChange={(e) => void saveMinutes(service, Number(e.target.value))}
+                              >
+                                {Array.from({ length: 20 }, (_, i) => (i + 1) * 30).map((m) => (
+                                  <option key={m} value={m}>
+                                    {formatMinutes(m)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
                             {service.description ? (
                               <p className="mt-1 text-xs text-muted-foreground">{service.description}</p>
                             ) : null}
@@ -540,3 +578,53 @@ function ServicesAdmin() {
   );
 }
 
+
+/** Photo shown to guests for a service or category; click to upload or replace. */
+function MediaTile({ mediaKey, url, onChange }: { mediaKey: string; url?: string | undefined; onChange: () => void }) {
+  const { pin } = useAdmin();
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async (file?: File) => {
+    setBusy(true);
+    setError("");
+    try {
+      const dataUrl = file ? shrinkImage(await loadImageFile(file), 1200, 0.85) : undefined;
+      const r = await adminSaveMedia({ data: { pin, key: mediaKey, ...(dataUrl ? { dataUrl } : {}) } });
+      if (!r.ok) setError(r.error);
+      else onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save photo.");
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  };
+
+  return (
+    <div className="flex w-16 shrink-0 flex-col items-center gap-1">
+      <button
+        type="button"
+        onClick={() => input.current?.click()}
+        disabled={busy}
+        aria-label={url ? "Replace photo" : "Add photo"}
+        className="press relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-md border border-dashed border-foreground/25 bg-card text-foreground/50 hover:border-foreground/60"
+      >
+        {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <ImagePlus className="h-5 w-5" strokeWidth={1.25} />}
+        {busy ? (
+          <span className="absolute inset-0 flex items-center justify-center bg-background/70">
+            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+          </span>
+        ) : null}
+      </button>
+      {url && !busy ? (
+        <button type="button" onClick={() => void save()} className="text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground hover:text-destructive">
+          Remove
+        </button>
+      ) : null}
+      {error ? <span className="text-center text-[0.6rem] text-destructive">{error}</span> : null}
+      <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => void save(e.target.files?.[0])} />
+    </div>
+  );
+}

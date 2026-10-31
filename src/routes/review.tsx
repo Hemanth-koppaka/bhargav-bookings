@@ -143,6 +143,7 @@ function ReviewScreen() {
                     </div>
                   ))}
                 </dl>
+                <PhotoStrip />
               </Card>
 
               <Card
@@ -200,6 +201,22 @@ function ReviewScreen() {
         </Page>
       </div>
     </>
+  );
+}
+
+function PhotoStrip() {
+  const { draft } = useBooking();
+  const photos = draft.photos ?? [];
+  if (!photos.length) return null;
+  return (
+    <div className="mt-4 hairline-t pt-4">
+      <div className="text-[0.62rem] uppercase tracking-[0.24em] text-muted-foreground">Reference photos</div>
+      <div className="mt-2.5 flex gap-2.5">
+        {photos.map((p) => (
+          <img key={p.path} src={p.thumb} alt="Your reference photo" className="h-16 w-16 rounded-md object-cover lg:h-20 lg:w-20" />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -325,7 +342,8 @@ function DesktopReview({
                   {c.notes}
                 </p>
               ) : null}
-            </Card>
+              <PhotoStrip />
+              </Card>
 
             <Card
               title="Studio location"

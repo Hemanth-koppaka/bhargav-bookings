@@ -28,6 +28,7 @@ import { Route as AdminCalendarRouteImport } from './routes/admin.calendar'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminServicesRouteImport } from './routes/admin.services'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
+import { Route as ApiPhotoSweepRouteImport } from './routes/api/photo-sweep'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -124,6 +125,11 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AdminRoute,
 } as any)
+const ApiPhotoSweepRoute = ApiPhotoSweepRouteImport.update({
+  id: '/api/photo-sweep',
+  path: '/api/photo-sweep',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/api/photo-sweep': typeof ApiPhotoSweepRoute
   '/admin/': typeof AdminIndexRoute
 }
 export interface FileRoutesByTo {
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/api/photo-sweep': typeof ApiPhotoSweepRoute
   '/admin': typeof AdminIndexRoute
 }
 export interface FileRoutesById {
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/api/photo-sweep': typeof ApiPhotoSweepRoute
   '/admin/': typeof AdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
     | '/admin/customers'
     | '/admin/services'
     | '/admin/settings'
+    | '/api/photo-sweep'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/admin/customers'
     | '/admin/services'
     | '/admin/settings'
+    | '/api/photo-sweep'
     | '/admin'
   id:
     | '__root__'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/admin/customers'
     | '/admin/services'
     | '/admin/settings'
+    | '/api/photo-sweep'
     | '/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -267,6 +279,7 @@ export interface RootRouteChildren {
   ServicesRoute: typeof ServicesRoute
   StudioRoute: typeof StudioRoute
   TimeRoute: typeof TimeRoute
+  ApiPhotoSweepRoute: typeof ApiPhotoSweepRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -404,6 +417,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/api/photo-sweep': {
+      id: '/api/photo-sweep'
+      path: '/api/photo-sweep'
+      fullPath: '/api/photo-sweep'
+      preLoaderRoute: typeof ApiPhotoSweepRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -441,6 +461,7 @@ const rootRouteChildren: RootRouteChildren = {
   ServicesRoute: ServicesRoute,
   StudioRoute: StudioRoute,
   TimeRoute: TimeRoute,
+  ApiPhotoSweepRoute: ApiPhotoSweepRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

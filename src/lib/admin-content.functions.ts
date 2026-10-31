@@ -57,6 +57,7 @@ export const adminGetContent = createServerFn({ method: "POST" })
       businessJson: JSON.stringify(
         (st.data ?? []).find((x) => x.key === "business")?.value ?? {},
       ),
+      mediaJson: JSON.stringify((st.data ?? []).find((x) => x.key === "media")?.value ?? {}),
     };
   });
 

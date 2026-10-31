@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Lock, MessageCircle, ShieldCheck } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
+import { ReferencePhotos } from "@/components/reference-photos";
 import {
   AUDIENCE_IMAGE,
   Accent,
@@ -248,6 +249,10 @@ function DetailsFields({
         onChange={(e) => notes.set(e.target.value)}
         placeholder="Anything you'd like us to know?"
       />
+    </div>
+
+    <div className="mt-6">
+      <ReferencePhotos />
     </div>
     </>
   );

@@ -97,6 +97,7 @@ async function loadConfig() {
   const breaksByDay: PersistedBreaks =
     hoursSetting.breaksByDay ??
     Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [String(d), [{ start: "13:00", end: "14:00" }]]));
+  const media = (set["media"] ?? {}) as Record<string, string>;
   const menu = (g: string) =>
     (cats.data ?? [])
       .filter((c) => c.gender === g)
@@ -104,6 +105,7 @@ async function loadConfig() {
         id: c.slug,
         title: c.name,
         blurb: c.description || undefined,
+        photo: media[`cat:${c.id}`] || undefined,
         services: (svcs.data ?? [])
           .filter((s) => s.category_id === c.id)
           .map((s) => ({
@@ -113,6 +115,7 @@ async function loadConfig() {
             price: s.price,
             from: s.price_from || undefined,
             slots: Math.max(1, Math.round(s.duration_minutes / 30)),
+            photo: media[`svc:${s.id}`] || undefined,
           })),
       }))
       .filter((c) => c.services.length > 0);
@@ -247,6 +250,11 @@ const bookingInput = z.object({
     email: z.string().trim().max(255),
     notes: z.string().max(1000).optional(),
   }),
+  // Optional reference photos uploaded during booking (pending/<draft>/<file>).
+  photos: z
+    .array(z.string().regex(/^pending\/[0-9a-f-]{36}\/[a-z0-9]+\.(jpg|png|webp)$/))
+    .max(3)
+    .optional(),
 });
 
 export const createBooking = createServerFn({ method: "POST" })
@@ -255,6 +263,8 @@ export const createBooking = createServerFn({ method: "POST" })
     const sb = await db();
     const check = await checkSlot(data);
     if (!check.ok) return { ok: false as const, error: check.error };
+    const photoLib = await import("./photos.server");
+    const photos = data.photos?.length ? await photoLib.attachPhotos(data.reference, data.photos) : [];
     const { error } = await sb.from("bookings").insert({
       reference: data.reference,
       audience: data.audience,
@@ -262,9 +272,10 @@ export const createBooking = createServerFn({ method: "POST" })
       date: data.date,
       time: data.time,
       slots: check.slots,
-      customer: data.customer,
+      customer: { ...data.customer, ...(photos.length ? { photos } : {}) },
       source: "online",
     });
+    await photoLib.sweepPhotos().catch(() => {});
     if (error) {
       console.error(error);
       return { ok: false as const, error: "We couldn't save your booking. Please try again." };
@@ -313,6 +324,8 @@ export const updateMyBooking = createServerFn({ method: "POST" })
     if (r.status === "cancelled") return { ok: false, error: "This booking was cancelled." };
     if (data.action === "cancel") {
       await sb.from("bookings").update({ status: "cancelled" }).eq("reference", r.reference);
+      const { deleteBookingPhotos } = await import("./photos.server");
+      await deleteBookingPhotos(r.reference).catch(() => {});
       return { ok: true };
     }
     if (!data.date || data.time == null) return { ok: false, error: "Pick a new date and time." };
@@ -346,6 +359,8 @@ export const adminListBookings = createServerFn({ method: "POST" })
   .inputValidator((d) => pinOnly.parse(d))
   .handler(async ({ data }) => {
     const sb = await assertPin(data.pin);
+    const { sweepPhotos } = await import("./photos.server");
+    await sweepPhotos().catch(() => {});
     const [{ data: rows }, { data: cfg }, { data: booking }] = await Promise.all([
       sb.from("bookings").select("*").order("date", { ascending: false }).limit(2000),
       sb.from("salon_config").select("data").eq("id", 1).maybeSingle(),
@@ -395,6 +410,18 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await sb.from("bookings").update(data.patch as any).eq("reference", data.reference);
       if (error) throw new Error("Couldn't update the appointment");
+      // Reference photos are only kept until the visit is over.
+      const status = (data.patch.meta as { status?: string } | undefined)?.status;
+      if (data.patch.status === "cancelled" || status === "completed" || status === "no-show" || status === "cancelled") {
+        const { deleteBookingPhotos } = await import("./photos.server");
+        await deleteBookingPhotos(data.reference).catch(() => {});
+        const { data: row } = await sb.from("bookings").select("customer").eq("reference", data.reference).maybeSingle();
+        const c = row?.customer as Record<string, unknown> | undefined;
+        if (c?.["photos"]) {
+          const { photos: _gone, ...rest } = c;
+          await sb.from("bookings").update({ customer: rest as never }).eq("reference", data.reference);
+        }
+      }
     }
     return { ok: true };
   });

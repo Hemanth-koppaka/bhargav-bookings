@@ -9,7 +9,11 @@ export type Customer = {
   phone: string;
   email: string;
   notes?: string;
+  /** Storage paths of reference photos (server-set; removed after the visit). */
+  photos?: string[];
 };
+
+export type RefPhoto = { path: string; thumb: string };
 
 export type Draft = {
   audience: Audience | null;
@@ -17,6 +21,10 @@ export type Draft = {
   date: string | null; // ISO yyyy-mm-dd
   time: number | null; // minutes from midnight
   customer: Customer | null;
+  /** Identifies this booking's uploads before it has a reference. */
+  draftId?: string;
+  /** Optional reference photos already uploaded (deleted after the visit). */
+  photos?: RefPhoto[];
 };
 
 export type Booking = {
@@ -43,7 +51,7 @@ const BOOKINGS_KEY = "hbb.bookings.v1";
 
 type Ctx = {
   draft: Draft;
-  update: (patch: Partial<Draft>) => void;
+  update: (patch: Partial<Draft> | ((d: Draft) => Partial<Draft>)) => void;
   setAudience: (a: Audience) => void;
   toggleService: (id: string) => void;
   removeService: (id: string) => void;
@@ -123,7 +131,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       totalPrice,
       hasFromPricing,
       bookings,
-      update: (patch) => setDraft((d) => ({ ...d, ...patch })),
+      update: (patch) => setDraft((d) => ({ ...d, ...(typeof patch === "function" ? patch(d) : patch) })),
       setAudience: (a) =>
         setDraft((d) =>
           d.audience === a
@@ -156,7 +164,12 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         };
         try {
           const res = await createBooking({
-            data: { ...booking, slots: Math.max(1, totalSlots), customer: { ...booking.customer, email: booking.customer.email ?? "" } },
+            data: {
+              ...booking,
+              slots: Math.max(1, totalSlots),
+              customer: { ...booking.customer, email: booking.customer.email ?? "" },
+              ...(draft.photos?.length ? { photos: draft.photos.map((x) => x.path) } : {}),
+            },
           });
           if (!res.ok) return { error: res.error };
         } catch {

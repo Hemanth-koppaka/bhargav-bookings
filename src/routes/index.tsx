@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowRight, Phone } from "lucide-react";
 import { BUSINESS, hoursFor, isClosed, minuteLabel, toISO } from "@/lib/salon";
 import { LogoReveal } from "@/components/motion";
@@ -88,30 +88,141 @@ function Home() {
   );
 }
 
-/** First-visit opening: the wordmark is unveiled and a pair of scissors cuts the ribbon. */
+/**
+ * First-visit opening (once per browser session). The header wordmark itself
+ * is the star: it starts large in the middle of a blurred page, turns in with
+ * a slow 3D camera move while scissors cut the ribbon beneath it, then glides
+ * up into its place in the header as the page comes into focus. Nothing is
+ * swapped at the end, because the logo never left the header.
+ */
 function Intro() {
   const [gone, setGone] = useState(false);
+  const overlay = useRef<HTMLDivElement>(null);
+  const [lineTop, setLineTop] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    if (root.classList.contains("intro-seen")) {
+      setGone(true);
+      return;
+    }
+    const logo = [...document.querySelectorAll<HTMLElement>("[data-hero-logo]")].find(
+      (el) => el.getClientRects().length > 0,
+    );
+    const finish = () => {
+      root.classList.add("intro-seen");
+      root.classList.remove("intro-run");
+      setGone(true);
+    };
+    if (!logo || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      finish();
+      return;
+    }
+
+    let cancelled = false;
+    let stop = () => {};
+    // The flight is measured from the real header logo, so wait for its image (max 1.5 s).
+    const img = logo.querySelector("img");
+    const ready = new Promise<void>((resolve) => {
+      if (!img || (img.complete && img.naturalWidth > 0)) return resolve();
+      img.addEventListener("load", () => resolve(), { once: true });
+      img.addEventListener("error", () => resolve(), { once: true });
+      window.setTimeout(resolve, 1500);
+    });
+    void ready.then(() => {
+      if (!cancelled) stop = run(logo, finish);
+    });
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, []);
+
+  /** Starts the camera move; returns a cleanup. */
+  const run = (logo: HTMLElement, finish: () => void) => {
+    const r = logo.getBoundingClientRect();
+    if (!r.width || !r.height) {
+      finish();
+      return () => {};
+    }
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const target = Math.min(vw < 640 ? 104 : 168, vh * 0.22);
+    const scale = target / r.height;
+    const dx = vw / 2 - (r.left + r.width / 2);
+    const dy = vh / 2 - (r.top + r.height / 2) - target * 0.15;
+    setLineTop(vh / 2 + target * 0.35 + 28);
+
+    const at = (extra: string) => `translate(${dx}px, ${dy}px) ${extra}`;
+    logo.style.transformOrigin = "50% 50%";
+    logo.style.position = "relative";
+    logo.style.zIndex = "101";
+    document.documentElement.classList.add("intro-run");
+
+    const fly = logo.animate(
+      [
+        { transform: at(`perspective(900px) scale(${scale * 1.35}) rotateX(22deg) rotateY(-80deg)`), opacity: 0, filter: "blur(14px)", offset: 0, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
+        { transform: at(`perspective(900px) scale(${scale * 1.04}) rotateX(-4deg) rotateY(10deg)`), opacity: 1, filter: "blur(0px)", offset: 0.34, easing: "cubic-bezier(0.3, 0, 0.2, 1)" },
+        { transform: at(`perspective(900px) scale(${scale}) rotateX(0deg) rotateY(0deg)`), opacity: 1, filter: "blur(0px)", offset: 0.5 },
+        { transform: at(`perspective(900px) scale(${scale}) rotateX(0deg) rotateY(0deg)`), opacity: 1, filter: "blur(0px)", offset: 0.66, easing: "cubic-bezier(0.65, 0, 0.25, 1)" },
+        // same function list as the other frames, so the browser interpolates each part smoothly
+        { transform: "translate(0px, 0px) perspective(900px) scale(1) rotateX(0deg) rotateY(0deg)", opacity: 1, filter: "blur(0px)", offset: 1 },
+      ],
+      // timing is shaped per segment above: turn in (1 s), settle, hold (sheen), glide home (1 s)
+      { duration: 3000, easing: "linear", fill: "both" },
+    );
+    const veil = overlay.current?.animate(
+      [
+        { opacity: 1, offset: 0 },
+        { opacity: 1, offset: 0.64 },
+        { opacity: 0, offset: 1 },
+      ],
+      { duration: 3000, easing: "ease-in-out", fill: "both" },
+    );
+    let done = false;
+    fly.onfinish = () => {
+      if (done) return;
+      done = true;
+      fly.cancel();
+      logo.style.removeProperty("transform-origin");
+      logo.style.removeProperty("position");
+      logo.style.removeProperty("z-index");
+      finish();
+    };
+    const skip = () => {
+      fly.finish();
+      veil?.finish();
+    };
+    const el = overlay.current;
+    el?.addEventListener("click", skip);
+    return () => {
+      el?.removeEventListener("click", skip);
+      if (!done) fly.cancel();
+      veil?.cancel();
+    };
+  };
+
   if (gone) return null;
   return (
     <div
+      ref={overlay}
       aria-hidden
-      onClick={() => setGone(true)}
-      onAnimationEnd={(e) => {
-        if (e.target === e.currentTarget) setGone(true);
-      }}
-      className="intro fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background"
+      className="intro fixed inset-0 z-[100] bg-background/55 backdrop-blur-xl"
     >
-      <LogoReveal className="h-24 lg:h-32" delay={150} />
-      <div className="relative mt-9 h-6 w-52 lg:w-64">
-        <span className="absolute inset-x-0 top-1/2 h-px [background-image:linear-gradient(90deg,var(--hairline)_55%,transparent_55%)] [background-size:7px_1px]" />
-        <span className="intro-cut absolute inset-x-0 top-1/2 h-px bg-bronze/70" />
-        <span className="intro-scissors absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 text-bronze">
-          <ServiceGlyph kind="scissors" className="h-5 w-5 rotate-90" />
-        </span>
-      </div>
-      <div className="fade-rise mt-6 text-[0.66rem] uppercase tracking-[0.36em] text-muted-foreground [animation-delay:1.3s]">
-        {BUSINESS.tagline}
-      </div>
+      {lineTop != null ? (
+        <div className="absolute left-1/2 flex -translate-x-1/2 flex-col items-center" style={{ top: lineTop }}>
+          <div className="relative h-6 w-52 lg:w-64">
+            <span className="absolute inset-x-0 top-1/2 h-px [background-image:linear-gradient(90deg,var(--hairline)_55%,transparent_55%)] [background-size:7px_1px]" />
+            <span className="intro-cut absolute inset-x-0 top-1/2 h-px bg-bronze/70" />
+            <span className="intro-scissors absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 text-bronze">
+              <ServiceGlyph kind="scissors" className="h-5 w-5 rotate-90" />
+            </span>
+          </div>
+          <div className="fade-rise mt-5 text-[0.66rem] uppercase tracking-[0.36em] text-foreground/70 [animation-delay:1s]">
+            {BUSINESS.tagline}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -121,7 +232,7 @@ function MobileHome() {
     <div className="flex h-[100svh] min-h-[600px] flex-col overflow-hidden bg-background lg:hidden">
       <div className="safe-t">
         <header className="flex items-center justify-between px-5 pt-4 pb-3">
-          <span className="after-intro-logo inline-flex">
+          <span data-hero-logo className="after-intro-logo inline-flex">
             <LogoReveal className="h-10" />
           </span>
           <a
@@ -208,8 +319,10 @@ function DesktopHome() {
   return (
     <div className="hidden min-h-[100svh] flex-col bg-background lg:flex">
       <header className="mx-8 flex shrink-0 items-center justify-between gap-8 hairline-b px-6 py-5 xl:mx-10 xl:px-16">
-        <Link to="/" aria-label="Hair by Bhargav" className="after-intro-logo inline-flex">
-          <LogoReveal className="h-14" />
+        <Link to="/" aria-label="Hair by Bhargav" className="inline-flex">
+          <span data-hero-logo className="after-intro-logo inline-flex">
+            <LogoReveal className="h-14" />
+          </span>
         </Link>
         <nav className="flex items-center gap-10" aria-label="Main">
           {quickLinks.map((l) => (

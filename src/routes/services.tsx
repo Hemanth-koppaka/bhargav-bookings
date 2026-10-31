@@ -47,6 +47,7 @@ function ServicesScreen() {
   const category = menu.find((c) => c.id === activeId) ?? menu[0];
   const [query, setQuery] = useState("");
   const search = useServiceSearch(menu, query);
+  const listHasPhotos = (search ?? category?.services ?? []).some((x) => x.photo);
 
   useEffect(() => {
     const el = chipRow.current?.querySelector<HTMLElement>('[aria-selected="true"]');
@@ -154,7 +155,7 @@ function ServicesScreen() {
                             : "border-foreground/8 bg-card/60 hover:border-foreground/25")
                         }
                       >
-                        <ServiceIconTile kind={serviceKind(x)} active={on} size="sm" />
+                        <ServiceIconTile kind={serviceKind(x)} photo={x.photo} framed={listHasPhotos} active={on} size="sm" />
                         <span className="min-w-0 flex-1">
                           <span className="block text-[1rem] leading-snug [overflow-wrap:anywhere]">{x.name}</span>
                           {x.category ? (
@@ -251,6 +252,7 @@ function DesktopServices({
   const navigate = useNavigate();
   const men = draft.audience === "men";
   const img = AUDIENCE_IMAGE[men ? "men" : "women"];
+  const listHasPhotos = (search ?? category.services).some((x) => x.photo);
 
   return (
     <DesktopPage>
@@ -293,6 +295,7 @@ function DesktopServices({
                   >
                     <ServiceIconTile
                       kind={categoryKind(c.id)}
+                      photo={c.photo}
                       active={on}
                       size="sm"
                       className={on ? "bg-background/10" : ""}
@@ -381,7 +384,7 @@ function DesktopServices({
                     aria-pressed={on}
                     className="group -mx-4 flex w-[calc(100%+2rem)] items-center gap-5 rounded-md px-4 py-5 text-left transition-colors duration-200 hover:bg-foreground/[0.025]"
                   >
-                    <ServiceIconTile kind={serviceKind(x)} active={on} />
+                    <ServiceIconTile kind={serviceKind(x)} photo={x.photo} framed={listHasPhotos} active={on} />
                     <span className="min-w-0 flex-1">
                       <span className="block text-[1.05rem] leading-snug">{x.name}</span>
                       {x.category ? (

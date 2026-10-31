@@ -11,6 +11,8 @@ export type Service = {
   price: number;
   from?: boolean; // "onwards" pricing
   slots: number;
+  /** Photo uploaded by the salon in the admin Menu (falls back to an icon). */
+  photo?: string;
 };
 
 export type Category = {
@@ -18,6 +20,7 @@ export type Category = {
   title: string;
   blurb?: string;
   services: Service[];
+  photo?: string;
 };
 
 export const SLOT_MINUTES = 30;
@@ -177,7 +180,7 @@ export const MEN_MENU: Category[] = [
       s("m-cut", "Basic Haircut", 500, 1),
       s("m-beard", "Beard Trim", 250, 1),
       s("m-shave", "Shave", 300, 1),
-      s("m-signature", "Bhargav's Signature", 1000, 2, {
+      s("m-signature", "Bhargav's Signature", 1000, 1, {
         note: "Consultation, haircut, beard trim, wash & styling",
       }),
       s("m-kids", "Kids (U-14)", 300, 1),
@@ -246,7 +249,7 @@ export const WOMEN_MENU: Category[] = [
     services: [
       s("w-fringe", "Fringe Cut / Bangs", 350, 1),
       s("w-cut", "Cut & Styling", 1200, 2),
-      s("w-signature", "Bhargav's Signature", 1500, 2),
+      s("w-signature", "Bhargav's Signature", 1500, 1),
       s("w-blow-straight", "Blow Dry Straight", 600, 1),
       s("w-blow-curls", "Blow Dry Curls", 800, 2),
       s("w-ironing", "Ironing / Tonging", 800, 2),
