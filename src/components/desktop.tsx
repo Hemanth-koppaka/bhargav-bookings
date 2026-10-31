@@ -2,9 +2,9 @@
 // Mobile keeps using the components in ./screen.tsx.
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Phone } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, MapPin, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BUSINESS, type Audience } from "@/lib/salon";
+import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
 import menImg from "@/assets/men.jpg.asset.json";
 import womenImg from "@/assets/women.jpg.asset.json";
@@ -175,7 +175,7 @@ export function DesktopCTA({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "group flex h-[4.25rem] min-w-[19rem] items-center justify-center gap-4 rounded-sm bg-foreground px-10 text-[1.05rem] tracking-[0.02em] text-background transition-colors duration-300 hover:bg-foreground/88 disabled:bg-foreground/30",
+        "press sheen group flex h-[4.25rem] min-w-[19rem] items-center justify-center gap-4 rounded-sm bg-foreground px-10 text-[1.05rem] tracking-[0.02em] text-background hover:bg-foreground/88 disabled:bg-foreground/30",
         className,
       )}
     >
@@ -198,10 +198,10 @@ export function ImagePanel({
   className,
 }: {
   src: string;
-  pos?: string;
-  eyebrow?: string;
+  pos?: string | undefined;
+  eyebrow?: string | undefined;
   title: ReactNode;
-  sub?: string;
+  sub?: string | undefined;
   className?: string;
 }) {
   return (
@@ -209,12 +209,12 @@ export function ImagePanel({
       <img
         src={src}
         alt=""
-        className="absolute inset-0 h-full w-full object-cover opacity-80"
+        className="absolute inset-0 h-full w-full object-cover opacity-80 cine-drift"
         style={{ objectPosition: pos }}
         decoding="async"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
-      <div className="absolute inset-x-0 bottom-0 p-10 xl:p-12">
+      <div className="stagger absolute inset-x-0 bottom-0 p-10 xl:p-12">
         {eyebrow ? (
           <div className="text-[0.7rem] uppercase tracking-[0.32em] text-ivory/80">{eyebrow}</div>
         ) : null}
@@ -267,5 +267,57 @@ export function Thumb({ src, pos, className }: { src: string; pos?: string; clas
       style={{ objectPosition: pos }}
       decoding="async"
     />
+  );
+}
+
+/** "Wed – Mon" from the weekly pattern (first open day after a closed day). */
+export function openDaysLabel() {
+  const short = (d: string) => d.slice(0, 3);
+  const closedAt = WEEK.findIndex((w) => w.closed);
+  if (closedAt === -1) return "Mon – Sun";
+  const open = WEEK.map((_, i) => WEEK[(closedAt + 1 + i) % WEEK.length]!).filter((w) => !w.closed);
+  if (open.length === 0) return "Closed";
+  return `${short(open[0]!.day)} – ${short(open[open.length - 1]!.day)}`;
+}
+
+/** Hours · studio · contact row used at the foot of the entry screens. */
+export function InfoStrip({ className }: { className?: string }) {
+  const phone = BUSINESS.phones[0] ?? "";
+  const [area, ...rest] = BUSINESS.locationShort.split(" · ");
+  const info = [
+    {
+      icon: Clock,
+      label: "Hours",
+      lines: [openDaysLabel(), `${minuteLabel(OPEN_MINUTE)} – ${minuteLabel(CLOSE_MINUTE)}`],
+      href: "/hours",
+    },
+    { icon: MapPin, label: "Studio", lines: [`${area},`, rest.join(", ")], href: "/studio" },
+    { icon: Phone, label: "Contact", lines: [prettyPhone(phone)], href: `tel:${phone}` },
+  ];
+  return (
+    <footer className={cn("grid shrink-0 grid-cols-3 hairline-t py-7", className)}>
+      {info.map(({ icon: Icon, label, lines, href }, i) => (
+        <a
+          key={label}
+          href={href}
+          className={cn("group flex items-start gap-5 px-8 first:pl-0", i < 2 && "border-r border-hairline")}
+        >
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-bronze/25 text-bronze transition-colors duration-300 group-hover:bg-bronze group-hover:text-ivory">
+            <Icon className="h-5 w-5" strokeWidth={1.25} />
+          </span>
+          <span>
+            <span className="label-caps block text-foreground/85">{label}</span>
+            {lines.map((l) => (
+              <span
+                key={l}
+                className="mt-1 block text-[0.95rem] text-muted-foreground transition-colors group-hover:text-foreground"
+              >
+                {l}
+              </span>
+            ))}
+          </span>
+        </a>
+      ))}
+    </footer>
   );
 }

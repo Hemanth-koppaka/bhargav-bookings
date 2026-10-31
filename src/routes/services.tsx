@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Clock, Plus, ShoppingBag } from "lucide-react";
-import { Page, Screen, ScreenHeader, StickyBar, PrimaryAction } from "@/components/screen";
+import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
+import { haptic } from "@/lib/utils";
 import {
   AUDIENCE_IMAGE,
   DesktopBar,
@@ -51,121 +52,156 @@ function ServicesScreen() {
 
   if (!draft.audience || !category) return null;
 
+  const men = draft.audience === "men";
+
   return (
     <>
-    <DesktopServices menu={menu} category={category} onCategory={setActive} />
-    <div className="lg:hidden">
-    <Page>
-      <ScreenHeader back="/book" title="Step 2 of 5" step={draft.audience === "men" ? "Men" : "Women"} />
-      <Screen>
-        <h1 className="mt-1 font-display text-4xl leading-tight sm:text-5xl">
-          {draft.audience === "men" ? "Men's" : "Women's"} <span className="italic">services</span>
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">Select your services.</p>
+      <DesktopServices menu={menu} category={category} onCategory={setActive} />
+      <div className="lg:hidden">
+        <Page>
+          <StepHeader back="/book" step={2} />
+          <Screen className="px-5">
+            <StepIntro eyebrow={men ? "Men's services" : "Women's services"}>
+              Select your <span className="italic text-bronze">services.</span>
+            </StepIntro>
 
-        <div ref={chipRow} role="tablist" aria-label="Service categories" className="-mx-6 mt-6 overflow-x-auto overscroll-x-contain scroll-px-6 px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:overflow-visible md:px-0">
-          <div className="flex w-max gap-2 py-1 md:w-auto md:flex-wrap">
-            {menu.map((c) => {
-              const on = c.id === category.id;
-              const count = c.services.filter((s) => draft.serviceIds.includes(s.id)).length;
-              return (
-                <button
-                  key={c.id}
-                  role="tab"
-                  aria-selected={on}
-                  onClick={() => setActive(c.id)}
-                  className={
-                    "label-caps min-h-11 shrink-0 whitespace-nowrap rounded-full border px-4 py-2.5 transition-all active:scale-[0.97] duration-300 " +
-                    (on
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-foreground/18 text-foreground/70 hover:border-foreground/45")
-                  }
-                >
-                  {c.title}
-                  {count > 0 ? (
-                    <span className={on ? "ml-2 opacity-70" : "ml-2 text-accent-foreground"}>{count}</span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div key={category.id} className="slide-in mt-7">
-          {category.blurb ? (
-            <p className="mb-5 max-w-md text-xs leading-relaxed text-muted-foreground">
-              {category.blurb}
-            </p>
-          ) : null}
-          <ul>
-            {category.services.map((s) => {
-              const on = draft.serviceIds.includes(s.id);
-              return (
-                <li key={s.id} className="hairline-b">
-                  <button
-                    onClick={() => toggleService(s.id)}
-                    aria-pressed={on}
-                    className={
-                      "flex min-h-16 w-full items-center gap-3 py-4 text-left sm:gap-4 transition-colors duration-200 " +
-                      (on ? "text-foreground" : "")
-                    }
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[0.95rem] leading-snug [overflow-wrap:anywhere]">{s.name}</span>
-                      <span className="mt-1 block text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground">
-                        {formatDuration(s.slots)}
-                      </span>
-                    </span>
-                    <span className="shrink-0 whitespace-nowrap font-display text-lg sm:text-xl">
-                      {inr(s.price)}
-                      {s.from ? "+" : ""}
-                    </span>
-                    <span
+            <div
+              ref={chipRow}
+              role="tablist"
+              aria-label="Service categories"
+              className="-mx-5 mt-6 overflow-x-auto overscroll-x-contain scroll-px-5 px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:overflow-visible md:px-0"
+            >
+              <div className="flex w-max gap-2 py-1 md:w-auto md:flex-wrap">
+                {menu.map((c) => {
+                  const on = c.id === category.id;
+                  const count = c.services.filter((x) => draft.serviceIds.includes(x.id)).length;
+                  return (
+                    <button
+                      key={c.id}
+                      role="tab"
+                      aria-selected={on}
+                      onClick={() => setActive(c.id)}
                       className={
-                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all duration-300 " +
+                        "press inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-[0.82rem] tracking-[0.02em] " +
                         (on
                           ? "border-foreground bg-foreground text-background"
-                          : "border-foreground/25 text-foreground/60")
+                          : "border-foreground/15 bg-card text-foreground/75 hover:border-foreground/40")
                       }
                     >
-                      {on ? (
-                        <Check className="h-4 w-4" strokeWidth={1.75} />
-                      ) : (
-                        <Plus className="h-4 w-4" strokeWidth={1.25} />
-                      )}
-                    </span>
-                  </button>
-                  {on && s.note ? (
-                    <p className="-mt-1 pb-4 text-xs leading-relaxed text-muted-foreground">{s.note}</p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </Screen>
+                      {c.title}
+                      {count > 0 ? (
+                        <span
+                          key={count}
+                          className={
+                            "pop-in inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[0.68rem] tabular-nums " +
+                            (on ? "bg-background/20 text-background" : "bg-bronze text-ivory")
+                          }
+                        >
+                          {count}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-      <StickyBar>
-        <div className="mb-3 flex items-baseline justify-between gap-3">
-          <div className="label-caps text-foreground/60">
-            {selected.length
-              ? `${selected.length} selected · ${formatDuration(totalSlots)}`
-              : "Nothing selected"}
-          </div>
-          <div className="font-display text-2xl">
-            {inr(totalPrice)}
-            {hasFromPricing ? "+" : ""}
-          </div>
-        </div>
-        <PrimaryAction
-          disabled={selected.length === 0}
-          onClick={() => navigate({ to: "/time" })}
-        >
-          Choose a time
-        </PrimaryAction>
-      </StickyBar>
-    </Page>
-    </div>
+            <div key={category.id} className="slide-in mt-6">
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 className="font-display text-[1.9rem] leading-tight">{category.title}</h2>
+                <span className="text-[0.75rem] text-muted-foreground">{category.services.length} services</span>
+              </div>
+              {category.blurb ? (
+                <p className="mt-1 text-[0.85rem] leading-relaxed text-muted-foreground">{category.blurb}</p>
+              ) : null}
+              <ul className="stagger mt-4 space-y-2.5">
+                {category.services.map((x) => {
+                  const on = draft.serviceIds.includes(x.id);
+                  return (
+                    <li key={x.id}>
+                      <button
+                        onClick={() => {
+                          haptic();
+                          toggleService(x.id);
+                        }}
+                        aria-pressed={on}
+                        className={
+                          "press flex w-full items-center gap-3 rounded-md border px-4 py-4 text-left " +
+                          (on
+                            ? "border-foreground/70 bg-card shadow-[0_10px_28px_-18px_color-mix(in_oklab,var(--ink)_45%,transparent)]"
+                            : "border-foreground/8 bg-card/60 hover:border-foreground/25")
+                        }
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[1rem] leading-snug [overflow-wrap:anywhere]">{x.name}</span>
+                          {x.note ? (
+                            <span className="mt-1 block text-[0.78rem] leading-relaxed text-muted-foreground">{x.note}</span>
+                          ) : null}
+                          <span className="mt-1.5 flex items-center gap-1.5 text-[0.75rem] text-muted-foreground">
+                            <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
+                            {formatDuration(x.slots)}
+                          </span>
+                        </span>
+                        <span className="shrink-0 whitespace-nowrap text-[1rem]">
+                          {inr(x.price)}
+                          {x.from ? "+" : ""}
+                        </span>
+                        <span
+                          className={
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors duration-300 " +
+                            (on
+                              ? "ring-pulse border-foreground bg-foreground text-background"
+                              : "border-foreground/25 text-foreground/70")
+                          }
+                        >
+                          {on ? (
+                            <Check className="pop-in h-4 w-4" strokeWidth={1.75} />
+                          ) : (
+                            <Plus className="h-4 w-4" strokeWidth={1.25} />
+                          )}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </Screen>
+
+          <StickyBar>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/12">
+                  <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.1} />
+                  {selected.length ? (
+                    <span
+                      key={selected.length}
+                      className="pop-in absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-bronze px-1 text-[0.65rem] text-ivory tabular-nums"
+                    >
+                      {selected.length}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[0.9rem]">
+                    {selected.length ? selected.map((x) => x.name).join(", ") : "No services yet"}
+                  </span>
+                  <span className="block text-[0.75rem] text-muted-foreground">
+                    {selected.length ? formatDuration(totalSlots) : "Tap + to add"}
+                  </span>
+                </span>
+              </div>
+              <span key={totalPrice} className="tick-in shrink-0 font-display text-[1.7rem] leading-none">
+                {inr(totalPrice)}
+                {hasFromPricing ? "+" : ""}
+              </span>
+            </div>
+            <PrimaryAction disabled={selected.length === 0} onClick={() => navigate({ to: "/time" })}>
+              Choose a time
+            </PrimaryAction>
+          </StickyBar>
+        </Page>
+      </div>
     </>
   );
 }
@@ -217,7 +253,7 @@ function DesktopServices({
                     aria-selected={on}
                     onClick={() => onCategory(c.id)}
                     className={
-                      "flex w-full items-center gap-4 rounded-sm border px-4 py-3.5 text-left transition-colors duration-200 " +
+                      "press flex w-full items-center gap-4 rounded-sm border px-4 py-3.5 text-left " +
                       (on
                         ? "border-foreground bg-foreground text-background"
                         : "border-foreground/10 bg-card hover:border-foreground/35")
@@ -249,7 +285,7 @@ function DesktopServices({
           {category.blurb ? (
             <p className="mt-1 max-w-lg text-[0.9rem] leading-relaxed text-muted-foreground">{category.blurb}</p>
           ) : null}
-          <ul className="mt-6 hairline-t">
+          <ul className="stagger mt-6 hairline-t">
             {category.services.map((x) => {
               const on = draft.serviceIds.includes(x.id);
               return (
@@ -257,7 +293,7 @@ function DesktopServices({
                   <button
                     onClick={() => toggleService(x.id)}
                     aria-pressed={on}
-                    className="group flex w-full items-center gap-6 py-5 text-left"
+                    className="group -mx-4 flex w-[calc(100%+2rem)] items-center gap-6 rounded-md px-4 py-5 text-left transition-colors duration-200 hover:bg-foreground/[0.025]"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block text-[1.05rem] leading-snug">{x.name}</span>
@@ -275,13 +311,13 @@ function DesktopServices({
                     </span>
                     <span
                       className={
-                        "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border transition-all duration-300 " +
+                        "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border transition-all duration-300 group-active:scale-90 " +
                         (on
-                          ? "border-foreground bg-foreground text-background"
+                          ? "ring-pulse border-foreground bg-foreground text-background"
                           : "border-foreground/30 group-hover:border-foreground/70")
                       }
                     >
-                      {on ? <Check className="h-5 w-5" strokeWidth={1.5} /> : <Plus className="h-5 w-5" strokeWidth={1.25} />}
+                      {on ? <Check className="pop-in h-5 w-5" strokeWidth={1.5} /> : <Plus className="h-5 w-5" strokeWidth={1.25} />}
                     </span>
                   </button>
                 </li>
@@ -326,7 +362,7 @@ function DesktopServices({
         </div>
         <div className="border-l border-hairline pl-8 text-center">
           <div className="text-[0.85rem] text-muted-foreground">Total</div>
-          <div className="font-display text-3xl leading-tight">
+          <div key={totalPrice} className="tick-in font-display text-3xl leading-tight">
             {inr(totalPrice)}
             {hasFromPricing ? "+" : ""}
           </div>

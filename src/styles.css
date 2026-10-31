@@ -121,8 +121,19 @@
     outline-offset: 3px;
   }
 
+  button:not(:disabled),
+  [role="button"],
+  [role="tab"],
+  label[for] {
+    cursor: pointer;
+  }
+
   button:disabled {
     cursor: not-allowed;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--champagne) 45%, transparent);
   }
 
   h1,
@@ -291,7 +302,126 @@
     hbGlow 2.6s ease-in-out 1.4s infinite;
 }
 
+/* ── interaction layer ──────────────────────────────────── */
+
+@keyframes hbPop {
+  0% { transform: scale(0.55); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes hbTick {
+  from { opacity: 0; transform: translateY(45%); filter: blur(2px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes hbRing {
+  from { box-shadow: 0 0 0 0 color-mix(in oklab, var(--champagne) 55%, transparent); }
+  to { box-shadow: 0 0 0 10px transparent; }
+}
+
+@keyframes hbSheen {
+  from { transform: translateX(-120%) skewX(-18deg); }
+  to { transform: translateX(260%) skewX(-18deg); }
+}
+
+@keyframes hbRise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes hbShake {
+  0%, 100% { transform: none; }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+
+/* tactile press: every tappable surface gives way slightly */
+@utility press {
+  transition-property: transform, background-color, border-color, color, box-shadow, opacity;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+    transition-duration: 80ms;
+  }
+}
+
+/* selection pop for check marks and chosen chips */
+@utility pop-in {
+  animation: hbPop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* soft halo when something becomes selected */
+@utility ring-pulse {
+  animation: hbRing 0.6s ease-out both;
+}
+
+/* rolling number change for prices / counters — pair with key={value} */
+@utility tick-in {
+  display: inline-block;
+  animation: hbTick 0.38s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* field error nudge */
+@utility shake {
+  animation: hbShake 0.36s ease-in-out both;
+}
+
+/* children rise in one after another */
+@utility stagger {
+  & > * {
+    animation: hbRise 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+  & > *:nth-child(2) { animation-delay: 60ms; }
+  & > *:nth-child(3) { animation-delay: 120ms; }
+  & > *:nth-child(4) { animation-delay: 180ms; }
+  & > *:nth-child(5) { animation-delay: 240ms; }
+  & > *:nth-child(6) { animation-delay: 300ms; }
+  & > *:nth-child(7) { animation-delay: 360ms; }
+  & > *:nth-child(8) { animation-delay: 420ms; }
+  & > *:nth-child(n + 9) { animation-delay: 480ms; }
+}
+
+/* light sweep across primary buttons on hover */
+@utility sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.16), transparent);
+    transform: translateX(-120%) skewX(-18deg);
+    pointer-events: none;
+  }
+  &:hover:not(:disabled)::after {
+    animation: hbSheen 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+}
+
+/* page-to-page cross fade (router view transitions) */
+::view-transition-old(root) {
+  animation: 180ms ease-out both hbSoftFadeOut;
+}
+::view-transition-new(root) {
+  animation: 420ms cubic-bezier(0.22, 0.61, 0.36, 1) both hbFilmIn;
+}
+@keyframes hbSoftFadeOut {
+  to { opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+  .stagger > *, .pop-in, .tick-in, .ring-pulse, .shake, .sheen::after {
+    animation: none !important;
+  }
+  .press:active { transform: none !important; }
   .page-in, .slide-in, .soft-fade, .cine-drift, .emblem-in {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;

@@ -1,5 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Page, Screen, ScreenHeader } from "@/components/screen";
+import { createFileRoute } from "@tanstack/react-router";
+import { ArrowUpRight, Armchair, Car, DoorClosed, Droplets, Palette, Scissors, Snowflake, Sofa } from "lucide-react";
+import { BookCTA, InfoPage, InfoTitle, SectionLabel } from "@/components/info-page";
+import portrait from "@/assets/portrait.jpg.asset.json";
 import { BUSINESS } from "@/lib/salon";
 
 export const Route = createFileRoute("/studio")({
@@ -18,48 +20,87 @@ export const Route = createFileRoute("/studio")({
   component: StudioScreen,
 });
 
+const FACILITY_ICONS: [RegExp, typeof Scissors][] = [
+  [/chair/i, Armchair],
+  [/wash/i, Droplets],
+  [/air|condition/i, Snowflake],
+  [/waiting/i, Sofa],
+  [/makeup/i, Palette],
+  [/beard|groom/i, Scissors],
+  [/private/i, DoorClosed],
+  [/park/i, Car],
+];
+
+const iconFor = (f: string) => FACILITY_ICONS.find(([re]) => re.test(f))?.[1] ?? Scissors;
+
 function StudioScreen() {
+  const maps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BUSINESS.mapsQuery)}`;
+  const embed = `https://maps.google.com/maps?q=${encodeURIComponent(BUSINESS.mapsQuery)}&z=15&output=embed`;
   return (
-    <Page>
-      <ScreenHeader back="/" title="Studio" />
-      <Screen>
-        <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
-          The <span className="italic">studio.</span>
-        </h1>
-        <p className="mt-4 max-w-sm text-[0.95rem] leading-relaxed text-muted-foreground">
-          A calm, unhurried unisex salon in KPHB. Everything you need for a full makeover under one
-          roof, with a private room when you'd rather not be seen mid-transformation.
-        </p>
+    <InfoPage
+      label="Studio"
+      image={portrait.url}
+      panelEyebrow="KPHB Phase 9"
+      panelTitle={
+        <>
+          Calm,
+          <br />
+          <span className="italic text-champagne">unhurried.</span>
+        </>
+      }
+      panelSub="Four chairs. Never overbooked."
+    >
+      <InfoTitle
+        eyebrow="The studio"
+        sub="A calm, unhurried unisex salon in KPHB. Everything you need for a full makeover under one roof, with a private room when you'd rather not be seen mid-transformation."
+      >
+        The <span className="italic text-bronze">studio.</span>
+      </InfoTitle>
 
-        <ul className="mt-10 grid gap-px bg-hairline sm:grid-cols-2">
-          {BUSINESS.facilities.map((f) => (
-            <li key={f} className="bg-background px-5 py-6 text-[0.95rem]">
-              {f}
-            </li>
-          ))}
+      <div className="mt-10">
+        <SectionLabel>Inside</SectionLabel>
+        <ul className="stagger mt-5 grid grid-cols-2 gap-2.5">
+          {BUSINESS.facilities.map((f) => {
+            const Icon = iconFor(f);
+            return (
+              <li
+                key={f}
+                className="flex items-center gap-3 rounded-md border border-hairline bg-card px-4 py-4 text-[0.9rem] lg:text-[0.95rem]"
+              >
+                <Icon className="h-[18px] w-[18px] shrink-0 text-bronze" strokeWidth={1.25} aria-hidden />
+                {f}
+              </li>
+            );
+          })}
         </ul>
+      </div>
 
-        <div className="mt-12">
-          <div className="eyebrow">Address</div>
-          <p className="mt-3 text-[0.95rem] leading-relaxed">{BUSINESS.address}</p>
-          <a
-            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BUSINESS.mapsQuery)}`}
-            target="_blank"
-            rel="noreferrer"
-            className="label-caps mt-5 inline-flex border-b border-foreground/30 pb-1"
-          >
-            Open in Maps
-          </a>
+      <div className="mt-10">
+        <SectionLabel>Find us</SectionLabel>
+        <div className="mt-5 overflow-hidden rounded-md border border-hairline bg-card">
+          <iframe
+            title="Map to the studio"
+            src={embed}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            className="h-48 w-full border-0 bg-muted grayscale lg:h-56"
+          />
+          <div className="flex items-start justify-between gap-4 p-4 lg:p-5">
+            <address className="text-[0.92rem] not-italic leading-relaxed">{BUSINESS.address}</address>
+            <a
+              href={maps}
+              target="_blank"
+              rel="noreferrer"
+              className="press inline-flex shrink-0 items-center gap-1.5 text-[0.85rem] text-bronze"
+            >
+              <span className="underline underline-offset-4">Directions</span>
+              <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={1.25} />
+            </a>
+          </div>
         </div>
+      </div>
 
-        <Link
-          to="/book"
-          className="label-caps mt-12 flex w-full items-center justify-between gap-4 bg-foreground px-6 py-4.5 text-background"
-        >
-          <span>Book an appointment</span>
-          <span>→</span>
-        </Link>
-      </Screen>
-    </Page>
+      <BookCTA className="mt-10" />
+    </InfoPage>
   );
 }

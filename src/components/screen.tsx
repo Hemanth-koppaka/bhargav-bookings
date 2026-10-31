@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png.asset.json";
 
@@ -107,12 +107,13 @@ export function PrimaryAction({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="label-caps group flex w-full items-center justify-between gap-4 bg-foreground px-6 py-4.5 text-background transition-all duration-300 hover:bg-foreground/88 disabled:cursor-not-allowed disabled:bg-foreground/25"
+      className="label-caps press sheen group flex min-h-14 w-full items-center justify-between gap-4 rounded-sm bg-foreground px-6 py-4.5 text-background hover:bg-foreground/88 disabled:cursor-not-allowed disabled:bg-foreground/25"
     >
       <span>{children}</span>
-      <span className="transition-transform duration-300 group-hover:translate-x-1 group-disabled:translate-x-0">
-        →
-      </span>
+      <ArrowRight
+        className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1 group-disabled:translate-x-0"
+        strokeWidth={1.25}
+      />
     </button>
   );
 }
@@ -131,7 +132,7 @@ export function GhostAction({
       type="button"
       onClick={onClick}
       className={cn(
-        "label-caps w-full border border-foreground/20 px-6 py-4 transition-colors duration-300 hover:border-foreground/50",
+        "label-caps press min-h-12 w-full rounded-sm border border-foreground/20 px-6 py-4 hover:border-foreground/50",
         className,
       )}
     >
@@ -150,6 +151,56 @@ export function EmptyState({ title, body, action }: { title: string; body: strin
       <h2 className="font-display text-3xl">{title}</h2>
       <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">{body}</p>
       {action ? <div className="mx-auto mt-8 max-w-xs">{action}</div> : null}
+    </div>
+  );
+}
+
+/** Phone step header: back · wordmark · 02 / 05, with a progress hairline. */
+export function StepHeader({ back, step, total = 5 }: { back: string; step: number; total?: number }) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    <header className="sticky top-0 z-30 bg-background/92 backdrop-blur-md safe-t">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5">
+        <Link
+          to={back as never}
+          aria-label="Back"
+          className="press inline-flex h-11 w-11 items-center justify-center rounded-full text-foreground/75 hover:bg-foreground/5"
+        >
+          <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.25} />
+        </Link>
+        <Link to="/" aria-label="Hair by Bhargav" className="mx-auto inline-flex">
+          <Wordmark className="h-8" />
+        </Link>
+        <span className="label-caps w-11 whitespace-nowrap text-right text-[0.6rem] tabular-nums text-foreground/60">
+          {pad(step)} / {pad(total)}
+        </span>
+      </div>
+      <div
+        className="h-px w-full bg-hairline"
+        role="progressbar"
+        aria-label={`Step ${step} of ${total}`}
+        aria-valuemin={1}
+        aria-valuemax={total}
+        aria-valuenow={step}
+      >
+        <div
+          className="h-px bg-bronze/70 transition-[width] duration-700"
+          style={{ width: `${(step / total) * 100}%` }}
+        />
+      </div>
+    </header>
+  );
+}
+
+/** Phone step title: small eyebrow + display heading. */
+export function StepIntro({ eyebrow, children, sub }: { eyebrow: string; children: ReactNode; sub?: ReactNode }) {
+  return (
+    <div className="pt-6">
+      <div className="text-[0.62rem] uppercase tracking-[0.3em] text-muted-foreground">{eyebrow}</div>
+      <h1 className="mt-2 font-display text-[clamp(2.3rem,10.5vw,2.9rem)] leading-[1.02] tracking-[-0.01em]">
+        {children}
+      </h1>
+      {sub ? <p className="mt-2.5 text-[0.92rem] leading-relaxed text-muted-foreground">{sub}</p> : null}
     </div>
   );
 }

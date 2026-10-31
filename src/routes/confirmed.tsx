@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
+import { CalendarPlus, Check, Copy, Download, MapPin } from "lucide-react";
 import { useBooking, servicesOf, type Booking } from "@/lib/booking-store";
 import { BUSINESS, formatLongDate, minuteLabel, SLOT_MINUTES } from "@/lib/salon";
 import portrait from "@/assets/portrait.jpg.asset.json";
@@ -202,6 +203,8 @@ function ConfirmedScreen() {
   const serviceLine = services.map((s) => s.name).join(" · ") || "Appointment";
   const totalSlots = services.reduce((n, s) => n + s.slots, 0);
 
+  const [copied, setCopied] = useState(false);
+
   const onSave = useCallback(() => {
     if (booking) void saveConfirmationImage(booking, serviceLine);
   }, [booking, serviceLine]);
@@ -259,72 +262,67 @@ function ConfirmedScreen() {
         }}
       />
 
-      <div className="relative mx-auto flex min-h-[100svh] max-w-md flex-col justify-center px-6 py-12 sm:max-w-lg">
-        {/* Phase 2 — HB logo */}
-        <div
-          className="flex justify-center transition-all duration-[1600ms] ease-out"
-          style={{
-            opacity: stage >= 1 ? 1 : 0,
-            transform: stage >= 1 ? "translateY(0)" : "translateY(14px)",
-          }}
-        >
-          <img
-            src={logo.url}
-            alt="Hair by Bhargav"
-            className="h-14 w-auto object-contain brightness-0 invert"
-          />
-        </div>
+      <div className="relative mx-auto grid min-h-[100svh] max-w-md content-center px-6 py-12 sm:max-w-lg lg:max-w-6xl lg:grid-cols-2 lg:items-center lg:gap-x-24 lg:px-14">
+        <div>
+          {/* Phase 2 — HB logo */}
+          <div className="flex justify-center lg:justify-start" style={reveal(stage >= 1, 14, 1600)}>
+            <img
+              src={logo.url}
+              alt="Hair by Bhargav"
+              className="h-14 w-auto object-contain brightness-0 invert lg:h-16"
+            />
+          </div>
 
-        {/* Phase 4 — message */}
-        <div
-          className="mt-10 text-center transition-all duration-[1400ms] ease-out"
-          style={{
-            opacity: stage >= 3 ? 1 : 0,
-            transform: stage >= 3 ? "translateY(0)" : "translateY(12px)",
-          }}
-        >
-          <h1 className="font-display text-5xl leading-none tracking-wide sm:text-6xl">
-            You're booked.
-          </h1>
-          <p className="mt-4 font-display text-2xl italic text-[#E8E1D8]/80">
-            Your chair is reserved.
-          </p>
-          <p className="mt-2 text-[0.7rem] uppercase tracking-[0.28em] text-[#C9A96A]">
-            Bhargav is waiting for you
-          </p>
-        </div>
+          {/* Phase 4 — message */}
+          <div className="mt-10 text-center lg:mt-14 lg:text-left" style={reveal(stage >= 3, 12, 1400)}>
+            <h1 className="font-display text-5xl leading-none tracking-wide sm:text-6xl lg:text-[4.75rem]">
+              You're booked.
+            </h1>
+            <p className="mt-4 font-display text-2xl italic text-[#E8E1D8]/80 lg:text-[2rem]">Your chair is reserved.</p>
+            <p className="mt-2 text-[0.7rem] uppercase tracking-[0.28em] text-[#C9A96A]">Bhargav is waiting for you</p>
+          </div>
 
-        {/* Phase 5 — emblem + details */}
-        <div
-          className="transition-all duration-[1200ms] ease-out"
-          style={{
-            opacity: stage >= 4 ? 1 : 0,
-            transform: stage >= 4 ? "translateY(0)" : "translateY(18px)",
-            pointerEvents: stage >= 4 ? "auto" : "none",
-          }}
-        >
-          <div className="mt-10 flex justify-center [perspective:600px]">
+          {/* Phase 5 — emblem */}
+          <div className="mt-10 flex justify-center [perspective:600px] lg:justify-start" style={reveal(stage >= 4, 18, 1200)}>
             {stage >= 4 ? (
-              <span className="emblem-in flex h-16 w-16 items-center justify-center rounded-full border border-[#C9A96A]/70 bg-gradient-to-br from-[#C9A96A]/35 to-transparent">
-                <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="#E8D9B6" strokeWidth="1.2">
-                  <path d="M4 12.5l5 5L20 6.5" strokeLinecap="round" strokeLinejoin="round" />
+              <span className="emblem-in flex h-16 w-16 items-center justify-center rounded-full border border-[#C9A96A]/70 bg-gradient-to-br from-[#C9A96A]/35 to-transparent lg:h-20 lg:w-20">
+                <svg viewBox="0 0 24 24" className="h-7 w-7 lg:h-8 lg:w-8" fill="none" stroke="#E8D9B6" strokeWidth="1.2">
+                  <path
+                    d="M4 12.5l5 5L20 6.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ strokeDasharray: 40, animation: "drawTick 0.7s 0.5s ease-out both" }}
+                  />
                 </svg>
               </span>
             ) : null}
           </div>
+        </div>
 
-          <div className="mt-9 border border-[#C9A96A]/28 bg-[#141312]/70 px-6 py-7 backdrop-blur-sm sm:px-8">
-            <div className="text-center text-[0.62rem] uppercase tracking-[0.3em] text-[#C9A96A]">
+        {/* Phase 5 — details + actions */}
+        <div style={{ ...reveal(stage >= 4, 18, 1200), pointerEvents: stage >= 4 ? "auto" : "none" }}>
+          <div className="mt-9 rounded-md border border-[#C9A96A]/28 bg-[#141312]/70 px-6 py-7 backdrop-blur-sm sm:px-8 lg:mt-0 lg:px-10 lg:py-9">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                void navigator.clipboard?.writeText(booking.reference).then(() => {
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1600);
+                });
+              }}
+              className="press mx-auto flex items-center gap-2 text-[0.62rem] uppercase tracking-[0.3em] text-[#C9A96A] lg:mx-0"
+              aria-label="Copy booking reference"
+            >
               Reservation · {booking.reference}
-            </div>
+              <span key={String(copied)} className="pop-in inline-flex">
+                {copied ? <Check className="h-3.5 w-3.5" strokeWidth={1.5} /> : <Copy className="h-3.5 w-3.5" strokeWidth={1.25} />}
+              </span>
+            </button>
             <dl className="mt-6 space-y-5">
               <Row label="Date" value={formatLongDate(booking.date)} />
               <div className="grid grid-cols-2 gap-5">
                 <Row label="Time" value={minuteLabel(booking.time)} />
-                <Row
-                  label="Duration"
-                  value={`${totalSlots * SLOT_MINUTES} min`}
-                />
+                <Row label="Duration" value={`${totalSlots * SLOT_MINUTES} min`} />
               </div>
               <Row label="Service" value={serviceLine} />
               <Row label="Studio" value="Hair by Bhargav" sub={BUSINESS.address} />
@@ -334,17 +332,30 @@ function ConfirmedScreen() {
           <div className="mt-7 space-y-3">
             <button
               onClick={() => downloadIcs(booking, serviceLine)}
-              className="w-full bg-[#C9A96A] px-6 py-4 text-[0.7rem] uppercase tracking-[0.22em] text-[#0B0B0B] transition-opacity hover:opacity-90"
+              className="press sheen flex min-h-14 w-full items-center justify-center gap-3 rounded-sm bg-[#C9A96A] px-6 text-[0.7rem] uppercase tracking-[0.22em] text-[#0B0B0B] hover:opacity-90"
             >
+              <CalendarPlus className="h-4 w-4" strokeWidth={1.25} />
               Add to calendar
             </button>
-            <button
-              onClick={onSave}
-              className="w-full border border-[#E8E1D8]/28 px-6 py-4 text-[0.7rem] uppercase tracking-[0.22em] text-[#E8E1D8] transition-colors hover:border-[#E8E1D8]/70"
-            >
-              Save confirmation
-            </button>
-            <div className="flex items-center justify-center gap-6 pt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={onSave}
+                className="press flex min-h-13 items-center justify-center gap-2.5 rounded-sm border border-[#E8E1D8]/28 px-4 text-[0.66rem] uppercase tracking-[0.2em] text-[#E8E1D8] hover:border-[#E8E1D8]/70"
+              >
+                <Download className="h-4 w-4" strokeWidth={1.25} />
+                Save
+              </button>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BUSINESS.mapsQuery)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="press flex min-h-13 items-center justify-center gap-2.5 rounded-sm border border-[#E8E1D8]/28 px-4 text-[0.66rem] uppercase tracking-[0.2em] text-[#E8E1D8] hover:border-[#E8E1D8]/70"
+              >
+                <MapPin className="h-4 w-4" strokeWidth={1.25} />
+                Directions
+              </a>
+            </div>
+            <div className="flex items-center justify-center gap-6 pt-2 lg:justify-start">
               <Link
                 to="/manage"
                 className="py-2 text-[0.68rem] uppercase tracking-[0.22em] text-[#E8E1D8]/55 transition-colors hover:text-[#E8E1D8]"
@@ -363,6 +374,15 @@ function ConfirmedScreen() {
       </div>
     </div>
   );
+}
+
+/** Fade-and-rise style for each phase of the reveal. */
+function reveal(on: boolean, y: number, ms: number) {
+  return {
+    opacity: on ? 1 : 0,
+    transform: on ? "translateY(0)" : `translateY(${y}px)`,
+    transition: `opacity ${ms}ms ease-out, transform ${ms}ms ease-out`,
+  };
 }
 
 function Row({ label, value, sub }: { label: string; value: string; sub?: string }) {
