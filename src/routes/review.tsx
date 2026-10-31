@@ -58,6 +58,12 @@ function ReviewScreen() {
 
   if (!ready || !draft.customer || !draft.date || draft.time == null) return null;
 
+  // warm the confirmation film's photo so it starts the moment the guest confirms
+  useEffect(() => {
+    const img = new Image();
+    img.src = "/media/barber-kit.webp";
+  }, []);
+
   const confirm = async () => {
     if (saving) return;
     setSaving(true);

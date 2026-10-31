@@ -24,7 +24,7 @@ type Key = {
 };
 
 // Positions are measured on the supplied 844×1500 photo.
-const SHOTS: Key[] = [
+const SHOT_PLAN: Key[] = [
   { t: 0.0, cx: 0.5, cy: 0.52, z: 1.0, fx: 0.5, fy: 0.5, fr: 1.2, bg: 0 }, // 01 establishing
   { t: 0.8, cx: 0.5, cy: 0.5, z: 1.1, fx: 0.48, fy: 0.46, fr: 0.85, bg: 1.5 }, // 02 push in
   { t: 1.6, cx: 0.47, cy: 0.42, z: 1.42, fx: 0.45, fy: 0.38, fr: 0.5, bg: 5 },
@@ -36,7 +36,7 @@ const SHOTS: Key[] = [
   { t: 6.8, cx: 0.5, cy: 0.52, z: 1.12, fx: 0.5, fy: 0.48, fr: 0.8, bg: 2 }, // 08 reveal
   { t: 8.0, cx: 0.5, cy: 0.5, z: 1.07, fx: 0.5, fy: 0.47, fr: 0.95, bg: 1 }, // 09 hero hold
 ];
-const DURATION = SHOTS[SHOTS.length - 1]!.t;
+const DURATION = SHOT_PLAN[SHOT_PLAN.length - 1]!.t;
 const FIELDS = ["cx", "cy", "z", "fx", "fy", "fr", "bg"] as const;
 
 /** Catmull-Rom through the keys: continuous velocity, no stops between shots. */
@@ -88,17 +88,35 @@ function clock(s: number) {
   return T - (v * r * r) / (2 * d);
 }
 
+/**
+ * The plan above is written in real seconds. The camera's clock eases in and
+ * out, so each keyframe is placed where that clock will be at its real time:
+ * every shot lands exactly on schedule.
+ */
+const SHOTS: Key[] = SHOT_PLAN.map((k) => ({ ...k, t: clock(k.t) }));
+
 export function CinematicKit({
   src = "/media/barber-kit.webp",
   alt = "A barber's comb, clipper, round brush, scissors and razor in a denim pocket",
   className,
   loop = false,
+  onDone,
 }: {
   src?: string;
   alt?: string;
   className?: string | undefined;
   loop?: boolean;
+  /** Called once the final hold has settled (or straight away if the film can't play). */
+  onDone?: () => void;
 }) {
+  const done = useRef(onDone);
+  done.current = onDone;
+  const fired = useRef(false);
+  const finish = () => {
+    if (fired.current) return;
+    fired.current = true;
+    done.current?.();
+  };
   const frame = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const deep = useRef<HTMLImageElement>(null);
@@ -114,6 +132,18 @@ export function CinematicKit({
     if (img?.complete) img.naturalWidth > 0 ? setReady(true) : setFailed(true);
   }, []);
 
+  // never keep anyone waiting on a slow photo: give up after 2.5 s
+  useEffect(() => {
+    if (ready || !onDone) return;
+    const t = window.setTimeout(finish, 2500);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+  useEffect(() => {
+    if (failed) finish();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failed]);
+
   useEffect(() => {
     if (!ready) return;
     const el = frame.current;
@@ -124,6 +154,8 @@ export function CinematicKit({
     let visible = false;
 
     const draw = (s: number) => {
+      // the film may be leaving the page between frames
+      if (!stage.current || !deep.current || !sharp.current || !light.current || !dust.current) return;
       const W = el.clientWidth;
       const H = el.clientHeight;
       const k = sample(clock(s));
@@ -162,7 +194,8 @@ export function CinematicKit({
 
     if (still) {
       draw(DURATION + 0.01);
-      return;
+      const t = window.setTimeout(finish, 1200);
+      return () => window.clearTimeout(t);
     }
     const tick = (now: number) => {
       if (start === null) start = now;
@@ -172,6 +205,7 @@ export function CinematicKit({
         s = 0;
       }
       draw(s);
+      if (s >= DURATION + 0.4) finish(); // a breath of the final hold, then hand over
       raf = requestAnimationFrame(tick);
     };
     // roll camera only while the film is on screen

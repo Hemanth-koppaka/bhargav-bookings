@@ -127,6 +127,7 @@ export const getAvailability = createServerFn({ method: "POST" })
         // when moving an existing booking, its own time doesn't count as taken
         reference: z.string().max(20).optional(),
         phone: z.string().max(20).optional(),
+        token: z.string().max(64).optional(),
       })
       .parse(d),
   )
@@ -135,10 +136,10 @@ export const getAvailability = createServerFn({ method: "POST" })
     const rules = await E.loadRules();
     let q: { minutes: number; buffer: number } = E.quote(data.audience, data.serviceIds) ?? { minutes: 30, buffer: 0 };
     let ignore: string | undefined;
-    if (data.reference && data.phone) {
+    if (data.reference && (data.phone || data.token)) {
       const sb = await db();
       const { data: r } = await sb.from("bookings").select("*").eq("reference", data.reference).maybeSingle();
-      if (r && last10((r.customer as { phone: string }).phone) === last10(data.phone)) {
+      if (r && (await owns(r, data))) {
         ignore = r.reference;
         // a booking keeps the length it was made with
         const row = r as Record<string, unknown>;
@@ -166,7 +167,76 @@ export const getPublicRules = createServerFn({ method: "GET" }).handler(async ()
   };
 });
 
-const lookup = z.object({ reference: z.string().max(20), phone: z.string().max(20) });
+const lookup = z.object({
+  reference: z.string().max(20),
+  phone: z.string().max(20).optional(),
+  /** Key from a Manage booking lookup (stands in for the phone). */
+  token: z.string().max(64).optional(),
+});
+
+/** True when the caller proved ownership with the booking's phone or its manage key. */
+async function owns(r: { reference: string; customer: unknown }, auth: { phone?: string | undefined; token?: string | undefined }) {
+  if (auth.phone && last10((r.customer as { phone: string }).phone) === last10(auth.phone)) return true;
+  if (auth.token) {
+    const { checkManageToken } = await import("./admin-auth.server");
+    return checkManageToken(r.reference, auth.token);
+  }
+  return false;
+}
+
+const maskPhone = (p: string) => {
+  const d = p.replace(/\D/g, "").slice(-10);
+  return d.length >= 4 ? `•••••• ${d.slice(-4)}` : "••••";
+};
+
+/**
+ * Manage booking: look up by booking ID *or* by the mobile number used to book.
+ * A phone returns that guest's upcoming bookings (and the last 30 days). The
+ * phone is never sent back; each result carries a key that authorises changes.
+ */
+export const findMyBookings = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ query: z.string().trim().min(3).max(30) }).parse(d))
+  .handler(async ({ data }) => {
+    const sb = await db();
+    const { manageToken } = await import("./admin-auth.server");
+    const q = data.query.trim();
+    const digits = q.replace(/\D/g, "");
+    const isPhone = !/[a-z]/i.test(q) && digits.length >= 10;
+    let rows: Record<string, unknown>[] = [];
+    if (isPhone) {
+      const since = new Date(Date.now() + 330 * 60_000 - 30 * 86_400_000).toISOString().slice(0, 10);
+      const key = digits.slice(-10);
+      // customers are matched on their cleaned 10-digit number; older bookings on the raw text
+      const { data: cust } = await sb.from("customers" as never).select("id").eq("phone_key", key);
+      const ids = ((cust ?? []) as { id: string }[]).map((c) => c.id);
+      const base = () => sb.from("bookings").select("*").gte("date", since).limit(40);
+      const [byCustomer, byText] = await Promise.all([
+        ids.length ? base().in("customer_id" as never, ids as never) : Promise.resolve({ data: [] }),
+        base().ilike("customer->>phone" as never, `%${key.slice(-4)}%`),
+      ]);
+      const seen = new Set<string>();
+      rows = ([...(byCustomer.data ?? []), ...(byText.data ?? [])] as Record<string, unknown>[])
+        .filter((r) => last10((r["customer"] as { phone: string }).phone) === key)
+        .filter((r) => !seen.has(r["reference"] as string) && Boolean(seen.add(r["reference"] as string)))
+        .sort((a, b) => String(a["date"]).localeCompare(String(b["date"])) || (a["time"] as number) - (b["time"] as number));
+    } else {
+      const ref = q.toUpperCase().replace(/\s+/g, "");
+      const { data: r } = await sb.from("bookings").select("*").eq("reference", ref).maybeSingle();
+      if (r) rows = [r as Record<string, unknown>];
+    }
+    const bookings = await Promise.all(
+      rows.slice(0, 12).map(async (r) => {
+        const b = toRow(r);
+        return {
+          ...b,
+          meta: {},
+          customer: { ...b.customer, phone: maskPhone(b.customer.phone), email: "" },
+          token: await manageToken(b.reference),
+        };
+      }),
+    );
+    return { bookings, by: isPhone ? ("phone" as const) : ("reference" as const) };
+  });
 
 export const findMyBooking = createServerFn({ method: "POST" })
   .inputValidator((d) => lookup.parse(d))
@@ -177,7 +247,7 @@ export const findMyBooking = createServerFn({ method: "POST" })
       .select("*")
       .eq("reference", data.reference.trim().toUpperCase())
       .maybeSingle();
-    if (!r || last10((r.customer as { phone: string }).phone) !== last10(data.phone)) {
+    if (!r || !(await owns(r, data))) {
       return { booking: null };
     }
     // Staff notes, payment and chair assignments stay internal.
@@ -201,7 +271,7 @@ export const updateMyBooking = createServerFn({ method: "POST" })
       .select("*")
       .eq("reference", data.reference.trim().toUpperCase())
       .maybeSingle();
-    if (!r || last10((r.customer as { phone: string }).phone) !== last10(data.phone)) {
+    if (!r || !(await owns(r, data))) {
       return { ok: false, error: "Booking not found." };
     }
     const row = r as Record<string, unknown>;

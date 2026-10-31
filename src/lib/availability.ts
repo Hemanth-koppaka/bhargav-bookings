@@ -14,6 +14,7 @@ export type DayPlan = {
   note?: string;
 };
 
+/** "closing" is no longer produced (services may run past closing); kept for older callers. */
 export type SlotReason = "booked" | "break" | "blocked" | "past" | "closing" | "notice";
 
 export type Slot = { minute: number; available: boolean; reason: SlotReason | null };
@@ -43,7 +44,8 @@ export function computeSlots(i: AvailabilityInput): Slot[] {
   const out: Slot[] = [];
   const need = Math.max(1, i.duration);
   for (let m = plan.open; m < plan.close; m += i.interval) {
-    // the service must finish by closing; the buffer may run past it
+    // Any start before closing is offered: a longer service may finish after
+    // closing (the salon's choice). Breaks are still fully protected.
     const serviceEnd = m + need;
     const heldEnd = serviceEnd + Math.max(0, i.buffer);
     let reason: SlotReason | null = null;
@@ -51,7 +53,6 @@ export function computeSlots(i: AvailabilityInput): Slot[] {
     else if (i.now != null && m < i.now + i.notice) reason = "notice";
     else if (plan.breaks.some((b) => overlaps(b, m, serviceEnd))) reason = "break";
     else if (plan.blocks.some((b) => overlaps(b, m, heldEnd))) reason = "blocked";
-    else if (serviceEnd > plan.close) reason = "closing";
     else if (i.busy.some((b) => overlaps(b, m, heldEnd))) reason = "booked";
     out.push({ minute: m, available: reason === null, reason });
   }

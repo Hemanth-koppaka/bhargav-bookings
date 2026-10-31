@@ -4,7 +4,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowRight, Phone } from "lucide-react";
 import { BUSINESS, hoursFor, isClosed, minuteLabel, toISO } from "@/lib/salon";
 import { LogoReveal } from "@/components/motion";
-import { ServiceGlyph } from "@/components/service-icons";
 import { CallButton, InfoStrip } from "@/components/desktop";
 import founder from "@/assets/founder.jpg.asset.json";
 
@@ -183,7 +182,7 @@ function Intro() {
     const scale = target / r.height;
     const dx = vw / 2 - (r.left + r.width / 2);
     const dy = vh / 2 - (r.top + r.height / 2) - target * 0.15;
-    setLineTop(vh / 2 + target * 0.35 + 28);
+    setLineTop(vh / 2 + target * 0.35 + 18);
 
     const at = (extra: string) => `translate(${dx}px, ${dy}px) ${extra}`;
     logo.style.transformOrigin = "50% 50%";
@@ -243,14 +242,7 @@ function Intro() {
     >
       {lineTop != null ? (
         <div className="absolute left-1/2 flex -translate-x-1/2 flex-col items-center" style={{ top: lineTop }}>
-          <div className="relative h-6 w-52 lg:w-64">
-            <span className="absolute inset-x-0 top-1/2 h-px [background-image:linear-gradient(90deg,var(--hairline)_55%,transparent_55%)] [background-size:7px_1px]" />
-            <span className="intro-cut absolute inset-x-0 top-1/2 h-px bg-bronze/70" />
-            <span className="intro-scissors absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 text-bronze">
-              <ServiceGlyph kind="scissors" className="h-5 w-5 rotate-90" />
-            </span>
-          </div>
-          <div className="fade-rise mt-5 text-[0.66rem] uppercase tracking-[0.36em] text-foreground/70 [animation-delay:1s]">
+          <div className="fade-rise whitespace-nowrap text-center text-[0.66rem] uppercase tracking-[0.36em] text-foreground/70 [animation-delay:1s]">
             {BUSINESS.tagline}
           </div>
         </div>

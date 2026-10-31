@@ -511,24 +511,6 @@ html.intro-done [data-hero-logo] .logo-sheen { animation: none; }
 @keyframes hbIntroOut {
   to { opacity: 0; transform: translateY(-2%); visibility: hidden; pointer-events: none; }
 }
-.intro-cut {
-  animation: hbCut 0.9s cubic-bezier(0.65, 0, 0.35, 1) 0.75s both;
-}
-@keyframes hbCut {
-  from { clip-path: inset(0 100% 0 0); }
-  to { clip-path: inset(0 0 0 0); }
-}
-.intro-scissors {
-  animation: hbTravel 0.9s cubic-bezier(0.65, 0, 0.35, 1) 0.75s both;
-}
-@keyframes hbTravel {
-  from { left: 0%; opacity: 0; }
-  12% { opacity: 1; }
-  88% { opacity: 1; }
-  to { left: 100%; opacity: 0; }
-}
-.intro-scissors [data-p="a"] { animation: svcSnipA 0.3s ease-in-out 0.75s 3 both; }
-.intro-scissors [data-p="b"] { animation: svcSnipB 0.3s ease-in-out 0.75s 3 both; }
 /* content waiting underneath the intro starts after it lifts */
 html:not(.intro-seen) .after-intro > * { animation-delay: 2.45s; }
 html:not(.intro-seen) .after-intro > *:nth-child(2) { animation-delay: 2.51s; }
@@ -623,4 +605,16 @@ html:not(.intro-seen) .after-intro > *:nth-child(n + 6) { animation-delay: 2.75s
 }
 @media (prefers-reduced-motion: reduce) {
   .kit-grain, .kit-dust i { animation: none; }
+}
+
+/* Letter-spacing leaves a gap after the last letter, so centred uppercase
+   labels drift left. Indent the start by the same amount to re-centre them. */
+.uppercase:is(.text-center, .justify-center, .rounded-full)[class*="tracking-"] {
+  text-indent: var(--tw-tracking, 0);
+}
+:is(.label-caps):is(.text-center, .justify-center) {
+  text-indent: 0.22em;
+}
+:is(.eyebrow):is(.text-center, .justify-center) {
+  text-indent: 0.28em;
 }

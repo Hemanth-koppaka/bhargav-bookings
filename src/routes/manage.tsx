@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { CalendarDays, ChevronRight, Clock, Search } from "lucide-react";
 import { GhostAction, PrimaryAction } from "@/components/screen";
 import { InfoPage, InfoTitle, SectionLabel } from "@/components/info-page";
 import { ScrollStrip, prettyPhone } from "@/components/desktop";
-import { useBooking, servicesOf, type Booking, type ChangeResult } from "@/lib/booking-store";
-import { getAvailability } from "@/lib/salon.functions";
+import { auth, useBooking, servicesOf, type Booking, type ChangeResult } from "@/lib/booking-store";
+import { getAvailability, getPublicRules } from "@/lib/salon.functions";
 import type { DayAvailability } from "@/lib/engine.server";
-import { calendarDays, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
+import { BUSINESS, calendarDays, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
 import { haptic } from "@/lib/utils";
 import portrait from "@/assets/portrait.jpg.asset.json";
 
@@ -34,32 +34,49 @@ const longDate = (iso: string) =>
   fromISO(iso).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 
 function ManageScreen() {
-  const { findBooking, bookings, cancelBooking, rescheduleBooking } = useBooking();
-  const [reference, setReference] = useState("");
-  const [phone, setPhone] = useState("");
+  const { findBookings, bookings, cancelBooking, rescheduleBooking } = useBooking();
+  const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [searching, setSearching] = useState(false);
   const [foundRef, setFoundRef] = useState<string | null>(null);
+  const [matches, setMatches] = useState<Booking[] | null>(null);
 
   const booking: Booking | undefined = foundRef ? bookings.find((b) => b.reference === foundRef) : undefined;
   const recent = bookings.filter((b) => b.status === "confirmed").slice(0, 3);
 
+  const q = query.trim();
+  const digits = q.replace(/\D/g, "");
+  const looksLikePhone = q !== "" && !/[a-z]/i.test(q);
+  const ready = looksLikePhone ? digits.length >= 10 : q.length >= 4;
+
   const lookup = async (e?: FormEvent) => {
     e?.preventDefault();
-    if (searching) return;
+    if (searching || !ready) return;
     setSearching(true);
-    const b = await findBooking(reference.trim().toUpperCase(), phone);
+    const list = await findBookings(looksLikePhone ? digits : q.toUpperCase());
     setSearching(false);
     setAttempt((n) => n + 1);
-    if (!b) {
+    if (list === null) {
       haptic(20);
-      setError("No booking matches that reference and mobile number. Please check both and try again.");
-      setFoundRef(null);
+      setError("We couldn't reach the salon. Check your connection and try again.");
+      return;
+    }
+    if (!list.length) {
+      haptic(20);
+      setError(
+        looksLikePhone
+          ? "No bookings found for that mobile number. Try your booking ID instead."
+          : "No booking matches that ID. Check it in your confirmation, or use your mobile number.",
+      );
+      setMatches(null);
       return;
     }
     setError("");
-    setFoundRef(b.reference);
+    if (list.length === 1) {
+      setMatches(null);
+      setFoundRef(list[0]!.reference);
+    } else setMatches(list);
   };
 
   return (
@@ -80,7 +97,7 @@ function ManageScreen() {
         <>
           <InfoTitle
             eyebrow="Manage booking"
-            sub="Enter the reference from your confirmation and the mobile number you booked with."
+            sub="Enter your booking ID or the mobile number you booked with."
           >
             Find your <span className="italic text-bronze">appointment.</span>
           </InfoTitle>
@@ -91,83 +108,64 @@ function ManageScreen() {
               <ul className="stagger mt-4 space-y-2.5">
                 {recent.map((b) => (
                   <li key={b.reference}>
-                    <button
-                      onClick={() => setFoundRef(b.reference)}
-                      className="press group flex w-full items-center gap-4 rounded-md border border-hairline bg-card p-4 text-left hover:border-foreground/30"
-                    >
-                      <span className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-md bg-champagne/18 text-bronze">
-                        <span className="text-[0.55rem] uppercase tracking-[0.16em]">
-                          {fromISO(b.date).toLocaleDateString("en-GB", { month: "short" })}
-                        </span>
-                        <span className="font-display text-[1.35rem] leading-none">{fromISO(b.date).getDate()}</span>
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[0.98rem]">
-                          {servicesOf(b).map((x) => x.name).join(", ")}
-                        </span>
-                        <span className="mt-0.5 block text-[0.8rem] text-muted-foreground">
-                          {minuteLabel(b.time)} · {b.reference}
-                        </span>
-                      </span>
-                      <ChevronRight
-                        className="h-4 w-4 text-foreground/40 transition-transform group-hover:translate-x-0.5"
-                        strokeWidth={1.25}
-                      />
-                    </button>
+                    <BookingRow b={b} onOpen={() => setFoundRef(b.reference)} />
                   </li>
                 ))}
               </ul>
             </div>
           ) : null}
 
-          <form noValidate onSubmit={lookup} className="mt-9">
-            {recent.length ? <SectionLabel>Or look it up</SectionLabel> : null}
-            <div className={recent.length ? "mt-5 space-y-5" : "space-y-5"}>
-              <div>
-                <label className="mb-3 block text-[0.68rem] uppercase tracking-[0.28em] text-foreground/75" htmlFor="ref">
-                  Booking reference
-                </label>
-                <input
-                  id="ref"
-                  className={box + " uppercase tracking-[0.12em] placeholder:normal-case placeholder:tracking-normal"}
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                  placeholder="HB-XXXXXX"
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                />
-              </div>
-              <div>
-                <label className="mb-3 block text-[0.68rem] uppercase tracking-[0.28em] text-foreground/75" htmlFor="mphone">
-                  Mobile number
-                </label>
-                <div className="flex items-stretch rounded-sm border border-foreground/18 bg-card transition-colors focus-within:border-foreground/60">
-                  <span className="flex items-center border-r border-foreground/12 px-5 text-[1.05rem] text-foreground/80">+91</span>
-                  <input
-                    id="mphone"
-                    className="min-w-0 flex-1 bg-transparent px-5 py-4 text-[1.05rem] outline-none placeholder:text-foreground/35"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="10-digit mobile"
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel-national"
-                  />
-                </div>
-              </div>
-              {error ? (
-                <p key={attempt} role="alert" className="shake text-[0.88rem] text-destructive">
-                  {error}
-                </p>
-              ) : null}
-              <PrimaryAction type="submit" disabled={searching || !reference.trim() || !phone.trim()}>
-                <span className="inline-flex items-center gap-3">
-                  <Search className="h-4 w-4" strokeWidth={1.25} />
-                  {searching ? "Searching…" : "Find booking"}
-                </span>
-              </PrimaryAction>
+          {matches ? (
+            <div className="mt-9">
+              <SectionLabel>Bookings for this number</SectionLabel>
+              <ul className="stagger mt-4 space-y-2.5">
+                {matches.map((b) => (
+                  <li key={b.reference}>
+                    <BookingRow b={b} onOpen={() => setFoundRef(b.reference)} />
+                  </li>
+                ))}
+              </ul>
+              <button onClick={() => setMatches(null)} className="mt-4 text-[0.85rem] text-muted-foreground underline underline-offset-4">
+                Search again
+              </button>
             </div>
-          </form>
+          ) : (
+            <form noValidate onSubmit={lookup} className="mt-9">
+              {recent.length ? <SectionLabel>Or look it up</SectionLabel> : null}
+              <div className={recent.length ? "mt-5 space-y-5" : "space-y-5"}>
+                <div>
+                  <label className="mb-3 block text-[0.68rem] uppercase tracking-[0.28em] text-foreground/75" htmlFor="lookup">
+                    Booking ID or mobile number
+                  </label>
+                  <input
+                    id="lookup"
+                    className={box}
+                    value={query}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setError("");
+                    }}
+                    placeholder="HB-2026-00124 or 98765 43210"
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <p className="mt-2 text-[0.78rem] text-muted-foreground">Either one works.</p>
+                </div>
+                {error ? (
+                  <p key={attempt} role="alert" className="shake text-[0.88rem] text-destructive">
+                    {error}
+                  </p>
+                ) : null}
+                <PrimaryAction type="submit" disabled={searching || !ready}>
+                  <span className="inline-flex items-center gap-3">
+                    <Search className="h-4 w-4" strokeWidth={1.25} />
+                    {searching ? "Searching…" : "Find booking"}
+                  </span>
+                </PrimaryAction>
+              </div>
+            </form>
+          )}
         </>
       ) : (
         <BookingPanel
@@ -178,6 +176,95 @@ function ManageScreen() {
         />
       )}
     </InfoPage>
+  );
+}
+
+type PublicRules = Awaited<ReturnType<typeof getPublicRules>>;
+let rulesCache: PublicRules | null = null;
+
+const hoursText = (m: number) => (m % 60 === 0 ? `${m / 60} hour${m === 60 ? "" : "s"}` : `${m} minutes`);
+
+/**
+ * Shows cancel / reschedule only while the salon's rules allow them (by default
+ * until 2 hours before the appointment) and explains the cut-off otherwise.
+ */
+function ChangeWindow({
+  booking,
+  children,
+}: {
+  booking: Booking;
+  children: (canMove: boolean, canCancel: boolean) => ReactNode;
+}) {
+  const [rules, setRules] = useState<PublicRules | null>(rulesCache);
+  useEffect(() => {
+    if (rulesCache) return;
+    getPublicRules()
+      .then((r) => {
+        rulesCache = r;
+        setRules(r);
+      })
+      .catch(() => {});
+  }, []);
+  // minutes until the appointment, in salon time (Asia/Kolkata)
+  const salon = new Date(Date.now() + 330 * 60_000);
+  const todayIso = salon.toISOString().slice(0, 10);
+  const nowMin = salon.getUTCHours() * 60 + salon.getUTCMinutes();
+  const until =
+    Math.round((Date.parse(booking.date) - Date.parse(todayIso)) / 86_400_000) * 1440 + booking.time - nowMin;
+  const cancelBy = rules?.cancelDeadlineMinutes ?? 120;
+  const moveBy = rules?.rescheduleDeadlineMinutes ?? 120;
+  const canCancel = (rules?.customerCancel ?? true) && until >= cancelBy;
+  const canMove = (rules?.customerReschedule ?? true) && until >= moveBy;
+  const call = BUSINESS.phones[0];
+
+  if (until < 0) return <p className="mt-6 text-[0.9rem] text-muted-foreground">This appointment has passed.</p>;
+  return (
+    <>
+      {canMove || canCancel ? children(canMove, canCancel) : null}
+      <p className="mt-4 text-[0.82rem] leading-relaxed text-muted-foreground">
+        {canMove && canCancel
+          ? `You can reschedule or cancel online until ${hoursText(Math.max(moveBy, cancelBy))} before your appointment.`
+          : canMove || canCancel
+            ? `Online ${canMove ? "cancellation" : "rescheduling"} has closed for this appointment.`
+            : `Online changes close ${hoursText(Math.min(moveBy, cancelBy))} before your appointment.`}{" "}
+        {!(canMove && canCancel) && call ? (
+          <>
+            Please call the studio on{" "}
+            <a href={`tel:${call}`} className="underline underline-offset-4">
+              {prettyPhone(call)}
+            </a>
+            .
+          </>
+        ) : null}
+      </p>
+    </>
+  );
+}
+
+function BookingRow({ b, onOpen }: { b: Booking; onOpen: () => void }) {
+  const cancelled = b.status === "cancelled";
+  return (
+    <button
+      onClick={onOpen}
+      className="press group flex w-full items-center gap-4 rounded-md border border-hairline bg-card p-4 text-left hover:border-foreground/30"
+    >
+      <span className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-md bg-champagne/18 text-bronze">
+        <span className="text-[0.55rem] uppercase tracking-[0.16em]">
+          {fromISO(b.date).toLocaleDateString("en-GB", { month: "short" })}
+        </span>
+        <span className="font-display text-[1.35rem] leading-none">{fromISO(b.date).getDate()}</span>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={"block truncate text-[0.98rem] " + (cancelled ? "text-foreground/45 line-through" : "")}>
+          {servicesOf(b).map((x) => x.name).join(", ") || "Appointment"}
+        </span>
+        <span className="mt-0.5 block text-[0.8rem] text-muted-foreground">
+          {minuteLabel(b.time)} · {b.reference}
+          {cancelled ? " · Cancelled" : ""}
+        </span>
+      </span>
+      <ChevronRight className="h-4 w-4 text-foreground/40 transition-transform group-hover:translate-x-0.5" strokeWidth={1.25} />
+    </button>
   );
 }
 
@@ -229,7 +316,7 @@ function BookingPanel({
     setLoadingDay(true);
     // the server keeps this booking's own time free and uses its booked length
     getAvailability({
-      data: { date, audience: booking.audience, serviceIds: booking.serviceIds, reference: booking.reference, phone: booking.customer.phone },
+      data: { date, audience: booking.audience, serviceIds: booking.serviceIds, reference: booking.reference, ...auth(booking) },
     })
       .then((r) => live && setDay(r))
       .catch(() => live && setDay(null))
@@ -237,7 +324,8 @@ function BookingPanel({
     return () => {
       live = false;
     };
-  }, [date, mode, booking.audience, booking.serviceIds, booking.reference, booking.customer.phone]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, mode, booking.audience, booking.serviceIds, booking.reference, booking.customer.phone, booking.token]);
 
   const slots = (day?.date === date ? day.slots : []).filter(
     (x) => !(day?.breaks ?? []).some((b) => x.minute >= b.start && x.minute < b.end),
@@ -313,15 +401,21 @@ function BookingPanel({
       </div>
 
       {cancelled ? null : mode === "view" ? (
-        <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
-          <PrimaryAction onClick={() => setMode("reschedule")}>Reschedule</PrimaryAction>
-          <GhostAction
-            onClick={() => setMode("confirm-cancel")}
-            className="border-destructive/30 text-destructive hover:border-destructive/70"
-          >
-            Cancel booking
-          </GhostAction>
-        </div>
+        <ChangeWindow booking={booking}>
+          {(canMove, canCancel) => (
+            <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
+              {canMove ? <PrimaryAction onClick={() => setMode("reschedule")}>Reschedule</PrimaryAction> : null}
+              {canCancel ? (
+                <GhostAction
+                  onClick={() => setMode("confirm-cancel")}
+                  className="border-destructive/30 text-destructive hover:border-destructive/70"
+                >
+                  Cancel booking
+                </GhostAction>
+              ) : null}
+            </div>
+          )}
+        </ChangeWindow>
       ) : mode === "confirm-cancel" ? (
         <div className="page-in mt-6 rounded-md border border-destructive/25 bg-destructive/[0.03] p-5">
           <p className="text-[0.95rem] leading-relaxed">Cancel this appointment? Your slot will be released immediately.</p>

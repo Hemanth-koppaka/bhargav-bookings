@@ -153,7 +153,7 @@ function ServicesScreen() {
                         }}
                         aria-pressed={on}
                         className={
-                          "press flex w-full items-center gap-3 rounded-md border px-4 py-4 text-left " +
+                          "press flex w-full items-center gap-3 rounded-md border px-4 py-4 text-left max-[374px]:gap-2.5 max-[374px]:px-3.5 " +
                           (on
                             ? "border-foreground/70 bg-card shadow-[0_10px_28px_-18px_color-mix(in_oklab,var(--ink)_45%,transparent)]"
                             : "border-foreground/8 bg-card/60 hover:border-foreground/25")
@@ -161,7 +161,7 @@ function ServicesScreen() {
                       >
                         <ServiceIconTile kind={serviceKind(x)} photo={x.photo} framed={listHasPhotos} active={on} size="sm" />
                         <span className="min-w-0 flex-1">
-                          <span className="block whitespace-nowrap text-[clamp(0.9rem,3.9vw,1rem)] leading-snug">{x.name}</span>
+                          <span className="block text-[clamp(0.9rem,3.9vw,1rem)] leading-snug [text-wrap:balance]">{x.name}</span>
                           {x.category ? (
                             <span className="mt-0.5 block text-[0.66rem] uppercase tracking-[0.2em] text-bronze">{x.category}</span>
                           ) : null}
@@ -179,7 +179,7 @@ function ServicesScreen() {
                         </span>
                         <span
                           className={
-                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors duration-300 " +
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors duration-300 max-[374px]:h-9 max-[374px]:w-9 " +
                             (on
                               ? "ring-pulse border-foreground bg-foreground text-background"
                               : "border-foreground/25 text-foreground/70")

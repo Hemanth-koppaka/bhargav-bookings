@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { CinematicKit } from "@/components/cinematic-kit";
 import { useCallback, useEffect, useState } from "react";
 import { CalendarPlus, Check, Copy, Download, MapPin } from "lucide-react";
 import { LogoReveal } from "@/components/motion";
@@ -187,6 +188,12 @@ function ConfirmedScreen() {
   const booking = bookings.find((b) => b.reference === ref);
   const cinematic = seq === 1;
   const [stage, setStage] = useState(cinematic ? 0 : FINAL);
+  // the barber-kit film opens a fresh confirmation; the booking ID follows it
+  const [film, setFilm] = useState<"on" | "leaving" | "off">(cinematic ? "on" : "off");
+  const endFilm = useCallback(() => {
+    setFilm((f) => (f === "on" ? "leaving" : f));
+    window.setTimeout(() => setFilm("off"), 700);
+  }, []);
 
   useEffect(() => {
     if (hydrated && booking) resetDraft();
@@ -194,7 +201,7 @@ function ConfirmedScreen() {
   }, [hydrated, Boolean(booking)]);
 
   useEffect(() => {
-    if (!cinematic) return;
+    if (!cinematic || film === "on") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setStage(FINAL);
       return;
@@ -203,7 +210,8 @@ function ConfirmedScreen() {
     const marks = [250, 1900, 3000, 3900, 5100];
     const timers = marks.map((ms, i) => window.setTimeout(() => setStage((s) => Math.max(s, i + 1)), ms));
     return () => timers.forEach(window.clearTimeout);
-  }, [cinematic]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cinematic, film === "on"]);
 
   const services = booking ? servicesOf(booking) : [];
   const serviceLine = services.map((s) => s.name).join(" · ") || "Appointment";
@@ -415,6 +423,26 @@ function ConfirmedScreen() {
           </div>
         </div>
       </div>
+
+      {film !== "off" ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0B0B] transition-opacity duration-700 ease-out"
+          style={{ opacity: film === "leaving" ? 0 : 1 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            endFilm();
+          }}
+        >
+          <CinematicKit
+            className="h-auto w-[min(100vw,calc(100svh*9/16))]"
+            alt="Bhargav's tools: comb, clipper, round brush, scissors and razor"
+            onDone={endFilm}
+          />
+          <div className="pointer-events-none absolute inset-x-0 bottom-6 text-center text-[0.6rem] uppercase tracking-[0.3em] text-[#E8E1D8]/40">
+            Preparing your chair · tap to skip
+          </div>
+        </div>
+      ) : null}
 
       {stage < FINAL ? (
         <div className="absolute inset-x-0 bottom-6 z-30 text-center text-[0.6rem] uppercase tracking-[0.3em] text-[#E8E1D8]/35">
