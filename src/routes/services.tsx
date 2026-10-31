@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock, Plus, Search, Shoppin
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
 import { useRewindBack } from "@/components/scissors-line";
+import { BHARGAV_FULL, isSignature } from "@/lib/service-photos";
 import { ServiceGlyph, ServiceIconTile, categoryKind, serviceKind } from "@/components/service-icons";
 import {
   AUDIENCE_IMAGE,
@@ -14,6 +15,7 @@ import {
   ImagePanel,
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
+import { getServicePopularity } from "@/lib/salon.functions";
 import { formatDuration, inr, menuFor, type Category } from "@/lib/salon";
 
 export const Route = createFileRoute("/services")({
@@ -38,6 +40,7 @@ function ServicesScreen() {
   const navigate = useNavigate();
   const [active, setActive] = useState<string | null>(null);
   const chipRow = useRef<HTMLDivElement>(null);
+  const popularity = usePopularity();
 
   useEffect(() => {
     if (hydrated && !draft.audience) navigate({ to: "/book" });
@@ -139,7 +142,7 @@ function ServicesScreen() {
               ) : null}
               {search && search.length === 0 ? <NoResults query={query} onClear={() => setQuery("")} /> : null}
               <ul className="stagger mt-4 space-y-2.5">
-                {(search ?? category.services.map((x) => ({ ...x, category: "" }))).map((x) => {
+                {sortServices(search ?? category.services.map((x) => ({ ...x, category: "" })), "popular", popularity).map((x) => {
                   const on = draft.serviceIds.includes(x.id);
                   return (
                     <li key={x.id}>
@@ -158,7 +161,7 @@ function ServicesScreen() {
                       >
                         <ServiceIconTile kind={serviceKind(x)} photo={x.photo} framed={listHasPhotos} active={on} size="sm" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-[1rem] leading-snug [overflow-wrap:anywhere]">{x.name}</span>
+                          <span className="block whitespace-nowrap text-[clamp(0.9rem,3.9vw,1rem)] leading-snug">{x.name}</span>
                           {x.category ? (
                             <span className="mt-0.5 block text-[0.66rem] uppercase tracking-[0.2em] text-bronze">{x.category}</span>
                           ) : null}
@@ -196,8 +199,9 @@ function ServicesScreen() {
             </div>
           </Screen>
 
+          {selected.length ? (
           <StickyBar>
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="fade-rise mb-3 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/12">
                   <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.1} />
@@ -212,10 +216,10 @@ function ServicesScreen() {
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-[0.9rem]">
-                    {selected.length ? selected.map((x) => x.name).join(", ") : "No services yet"}
+                    {selected.map((x) => x.name).join(", ")}
                   </span>
                   <span className="block text-[0.75rem] text-muted-foreground">
-                    {selected.length ? formatDuration(totalMinutes) : "Tap + to add"}
+                    {formatDuration(totalMinutes)}
                   </span>
                 </span>
               </div>
@@ -228,6 +232,7 @@ function ServicesScreen() {
               Choose a time
             </PrimaryAction>
           </StickyBar>
+          ) : null}
         </Page>
       </div>
     </>
@@ -254,7 +259,8 @@ function DesktopServices({
   const men = draft.audience === "men";
   const img = AUDIENCE_IMAGE[men ? "men" : "women"];
   const [sort, setSort] = useState<SortKey>("popular");
-  const goBack = useRewindBack("/book", 1);
+  const popularity = usePopularity();
+  const goBack = useRewindBack("/book");
 
   return (
     <DesktopPage>
@@ -378,7 +384,7 @@ function DesktopServices({
           ) : null}
           {search && search.length === 0 ? <NoResults query={query} onClear={() => onQuery("")} /> : null}
           <ul key={sort} className="stagger mt-5 hairline-t">
-            {sortServices(search ?? category.services.map((x) => ({ ...x, category: "" })), sort).map((x) => {
+            {sortServices(search ?? category.services.map((x) => ({ ...x, category: "" })), sort, popularity).map((x) => {
               const on = draft.serviceIds.includes(x.id);
               return (
                 <li key={x.id} className="hairline-b">
@@ -426,20 +432,37 @@ function DesktopServices({
         </section>
         </div>
 
-        <ImagePanel
-          className="hidden lg:block"
-          src={img.src}
-          pos={img.pos}
-          eyebrow="Expert styling"
-          title={
-            <>
-              A style
-              <br />
-              that's <span className="italic text-champagne">you</span>.
-            </>
-          }
-          sub={men ? "Precision cuts. Modern styles. Timeless confidence." : "Colour. Care. Makeover. Made for you."}
-        />
+        {selected.some(isSignature) ? (
+          <ImagePanel
+            className="hidden lg:block"
+            src={BHARGAV_FULL}
+            pos="50% 22%"
+            eyebrow="Bhargav's Signature"
+            title={
+              <>
+                Styled by
+                <br />
+                <span className="italic text-champagne">Bhargav</span>.
+              </>
+            }
+            sub="Consultation, cut, beard, wash and styling."
+          />
+        ) : (
+          <ImagePanel
+            className="hidden lg:block"
+            src={img.src}
+            pos={img.pos}
+            eyebrow="Expert styling"
+            title={
+              <>
+                A style
+                <br />
+                that's <span className="italic text-champagne">you</span>.
+              </>
+            }
+            sub={men ? "Precision cuts. Modern styles. Timeless confidence." : "Colour. Care. Makeover. Made for you."}
+          />
+        )}
       </div>
 
       <DesktopBar>
@@ -573,16 +596,40 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: "duration", label: "Quickest first" },
 ];
 
-/** "Popular" keeps the salon's own order, with featured services first. */
-function sortServices<T extends { price: number; minutes: number; featured?: boolean | undefined }>(list: T[], key: SortKey) {
+/** "Popular" follows what guests actually book (recent bookings); ties keep the salon's own order. */
+function sortServices<T extends { id: string; price: number; minutes: number }>(
+  list: T[],
+  key: SortKey,
+  popularity: Record<string, number> = {},
+) {
   const out = list.map((x, i) => ({ x, i }));
   out.sort((a, b) => {
     if (key === "price-asc") return a.x.price - b.x.price || a.i - b.i;
     if (key === "price-desc") return b.x.price - a.x.price || a.i - b.i;
     if (key === "duration") return a.x.minutes - b.x.minutes || a.i - b.i;
-    return Number(Boolean(b.x.featured)) - Number(Boolean(a.x.featured)) || a.i - b.i;
+    return (popularity[b.x.id] ?? 0) - (popularity[a.x.id] ?? 0) || a.i - b.i;
   });
   return out.map((o) => o.x);
+}
+
+let popularityCache: Record<string, number> | null = null;
+/** Booking counts per service, fetched once per visit and refreshed on the next one. */
+function usePopularity() {
+  const [counts, setCounts] = useState<Record<string, number>>(popularityCache ?? {});
+  useEffect(() => {
+    if (popularityCache) return;
+    let live = true;
+    getServicePopularity()
+      .then((r) => {
+        popularityCache = r.counts;
+        if (live) setCounts(r.counts);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  return counts;
 }
 
 function SortMenu({ value, onChange }: { value: SortKey; onChange: (k: SortKey) => void }) {

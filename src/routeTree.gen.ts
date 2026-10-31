@@ -16,6 +16,7 @@ import { Route as BookRouteImport } from './routes/book'
 import { Route as ConfirmedRouteImport } from './routes/confirmed'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as DetailsRouteImport } from './routes/details'
+import { Route as FilmRouteImport } from './routes/film'
 import { Route as HoursRouteImport } from './routes/hours'
 import { Route as ManageRouteImport } from './routes/manage'
 import { Route as ReviewRouteImport } from './routes/review'
@@ -63,6 +64,11 @@ const ContactRoute = ContactRouteImport.update({
 const DetailsRoute = DetailsRouteImport.update({
   id: '/details',
   path: '/details',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FilmRoute = FilmRouteImport.update({
+  id: '/film',
+  path: '/film',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HoursRoute = HoursRouteImport.update({
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/confirmed': typeof ConfirmedRoute
   '/contact': typeof ContactRoute
   '/details': typeof DetailsRoute
+  '/film': typeof FilmRoute
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
   '/review': typeof ReviewRoute
@@ -160,6 +167,7 @@ export interface FileRoutesByTo {
   '/confirmed': typeof ConfirmedRoute
   '/contact': typeof ContactRoute
   '/details': typeof DetailsRoute
+  '/film': typeof FilmRoute
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
   '/review': typeof ReviewRoute
@@ -183,6 +191,7 @@ export interface FileRoutesById {
   '/confirmed': typeof ConfirmedRoute
   '/contact': typeof ContactRoute
   '/details': typeof DetailsRoute
+  '/film': typeof FilmRoute
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
   '/review': typeof ReviewRoute
@@ -207,6 +216,7 @@ export interface FileRouteTypes {
     | '/confirmed'
     | '/contact'
     | '/details'
+    | '/film'
     | '/hours'
     | '/manage'
     | '/review'
@@ -228,6 +238,7 @@ export interface FileRouteTypes {
     | '/confirmed'
     | '/contact'
     | '/details'
+    | '/film'
     | '/hours'
     | '/manage'
     | '/review'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/confirmed'
     | '/contact'
     | '/details'
+    | '/film'
     | '/hours'
     | '/manage'
     | '/review'
@@ -273,6 +285,7 @@ export interface RootRouteChildren {
   ConfirmedRoute: typeof ConfirmedRoute
   ContactRoute: typeof ContactRoute
   DetailsRoute: typeof DetailsRoute
+  FilmRoute: typeof FilmRoute
   HoursRoute: typeof HoursRoute
   ManageRoute: typeof ManageRoute
   ReviewRoute: typeof ReviewRoute
@@ -331,6 +344,13 @@ declare module '@tanstack/react-router' {
       path: '/details'
       fullPath: '/details'
       preLoaderRoute: typeof DetailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/film': {
+      id: '/film'
+      path: '/film'
+      fullPath: '/film'
+      preLoaderRoute: typeof FilmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hours': {
@@ -455,6 +475,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfirmedRoute: ConfirmedRoute,
   ContactRoute: ContactRoute,
   DetailsRoute: DetailsRoute,
+  FilmRoute: FilmRoute,
   HoursRoute: HoursRoute,
   ManageRoute: ManageRoute,
   ReviewRoute: ReviewRoute,

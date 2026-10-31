@@ -5,7 +5,7 @@ import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@
 import { haptic } from "@/lib/utils";
 import { ReferencePhotos } from "@/components/reference-photos";
 import {
-  AUDIENCE_IMAGE,
+  selectionImage,
   Accent,
   DesktopBar,
   DesktopCTA,
@@ -123,7 +123,7 @@ function DetailsScreen() {
 
 function MobileSummary() {
   const { draft, selected, totalMinutes, totalPrice, hasFromPricing } = useBooking();
-  const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
+  const img = selectionImage(selected, draft.audience);
   return (
     <div className="mt-5 flex items-center gap-4 rounded-md border border-hairline bg-card p-3.5">
       <Thumb src={img.src} pos={img.pos} className="h-16 w-16" />
@@ -268,7 +268,7 @@ function DesktopDetails({
   attempt: number;
 }) {
   const { draft, selected, totalMinutes, totalPrice, hasFromPricing } = useBooking();
-  const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
+  const img = selectionImage(selected, draft.audience);
 
   const assurances = [
     { icon: ShieldCheck, title: "Your information is safe", body: "Your details are only used to manage your appointment." },

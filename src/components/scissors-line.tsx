@@ -1,18 +1,12 @@
 // The booking progress line: a fine bronze strand with a pair of scissors at
 // its leading edge. Moving forward, the scissors cut their way to the next
-// step; pressing Back makes them physically travel back along the same path
-// while the strand unwinds behind them, and only then is the previous page
-// shown. One coordinate system (a fraction of the track) serves both
-// directions, and the last position is remembered across pages so each page
-// picks up exactly where the scissors stopped.
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+// step. Pressing Back opens the previous step straight away and its line picks
+// up exactly where the scissors were, then plays the reverse: a hair of
+// pull-back, travel home facing backwards while the strand unwinds behind
+// them, and a quiet settle. Nothing waits on the animation, so going back
+// feels instant. One coordinate system (a fraction of the track) serves both
+// directions; the live position is remembered across pages.
+import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { ServiceGlyph } from "@/components/service-icons";
@@ -27,68 +21,44 @@ const fractionFor = (kind: TrackKind, step: number, total: number) =>
       ? (step - 1) / (total - 1)
       : 0;
 
-/* ── shared state across pages ──────────────────────────────── */
-
+/** Last position shown per kind of track, so the next page continues from it. */
 const lastValue = new Map<TrackKind, number>();
-type Rewind = (toStep: number) => Promise<void>;
-const tracks = new Set<Rewind>();
-const stepListeners = new Set<(step: number) => void>();
-let rewinding = false;
+let navigating = false;
 
 const reducedMotion = () =>
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
-const PULLBACK_MS = 120;
-const TRAVEL_MS = 760;
-const SETTLE_MS = 200;
 const FORWARD_MS = 900;
+const PULLBACK_MS = 110;
+const TRAVEL_MS = 700;
+const SETTLE_MS = 180;
 
 /**
- * Back-navigation for booking steps: plays the reverse scissors travel on
- * every progress line on screen, marks the previous step active, then
- * navigates. Extra clicks during the transition are ignored.
+ * Back for booking steps: navigates immediately (the previous page plays the
+ * rewind as it enters). Double-clicks during the hand-over are ignored so the
+ * route and the line can never disagree.
  */
-export function useRewindBack(to: string, toStep: number) {
+export function useRewindBack(to: string) {
   const navigate = useNavigate();
   return useCallback(
-    async (e?: {
+    (e?: {
       preventDefault?: () => void;
       metaKey?: boolean;
       ctrlKey?: boolean;
       shiftKey?: boolean;
     }) => {
-      if (e?.metaKey || e?.ctrlKey || e?.shiftKey) return; // let "open in new tab" work normally
+      if (e?.metaKey || e?.ctrlKey || e?.shiftKey) return; // "open in new tab" works normally
       e?.preventDefault?.();
-      if (rewinding) return;
-      rewinding = true;
-      try {
-        if (tracks.size && !reducedMotion()) await Promise.all([...tracks].map((t) => t(toStep)));
-        stepListeners.forEach((l) => l(toStep));
-        await navigate({ to: to as never });
-      } finally {
-        rewinding = false;
-      }
+      if (navigating) return;
+      navigating = true;
+      void navigate({ to: to as never }).finally(() => {
+        window.setTimeout(() => (navigating = false), 220);
+      });
     },
-    [navigate, to, toStep],
+    [navigate, to],
   );
 }
-
-/** The step a header should show; switches to the previous step as soon as the scissors arrive. */
-export function useDisplayedStep(step: number) {
-  const [shown, setShown] = useState(step);
-  useEffect(() => setShown(step), [step]);
-  useEffect(() => {
-    const l = (s: number) => setShown(s);
-    stepListeners.add(l);
-    return () => {
-      stepListeners.delete(l);
-    };
-  }, []);
-  return shown;
-}
-
-/* ── the line ───────────────────────────────────────────────── */
 
 export function ScissorsLine({
   kind,
@@ -104,103 +74,99 @@ export function ScissorsLine({
   style?: CSSProperties;
 }) {
   const target = fractionFor(kind, step, total);
+  const track = useRef<HTMLDivElement>(null);
   const fill = useRef<HTMLSpanElement>(null);
   const blades = useRef<HTMLSpanElement>(null);
-  const current = useRef(lastValue.get(kind) ?? fractionFor(kind, step - 1, total));
+  const start = useRef(lastValue.get(kind) ?? fractionFor(kind, step - 1, total));
   const [cutting, setCutting] = useState(false);
   const [tight, setTight] = useState(false);
 
-  const setWidth = (v: number) => {
-    current.current = v;
-    if (fill.current) fill.current.style.width = `${v * 100}%`;
+  /** Where the strand actually is right now (mid-animation included). */
+  const measure = () => {
+    const t = track.current?.getBoundingClientRect().width;
+    const f = fill.current?.getBoundingClientRect().width;
+    return t && f != null ? Math.max(0, Math.min(1, f / t)) : null;
   };
 
-  // Arriving on a page: continue from wherever the scissors were last seen.
+  /** Remember where the strand is right now, for whoever draws it next. */
+  const handOff = () => {
+    const now = measure();
+    if (now == null) return; // hidden copy (other screen size): leave the visible one in charge
+    start.current = now;
+    lastValue.set(kind, now);
+  };
+
   useLayoutEffect(() => {
-    const from = current.current;
-    setWidth(from);
-    if (Math.abs(from - target) < 0.0005 || reducedMotion() || !fill.current) {
-      setWidth(target);
-      lastValue.set(kind, target);
+    const el = fill.current;
+    const from = start.current;
+    lastValue.set(kind, target);
+    if (!el || reducedMotion() || Math.abs(from - target) < 0.0005) {
+      if (el) el.style.width = `${target * 100}%`;
       return;
     }
+    el.style.width = `${target * 100}%`;
     setCutting(true);
-    const anim = fill.current.animate(
-      [{ width: `${from * 100}%` }, { width: `${target * 100}%` }],
-      {
+    start.current = target;
+    const done = () => {
+      setCutting(false);
+      setTight(false);
+    };
+
+    if (target > from) {
+      // forward: cut through to the next step
+      const anim = el.animate([{ width: `${from * 100}%` }, { width: `${target * 100}%` }], {
         duration: FORWARD_MS,
         easing: EASE,
-      },
-    );
-    anim.onfinish = () => {
-      setWidth(target);
-      setCutting(false);
-    };
-    lastValue.set(kind, target);
-    return () => anim.cancel();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target]);
-
-  // Back: pull back a hair, travel home facing backwards, settle facing forward.
-  useEffect(() => {
-    const rewind: Rewind = (toStep) =>
-      new Promise<void>((resolve) => {
-        const el = fill.current;
-        const to = fractionFor(kind, toStep, total);
-        const from = current.current;
-        if (!el || !el.getClientRects().length || Math.abs(from - to) < 0.0005) {
-          setWidth(to);
-          lastValue.set(kind, to);
-          return resolve();
-        }
-        const total_ = PULLBACK_MS + TRAVEL_MS + SETTLE_MS;
-        const o1 = PULLBACK_MS / total_;
-        const o2 = (PULLBACK_MS + TRAVEL_MS) / total_;
-        setCutting(true);
-        setTight(true);
-        const line = el.animate(
-          [
-            { width: `${from * 100}%`, offset: 0, easing: "ease-out" },
-            { width: `calc(${from * 100}% + 5px)`, offset: o1, easing: EASE },
-            { width: `calc(${to * 100}% + 1px)`, offset: o2, easing: "ease-out" },
-            { width: `${to * 100}%`, offset: 1 },
-          ],
-          { duration: total_, fill: "forwards" },
-        );
-        blades.current?.animate(
-          [
-            { transform: "rotate(90deg)", offset: 0 },
-            { transform: "rotate(90deg)", offset: o1, easing: EASE },
-            { transform: "rotate(-90deg)", offset: o1 + (o2 - o1) * 0.35 },
-            { transform: "rotate(-90deg)", offset: o2, easing: "ease-out" },
-            { transform: "rotate(90deg)", offset: 1 },
-          ],
-          { duration: total_ },
-        );
-        line.onfinish = () => {
-          setWidth(to);
-          line.cancel();
-          lastValue.set(kind, to);
-          setCutting(false);
-          setTight(false);
-          resolve();
-        };
       });
-    tracks.add(rewind);
+      anim.onfinish = done;
+      return () => {
+        handOff();
+        anim.cancel();
+      };
+    }
+
+    // back: pull back a hair, travel home facing backwards, settle facing forward
+    setTight(true);
+    const total_ = PULLBACK_MS + TRAVEL_MS + SETTLE_MS;
+    const o1 = PULLBACK_MS / total_;
+    const o2 = (PULLBACK_MS + TRAVEL_MS) / total_;
+    const line = el.animate(
+      [
+        { width: `${from * 100}%`, offset: 0, easing: "ease-out" },
+        { width: `calc(${from * 100}% + 4px)`, offset: o1, easing: EASE },
+        { width: `calc(${target * 100}% + 1px)`, offset: o2, easing: "ease-out" },
+        { width: `${target * 100}%`, offset: 1 },
+      ],
+      { duration: total_ },
+    );
+    const turn = blades.current?.animate(
+      [
+        { transform: "rotate(90deg)", offset: 0 },
+        { transform: "rotate(90deg)", offset: o1, easing: EASE },
+        { transform: "rotate(-90deg)", offset: o1 + (o2 - o1) * 0.3 },
+        { transform: "rotate(-90deg)", offset: o2, easing: "ease-out" },
+        { transform: "rotate(90deg)", offset: 1 },
+      ],
+      { duration: total_ },
+    );
+    line.onfinish = done;
     return () => {
-      tracks.delete(rewind);
+      handOff();
+      line.cancel();
+      turn?.cancel();
     };
-  }, [kind, total]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, kind]);
 
   return (
-    <div className={cn("relative h-px w-full", className)} style={style} aria-hidden>
+    <div ref={track} className={cn("relative h-px w-full", className)} style={style} aria-hidden>
       {/* the uncut remainder */}
       <span className="absolute inset-0 [background-image:linear-gradient(90deg,var(--hairline)_55%,transparent_55%)] [background-size:7px_1px]" />
       {/* the strand: one main hair and two finer ones that draw in while it unwinds */}
       <span
         ref={fill}
         className="absolute inset-y-0 left-0"
-        style={{ width: `${current.current * 100}%` }}
+        style={{ width: `${start.current * 100}%` }}
       >
         <span className="absolute inset-0 bg-gradient-to-r from-bronze/45 via-bronze/75 to-bronze/85" />
         <span

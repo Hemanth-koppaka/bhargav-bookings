@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { ArrowUpRight, CalendarDays, Lock, MapPin, Pencil, X } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import {
-  AUDIENCE_IMAGE,
+  selectionImage,
   Accent,
   DesktopBar,
   DesktopCTA,
@@ -72,7 +72,7 @@ function ReviewScreen() {
     navigate({ to: "/confirmed", search: { ref: res.booking.reference, seq: 1 } });
   };
 
-  const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
+  const img = selectionImage(selected, draft.audience);
   const c = draft.customer;
 
   return (
@@ -252,7 +252,7 @@ function DesktopReview({
 }) {
   const { draft, selected, totalMinutes, totalPrice, hasFromPricing, removeService } = useBooking();
   if (!draft.customer || !draft.date || draft.time == null) return null;
-  const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
+  const img = selectionImage(selected, draft.audience);
   const c = draft.customer;
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BUSINESS.mapsQuery)}`;
   const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(BUSINESS.mapsQuery)}&z=15&output=embed`;

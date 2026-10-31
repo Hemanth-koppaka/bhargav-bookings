@@ -1,24 +1,22 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { adminReferencePhotos } from "@/lib/photos.functions";
-import { AdminShell, Panel, Stat, StatusPill, TinyButton, inputClass } from "@/components/admin";
+import { toast } from "sonner";
+import { AlertTriangle, Ban, CalendarX2, ChevronRight, Info, Plus, UserRoundPlus } from "lucide-react";
+import { AdminShell, Panel, Stat, StatusPill, TinyButton } from "@/components/admin";
 import {
-  todayISO,
-  isLive,
-  useAdmin,
-  type ApptStatus,
-  type Appointment,
-} from "@/lib/admin-store";
-import {
-  OPEN_MINUTE,
-  CLOSE_MINUTE,
-  SLOT_MINUTES,
-  formatLongDate,
-  inr,
-  minuteLabel,
-  menuFor,
-  type Audience,
-} from "@/lib/salon";
+  BlockTimeDialog,
+  BookingDrawer,
+  CloseDayDialog,
+  LoadState,
+  NewBookingDialog,
+  dateLabel,
+  useAdminData,
+} from "@/components/admin-ops";
+import { useAdmin, STATUS_LABEL, type ApptStatus } from "@/lib/admin-store";
+import { adminDashboard, type AdminBooking } from "@/lib/admin-data.functions";
+import { adminUpsertBooking } from "@/lib/salon.functions";
+import { formatDuration, inr, minuteLabel } from "@/lib/salon";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({
@@ -33,307 +31,327 @@ export const Route = createFileRoute("/admin/")({
   component: TodayScreen,
 });
 
-const NEXT: Record<ApptStatus, ApptStatus | null> = {
-  upcoming: "arrived",
-  arrived: "in-chair",
-  "in-chair": "completed",
-  completed: null,
-  "no-show": null,
-  cancelled: null,
+const NEXT: Partial<Record<ApptStatus, { to: ApptStatus; label: string }>> = {
+  pending: { to: "upcoming", label: "Confirm" },
+  upcoming: { to: "arrived", label: "Check in" },
+  arrived: { to: "in-chair", label: "Start" },
+  "in-chair": { to: "completed", label: "Complete" },
 };
 
-/** The guest's reference photos, fetched on demand as short-lived private links. */
-function RefPhotos({ reference, count }: { reference: string; count: number }) {
-  const { pin } = useAdmin();
-  const [urls, setUrls] = useState<string[] | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    let live = true;
-    adminReferencePhotos({ data: { pin, reference } })
-      .then((r) => live && setUrls(r.urls))
-      .catch(() => live && setFailed(true));
-    return () => {
-      live = false;
-    };
-  }, [pin, reference]);
-  return (
-    <div className="mb-4">
-      <div className="eyebrow">Reference photos · deleted when completed</div>
-      <div className="mt-2 flex gap-2">
-        {failed ? (
-          <span className="text-xs text-destructive">Couldn't load photos.</span>
-        ) : urls === null ? (
-          Array.from({ length: count }, (_, i) => <span key={i} className="h-20 w-20 animate-pulse rounded-md bg-muted" />)
-        ) : urls.length === 0 ? (
-          <span className="text-xs text-muted-foreground">Photos have been removed.</span>
-        ) : (
-          urls.map((u) => (
-            <a key={u} href={u} target="_blank" rel="noreferrer" className="press block">
-              <img src={u} alt="Guest reference" className="h-20 w-20 rounded-md object-cover" />
-            </a>
-          ))
-        )}
-      </div>
-    </div>
-  );
+const isActive = (b: AdminBooking) => b.status !== "cancelled" && b.status !== "no-show";
+
+type Row =
+  | { kind: "booking"; start: number; end: number; b: AdminBooking }
+  | { kind: "free" | "break" | "block"; start: number; end: number; label: string };
+
+/** The day as a sequence: appointments, breaks, blocks and the free gaps between them. */
+function timeline(
+  open: number,
+  close: number,
+  bookings: AdminBooking[],
+  breaks: { start: number; end: number; label?: string }[],
+  blocks: { start: number; end: number; label?: string }[],
+  interval: number,
+): Row[] {
+  const taken: Row[] = [
+    ...bookings.filter(isActive).map((b) => ({ kind: "booking" as const, start: b.time, end: b.end, b })),
+    ...breaks.map((r) => ({ kind: "break" as const, start: r.start, end: r.end, label: r.label || "Break" })),
+    ...blocks.map((r) => ({ kind: "block" as const, start: r.start, end: r.end, label: r.label || "Blocked" })),
+  ].sort((a, b) => a.start - b.start);
+  const out: Row[] = [];
+  let cursor = open;
+  for (const r of taken) {
+    if (r.start - cursor >= interval) out.push({ kind: "free", start: cursor, end: r.start, label: "Available" });
+    out.push(r);
+    cursor = Math.max(cursor, r.end);
+  }
+  if (close - cursor >= interval) out.push({ kind: "free", start: cursor, end: close, label: "Available" });
+  return out;
 }
 
-export function ApptRow({ a }: { a: Appointment }) {
-  const { setStatus, setPayment, setStaff, staff } = useAdmin();
-  const [open, setOpen] = useState(false);
-  const next = NEXT[a.meta.status];
-  const assigned = staff.find((s) => s.id === a.meta.staffId);
-
-  return (
-    <div className="border-b border-hairline last:border-0">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="grid w-full grid-cols-[4.5rem_minmax(0,1fr)_auto] items-start gap-4 py-4 text-left"
-      >
-        <div>
-          <div className="font-display text-xl leading-none">{minuteLabel(a.time)}</div>
-          <div className="eyebrow mt-1.5">{a.slots * SLOT_MINUTES}m</div>
-        </div>
-        <div className="min-w-0">
-          <div className="truncate text-[0.95rem]">{a.customer.name}</div>
-          <div className="mt-1 truncate text-xs text-muted-foreground">
-            {a.services.map((s) => s.name).join(" · ") || "Appointment"}
-          </div>
-          <div className="mt-1.5 text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
-            {a.reference} · {a.source === "walk-in" ? "Walk-in" : "Online"}
-            {assigned ? ` · ${assigned.name}` : ""}
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <StatusPill status={a.meta.status} />
-          <span className="text-sm tabular-nums">{inr(a.meta.amount ?? a.total)}</span>
-        </div>
-      </button>
-
-      {open ? (
-        <div className="pb-5">
-          {a.customer.notes ? (
-            <p className="mb-4 text-sm leading-relaxed text-muted-foreground">“{a.customer.notes}”</p>
-          ) : null}
-          {a.customer.photos?.length ? <RefPhotos reference={a.reference} count={a.customer.photos.length} /> : null}
-          <div className="flex flex-wrap gap-2">
-            {next ? (
-              <TinyButton onClick={() => setStatus(a.reference, next)}>
-                Mark {next.replace("-", " ")}
-              </TinyButton>
-            ) : null}
-            {isLive(a.meta.status) ? (
-              <TinyButton tone="danger" onClick={() => setStatus(a.reference, "no-show")}>
-                No show
-              </TinyButton>
-            ) : null}
-            {a.meta.status !== "upcoming" ? (
-              <TinyButton onClick={() => setStatus(a.reference, "upcoming")}>Reset</TinyButton>
-            ) : null}
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {(["cash", "upi", "card", "unpaid"] as const).map((p) => (
-              <TinyButton
-                key={p}
-                active={a.meta.payment === p}
-                onClick={() => setPayment(a.reference, p, a.meta.amount ?? a.total)}
-              >
-                {p}
-              </TinyButton>
-            ))}
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {staff
-              .filter((s) => s.active)
-              .map((s) => (
-                <TinyButton
-                  key={s.id}
-                  active={a.meta.staffId === s.id}
-                  onClick={() => setStaff(a.reference, a.meta.staffId === s.id ? null : s.id)}
-                >
-                  {s.name}
-                </TinyButton>
-              ))}
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted-foreground">
-            <a className="border-b border-foreground/25 pb-0.5" href={`tel:${a.customer.phone}`}>
-              Call {a.customer.phone}
-            </a>
-            <a
-              className="border-b border-foreground/25 pb-0.5"
-              href={`https://wa.me/${a.customer.phone.replace(/\D/g, "")}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              WhatsApp
-            </a>
-          </div>
-          {a.customer.notes ? (
-            <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-              Note — {a.customer.notes}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
+function greeting(minute: number) {
+  return minute < 12 * 60 ? "Good morning" : minute < 17 * 60 ? "Good afternoon" : "Good evening";
 }
 
 function TodayScreen() {
-  const { byDate, addWalkIn, appointments } = useAdmin();
-  const iso = todayISO();
-  const today = byDate(iso);
-  const [walkOpen, setWalkOpen] = useState(false);
+  const { pin } = useAdmin();
+  const { data, loading, error, reload } = useAdminData((p) => adminDashboard({ data: { pin: p } }), []);
+  const [drawer, setDrawer] = useState<string | null>(null);
+  const [newOpen, setNewOpen] = useState<{ time: number | null } | null>(null);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  const stats = useMemo(() => {
-    const live = today.filter((a) => isLive(a.meta.status));
-    const done = today.filter((a) => a.meta.status === "completed");
-    const takings = done.reduce((n, a) => n + (a.meta.amount ?? a.total), 0);
-    const booked = today
-      .filter((a) => a.meta.status !== "cancelled")
-      .reduce((n, a) => n + a.slots * SLOT_MINUTES, 0);
-    const capacity = CLOSE_MINUTE - OPEN_MINUTE;
-    return {
-      live: live.length,
-      done: done.length,
-      takings,
-      occupancy: Math.min(100, Math.round((booked / capacity) * 100)),
-      expected: today
-        .filter((a) => a.meta.status !== "cancelled")
-        .reduce((n, a) => n + (a.meta.amount ?? a.total), 0),
-    };
-  }, [today]);
+  // keep the day live while the screen is open
+  useEffect(() => {
+    const t = window.setInterval(reload, 60_000);
+    return () => window.clearInterval(t);
+  }, [reload]);
 
-  const upNext = today.find((a) => isLive(a.meta.status));
+  const rows = useMemo(
+    () =>
+      data && !data.plan.closed
+        ? timeline(data.plan.open, data.plan.close, data.bookings, data.plan.breaks, data.plan.blocks, data.interval)
+        : [],
+    [data],
+  );
+  const inactive = data?.bookings.filter((b) => !isActive(b)) ?? [];
+
+  const advance = async (b: AdminBooking) => {
+    const step = NEXT[b.status];
+    if (!step) return;
+    setBusy(b.reference);
+    try {
+      await adminUpsertBooking({ data: { pin, reference: b.reference, patch: { meta: { status: step.to } } } });
+      toast.success(`${b.customer.name}: ${STATUS_LABEL[step.to]}.`);
+      reload();
+    } catch {
+      toast.error("Couldn't update. Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const now = data?.nowMinute ?? 0;
 
   return (
     <AdminShell
-      title="Today"
-      subtitle={formatLongDate(iso)}
+      title={data ? greeting(now) : "Today"}
+      subtitle={data ? dateLabel(data.today, { weekday: "long", day: "numeric", month: "long" }) : undefined}
       right={
-        <button
-          onClick={() => setWalkOpen((v) => !v)}
-          className="label-caps shrink-0 border border-foreground/25 px-4 py-3 transition-colors hover:border-foreground"
-        >
-          {walkOpen ? "Close" : "Walk-in"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <TinyButton tone="primary" onClick={() => setNewOpen({ time: null })}>
+            <Plus className="h-4 w-4" /> New booking
+          </TinyButton>
+          <TinyButton onClick={() => setNewOpen({ time: null })}>
+            <UserRoundPlus className="h-4 w-4" /> Walk-in
+          </TinyButton>
+          <TinyButton onClick={() => setBlockOpen(true)}>
+            <Ban className="h-4 w-4" /> Block time
+          </TinyButton>
+          <TinyButton onClick={() => setCloseOpen(true)}>
+            <CalendarX2 className="h-4 w-4" /> Close a day
+          </TinyButton>
+        </div>
       }
     >
-      {walkOpen ? <WalkInForm onDone={() => setWalkOpen(false)} add={addWalkIn} iso={iso} /> : null}
+      <LoadState loading={loading && !data} error={error} onRetry={reload} />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="In salon" value={String(stats.live)} hint="Awaiting or in chair" />
-        <Stat label="Completed" value={String(stats.done)} />
-        <Stat label="Collected" value={inr(stats.takings)} hint={`Expected ${inr(stats.expected)}`} />
-        <Stat label="Chair load" value={`${stats.occupancy}%`} hint="Of 10 open hours" />
-      </div>
-
-      {upNext ? (
-        <Panel className="mt-6 border-accent/50 bg-accent/10">
-          <div className="eyebrow">Up next</div>
-          <div className="mt-3 flex items-end justify-between gap-4">
-            <div className="min-w-0">
-              <div className="font-display text-3xl leading-none">{upNext.customer.name}</div>
-              <div className="mt-2 truncate text-xs text-muted-foreground">
-                {upNext.services.map((s) => s.name).join(" · ")}
-              </div>
-            </div>
-            <div className="font-display text-3xl leading-none">{minuteLabel(upNext.time)}</div>
+      {data ? (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <Stat label="Today" value={String(data.counts.total)} hint="appointments" />
+            <Stat label="Still to come" value={String(data.counts.upcoming)} />
+            <Stat label="Completed" value={String(data.counts.completed)} />
+            <Stat
+              label="No-show / cancelled"
+              value={`${data.counts.noShow} / ${data.counts.cancelled}`}
+              {...(data.counts.noShow ? { tone: "warn" as const } : {})}
+            />
+            <Stat label="Collected" value={inr(data.revenue.today)} hint={`Expected ${inr(data.revenue.expectedToday)}`} />
           </div>
-        </Panel>
+
+          <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+            <div className="min-w-0 space-y-5">
+              {data.next ? (
+                <Panel className="border-bronze/35 bg-champagne/10">
+                  <div className="text-[0.62rem] uppercase tracking-[0.2em] text-bronze">
+                    {data.next.time <= now ? "In progress" : "Up next"}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+                    <button onClick={() => setDrawer(data.next!.reference)} className="min-w-0 text-left">
+                      <div className="font-display text-[2rem] leading-none">{data.next.customer.name}</div>
+                      <div className="mt-1.5 truncate text-[0.85rem] text-muted-foreground">
+                        {data.next.services.map((s) => s.name).join(" · ")} · {formatDuration(data.next.minutes)}
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div className="font-display text-[2rem] leading-none">{minuteLabel(data.next.time)}</div>
+                        <div className="mt-1 text-[0.75rem] text-muted-foreground">
+                          {data.next.time > now ? `in ${formatDuration(data.next.time - now)}` : `until ${minuteLabel(data.next.end)}`}
+                        </div>
+                      </div>
+                      {NEXT[data.next.status] ? (
+                        <TinyButton tone="primary" disabled={busy === data.next.reference} onClick={() => void advance(data.next!)}>
+                          {NEXT[data.next.status]!.label}
+                        </TinyButton>
+                      ) : null}
+                    </div>
+                  </div>
+                </Panel>
+              ) : null}
+
+              <Panel className="p-0 lg:p-0">
+                <div className="flex items-center justify-between border-b border-hairline px-4 py-3 lg:px-5">
+                  <div className="text-[0.62rem] uppercase tracking-[0.2em] text-muted-foreground">Today's schedule</div>
+                  {!data.plan.closed ? (
+                    <div className="text-[0.75rem] text-muted-foreground">
+                      {minuteLabel(data.plan.open)} – {minuteLabel(data.plan.close)}
+                    </div>
+                  ) : null}
+                </div>
+                {data.plan.closed ? (
+                  <p className="px-5 py-12 text-center text-[0.9rem] text-muted-foreground">The studio is closed today.</p>
+                ) : (
+                  <ol>
+                    {rows.map((r) => (
+                      <TimelineRow
+                        key={`${r.kind}-${r.start}-${r.kind === "booking" ? r.b.reference : ""}`}
+                        row={r}
+                        now={now}
+                        busy={r.kind === "booking" && busy === r.b.reference}
+                        onOpen={(ref) => setDrawer(ref)}
+                        onAdvance={advance}
+                        onBook={(t) => setNewOpen({ time: t })}
+                      />
+                    ))}
+                  </ol>
+                )}
+                {inactive.length ? (
+                  <div className="border-t border-hairline px-4 py-3 lg:px-5">
+                    <div className="text-[0.62rem] uppercase tracking-[0.2em] text-muted-foreground">Cancelled & no-shows</div>
+                    {inactive.map((b) => (
+                      <button
+                        key={b.reference}
+                        onClick={() => setDrawer(b.reference)}
+                        className="mt-2 flex w-full items-center gap-3 text-left text-[0.85rem] text-muted-foreground"
+                      >
+                        <span className="w-16 tabular-nums">{minuteLabel(b.time)}</span>
+                        <span className="min-w-0 flex-1 truncate line-through decoration-foreground/30">{b.customer.name}</span>
+                        <StatusPill status={b.status} />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </Panel>
+            </div>
+
+            <div className="space-y-5">
+              <Panel>
+                <div className="text-[0.62rem] uppercase tracking-[0.2em] text-muted-foreground">Needs attention</div>
+                <ul className="mt-3 space-y-2.5">
+                  {data.alerts.map((a, i) => {
+                    const Icon = a.level === "warn" ? AlertTriangle : Info;
+                    const body = (
+                      <span className="flex items-start gap-2.5 text-[0.85rem]">
+                        <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", a.level === "warn" ? "text-amber-600" : "text-muted-foreground")} strokeWidth={1.6} />
+                        <span className="flex-1">{a.text}</span>
+                        {a.to ? <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /> : null}
+                      </span>
+                    );
+                    return <li key={i}>{a.to ? <Link to={a.to as never}>{body}</Link> : body}</li>;
+                  })}
+                </ul>
+              </Panel>
+              <Panel>
+                <div className="text-[0.62rem] uppercase tracking-[0.2em] text-muted-foreground">Revenue</div>
+                <dl className="mt-3 space-y-2 text-[0.88rem]">
+                  {[
+                    ["Today", data.revenue.today],
+                    ["This week", data.revenue.week],
+                    ["This month", data.revenue.month],
+                  ].map(([k, v]) => (
+                    <div key={k} className="flex justify-between">
+                      <dt className="text-muted-foreground">{k}</dt>
+                      <dd className="tabular-nums">{inr(v as number)}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className="mt-3 text-[0.72rem] text-muted-foreground">Counted from completed appointments.</p>
+              </Panel>
+            </div>
+          </div>
+        </>
       ) : null}
 
-      <Panel className="mt-6 p-0">
-        <div className="border-b border-hairline px-5 py-4">
-          <div className="eyebrow">Today's book — {today.length} appointment{today.length === 1 ? "" : "s"}</div>
-        </div>
-        <div className="px-5">
-          {today.length ? (
-            today.map((a) => <ApptRow key={a.reference} a={a} />)
-          ) : (
-            <p className="py-14 text-center text-sm text-muted-foreground">
-              Nothing booked today yet.
-            </p>
-          )}
-        </div>
-      </Panel>
-
-      <p className="mt-6 text-[0.7rem] text-muted-foreground">
-        {appointments.length} appointment{appointments.length === 1 ? "" : "s"} on record.
-      </p>
+      <BookingDrawer reference={drawer} onClose={() => setDrawer(null)} onChanged={reload} />
+      <NewBookingDialog
+        open={Boolean(newOpen)}
+        onOpenChange={(o) => !o && setNewOpen(null)}
+        initialTime={newOpen?.time ?? null}
+        onCreated={reload}
+        {...(data ? { initialDate: data.today } : {})}
+      />
+      <BlockTimeDialog open={blockOpen} onOpenChange={setBlockOpen} onSaved={reload} {...(data ? { initialDate: data.today } : {})} />
+      <CloseDayDialog open={closeOpen} onOpenChange={setCloseOpen} onSaved={reload} />
     </AdminShell>
   );
 }
 
-function WalkInForm({
-  onDone,
-  add,
-  iso,
+function TimelineRow({
+  row,
+  now,
+  busy,
+  onOpen,
+  onAdvance,
+  onBook,
 }: {
-  onDone: () => void;
-  add: ReturnType<typeof useAdmin>["addWalkIn"];
-  iso: string;
+  row: Row;
+  now: number;
+  busy: boolean;
+  onOpen: (ref: string) => void;
+  onAdvance: (b: AdminBooking) => void;
+  onBook: (time: number) => void;
 }) {
-  const [audience, setAudience] = useState<Audience>("women");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [serviceId, setServiceId] = useState("");
+  const past = row.end <= now;
+  const time = (
+    <div className="w-[4.5rem] shrink-0">
+      <div className="text-[0.95rem] tabular-nums">{minuteLabel(row.start)}</div>
+      <div className="text-[0.7rem] tabular-nums text-muted-foreground">{minuteLabel(row.end)}</div>
+    </div>
+  );
 
-  const options = useMemo(() => menuFor(audience).flatMap((c) => c.services), [audience]);
-  const now = new Date();
-  const minute =
-    Math.max(OPEN_MINUTE, Math.round((now.getHours() * 60 + now.getMinutes()) / 30) * 30);
+  if (row.kind === "booking") {
+    const b = row.b;
+    const step = NEXT[b.status];
+    const live = row.start <= now && now < row.end;
+    return (
+      <li className={cn("relative flex items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 lg:px-5", live && "bg-champagne/10")}>
+        {live ? <span className="absolute inset-y-0 left-0 w-0.5 bg-bronze" /> : null}
+        {time}
+        <button onClick={() => onOpen(b.reference)} className="min-w-0 flex-1 text-left">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-[0.95rem]">{b.customer.name}</span>
+            {b.source !== "online" ? <span className="text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">{b.source}</span> : null}
+          </div>
+          <div className="truncate text-[0.8rem] text-muted-foreground">
+            {b.services.map((s) => s.name).join(" · ")} · {inr(b.price)}
+          </div>
+        </button>
+        <StatusPill status={b.status} />
+        {step ? (
+          <TinyButton disabled={busy} onClick={() => onAdvance(b)}>
+            {step.label}
+          </TinyButton>
+        ) : null}
+      </li>
+    );
+  }
+
+  if (row.kind === "free") {
+    const bookable = !past;
+    return (
+      <li className="flex items-center gap-3 border-b border-hairline px-4 py-2.5 last:border-0 lg:px-5">
+        {time}
+        <span className={cn("flex-1 text-[0.85rem]", past ? "text-muted-foreground/60" : "text-emerald-700")}>
+          {past ? "Free (passed)" : `Available · ${formatDuration(row.end - Math.max(row.start, now))}`}
+        </span>
+        {bookable ? (
+          <button onClick={() => onBook(row.start)} className="press text-[0.8rem] text-bronze underline underline-offset-4">
+            Book
+          </button>
+        ) : null}
+      </li>
+    );
+  }
 
   return (
-    <Panel className="mb-6">
-      <div className="eyebrow">New walk-in · {minuteLabel(minute)}</div>
-      <div className="mt-4 flex gap-2">
-        {(["women", "men"] as const).map((a) => (
-          <TinyButton key={a} active={audience === a} onClick={() => setAudience(a)}>
-            {a}
-          </TinyButton>
-        ))}
-      </div>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <input className={inputClass} placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <input className={inputClass} placeholder="Mobile" value={phone} onChange={(e) => setPhone(e.target.value)} />
-      </div>
-      <select
-        className={inputClass + " mt-4"}
-        value={serviceId}
-        onChange={(e) => setServiceId(e.target.value)}
-      >
-        <option value="">Select a service</option>
-        {options.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name} — {inr(s.price)}
-          </option>
-        ))}
-      </select>
-      <div className="mt-6 flex gap-3">
-        <button
-          type="button"
-          disabled={!name.trim() || !serviceId}
-          onClick={() => {
-            add({
-              audience,
-              serviceIds: [serviceId],
-              date: iso,
-              time: minute,
-              customer: { name: name.trim(), phone: phone.trim(), email: "" },
-            });
-            onDone();
-          }}
-          className="label-caps flex-1 bg-foreground px-5 py-3.5 text-background disabled:bg-foreground/25"
-        >
-          Add to today
-        </button>
-        <TinyButton onClick={onDone}>Cancel</TinyButton>
-      </div>
-    </Panel>
+    <li className="flex items-center gap-3 border-b border-hairline bg-foreground/[0.025] px-4 py-2.5 last:border-0 lg:px-5">
+      {time}
+      <span className="flex-1 text-[0.85rem] text-muted-foreground">
+        {row.kind === "break" ? row.label : `Blocked · ${row.label}`}
+      </span>
+    </li>
   );
 }

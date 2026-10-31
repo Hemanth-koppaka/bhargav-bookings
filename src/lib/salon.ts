@@ -1,3 +1,5 @@
+import { builtInCategoryPhoto, builtInServicePhoto } from "./service-photos";
+
 // Business, menu and availability data for The Hair By Bhargav Unisex Salon.
 // Service names and prices are taken verbatim from the official Service Menu.
 // `slots` = number of consecutive 30-minute booking slots the service occupies.
@@ -503,6 +505,21 @@ function replaceArray<T>(target: T[], next: T[]) {
   target.splice(0, target.length, ...next);
 }
 
+/** Fills in the salon's built-in photos where the admin hasn't uploaded one. */
+function withPhotos(audience: Audience, menu: Category[]): Category[] {
+  return menu.map((c) => {
+    const catPhoto = c.photo ?? builtInCategoryPhoto(audience, c.title);
+    return {
+      ...c,
+      ...(catPhoto ? { photo: catPhoto } : {}),
+      services: c.services.map((x) => {
+        const photo = x.photo ?? builtInServicePhoto(audience, x.name);
+        return photo ? { ...x, photo } : x;
+      }),
+    };
+  });
+}
+
 let appliedKey = "";
 /** Mutates the shared menu/business data in place so every screen sees admin edits. */
 export function applyConfig(cfg: SalonConfig | null | undefined) {
@@ -514,8 +531,8 @@ export function applyConfig(cfg: SalonConfig | null | undefined) {
   replaceArray(WEEK, full.week);
   for (const k of Object.keys(EXCEPTIONS)) delete EXCEPTIONS[k];
   Object.assign(EXCEPTIONS, full.exceptions);
-  replaceArray(MEN_MENU, full.menMenu);
-  replaceArray(WOMEN_MENU, full.womenMenu);
+  replaceArray(MEN_MENU, withPhotos("men", full.menMenu));
+  replaceArray(WOMEN_MENU, withPhotos("women", full.womenMenu));
   OPEN_MINUTE = full.openMinute;
   CLOSE_MINUTE = Math.max(full.closeMinute, full.openMinute + SLOT_MINUTES);
   TOTAL_SLOTS = (CLOSE_MINUTE - OPEN_MINUTE) / SLOT_MINUTES;

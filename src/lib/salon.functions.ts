@@ -312,6 +312,9 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
             status: z.enum(["confirmed", "cancelled"]).optional(),
             meta: z.record(z.string(), z.unknown()).optional(),
             cancelReason: z.string().max(200).optional(),
+            customer: z
+              .object({ name: z.string().trim().min(1).max(100), phone: z.string().trim().max(20), email: z.string().trim().max(255) })
+              .optional(),
           })
           .optional(),
       })
@@ -359,7 +362,9 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
     const prevStatus = (current.meta as { status?: string } | null)?.status;
     const cancelling = p.status === "cancelled" || metaStatus === "cancelled";
     if (p.status) base["status"] = p.status;
-    if (p.meta) base["meta"] = p.meta;
+    // merge, so a status change never wipes notes or payment details
+    if (p.meta) base["meta"] = { ...((current.meta as Record<string, unknown>) ?? {}), ...p.meta };
+    if (p.customer) base["customer"] = { ...((current.customer as Record<string, unknown>) ?? {}), ...p.customer };
     if (cancelling && current.status !== "cancelled") {
       base["status"] = "cancelled";
       extra["cancelled_at"] = new Date().toISOString();
@@ -373,6 +378,9 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
     const error = await patchBooking(sb, data.reference, base, extra);
     if (error) {
       throw new Error(E.isSlotTaken(error) ? "That time is no longer available." : "Couldn't update the appointment");
+    }
+    if (p.customer) {
+      await E.audit({ action: "booking.edit", entity: "booking", entityId: data.reference, summary: `Edited contact details on ${data.reference}`, before: current.customer, after: base["customer"] });
     }
     if (moved) {
       await E.audit({ action: "booking.reschedule", entity: "booking", entityId: data.reference, summary: `Moved ${data.reference}`, before: { date: current.date, time: current.time }, after: { date: base["date"], time: base["time"] } });
@@ -509,3 +517,23 @@ export const adminChangePin = createServerFn({ method: "POST" })
     }
     return r;
   });
+
+/**
+ * How often each service has been booked recently (last 120 days, cancellations
+ * excluded). Drives the "Popular" order on the services step, so it follows what
+ * guests actually book instead of a fixed list. Only counts are returned.
+ */
+export const getServicePopularity = createServerFn({ method: "GET" }).handler(async () => {
+  const { supabaseAdmin: sb } = await import("@/integrations/supabase/client.server");
+  const since = new Date(Date.now() - 120 * 86_400_000).toISOString().slice(0, 10);
+  const { data, error } = await sb
+    .from("bookings")
+    .select("service_ids, status")
+    .gte("date", since)
+    .neq("status", "cancelled")
+    .limit(5000);
+  const counts: Record<string, number> = {};
+  if (error) return { counts };
+  for (const r of data ?? []) for (const id of (r.service_ids as string[] | null) ?? []) counts[id] = (counts[id] ?? 0) + 1;
+  return { counts };
+});

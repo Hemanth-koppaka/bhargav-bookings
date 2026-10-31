@@ -8,6 +8,7 @@ import { adminSignIn, adminListBookings, adminUpsertBooking, adminChangePin,
 /* ── Types ───────────────────────────────────────────────────── */
 
 export type ApptStatus =
+  | "pending"
   | "upcoming"
   | "arrived"
   | "in-chair"
@@ -418,15 +419,17 @@ export function useAdmin() {
 export const todayISO = () => toISO(new Date());
 
 export const STATUS_LABEL: Record<ApptStatus, string> = {
-  upcoming: "Upcoming",
-  arrived: "Arrived",
-  "in-chair": "In chair",
+  pending: "Pending",
+  upcoming: "Confirmed",
+  arrived: "Checked in",
+  "in-chair": "In service",
   completed: "Completed",
   "no-show": "No show",
   cancelled: "Cancelled",
 };
 
-export const isLive = (s: ApptStatus) => s === "upcoming" || s === "arrived" || s === "in-chair";
+export const isLive = (s: ApptStatus) =>
+  s === "pending" || s === "upcoming" || s === "arrived" || s === "in-chair";
 
 export type CustomerRecord = {
   key: string;

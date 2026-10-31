@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png.asset.json";
-import { ScissorsLine, useDisplayedStep, useRewindBack } from "@/components/scissors-line";
+import { ScissorsLine, useRewindBack } from "@/components/scissors-line";
 
 export function Wordmark({ className }: { className?: string }) {
   return (
@@ -159,8 +159,7 @@ export function EmptyState({ title, body, action }: { title: string; body: strin
 /** Phone step header: back · wordmark · 02 / 05, with a progress hairline. */
 export function StepHeader({ back, step, total = 5 }: { back: string; step: number; total?: number }) {
   const pad = (n: number) => String(n).padStart(2, "0");
-  const goBack = useRewindBack(back, step - 1);
-  const shown = useDisplayedStep(step);
+  const goBack = useRewindBack(back);
   return (
     <header className="sticky top-0 z-30 bg-background/92 backdrop-blur-md safe-t">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-2.5">
@@ -176,7 +175,7 @@ export function StepHeader({ back, step, total = 5 }: { back: string; step: numb
           <Wordmark className="h-8" />
         </Link>
         <span className="label-caps justify-self-end whitespace-nowrap pr-1 text-[0.6rem] tabular-nums text-foreground/60">
-          <span key={shown} className="tick-in">{pad(shown)}</span> / {pad(total)}
+          <span key={step} className="tick-in">{pad(step)}</span> / {pad(total)}
         </span>
       </div>
       <ScissorsLine kind="header" step={step} total={total} />

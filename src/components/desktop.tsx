@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Clock, MapPin, Phone 
 import { cn } from "@/lib/utils";
 import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
-import { ScissorsLine, useDisplayedStep, useRewindBack } from "@/components/scissors-line";
+import { ScissorsLine, useRewindBack } from "@/components/scissors-line";
 import menImg from "@/assets/men.jpg.asset.json";
 import womenImg from "@/assets/women.jpg.asset.json";
 
@@ -16,6 +16,12 @@ export const AUDIENCE_IMAGE: Record<Audience, { src: string; pos: string }> = {
   men: { src: menImg.url, pos: "60% 30%" },
   women: { src: womenImg.url, pos: "45% 25%" },
 };
+
+/** Picture for a booking summary: the first chosen service's photo, else the men/women image. */
+export function selectionImage(selected: { photo?: string | undefined }[], audience: Audience | null) {
+  const photo = selected.find((x) => x.photo)?.photo;
+  return photo ? { src: photo, pos: "50% 30%" } : AUDIENCE_IMAGE[audience ?? "men"];
+}
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -37,8 +43,7 @@ export function DesktopPage({ children }: { children: ReactNode }) {
 
 /** Back · centred wordmark · step counter, with a progress line underneath. */
 export function DesktopStepHeader({ back, step }: { back: string; step: number }) {
-  const goBack = useRewindBack(back, step - 1);
-  const shown = useDisplayedStep(step);
+  const goBack = useRewindBack(back);
   return (
     <header className="shrink-0">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center px-6 py-4 lg:px-10 xl:px-16">
@@ -54,7 +59,7 @@ export function DesktopStepHeader({ back, step }: { back: string; step: number }
           <Wordmark className="h-12" />
         </Link>
         <span className="label-caps justify-self-end tabular-nums text-foreground/80">
-          <span key={shown} className="tick-in">{pad(shown)}</span> / {pad(STEPS.length)}
+          <span key={step} className="tick-in">{pad(step)}</span> / {pad(STEPS.length)}
         </span>
       </div>
       <ScissorsLine kind="header" step={step} total={STEPS.length} />
@@ -64,7 +69,6 @@ export function DesktopStepHeader({ back, step }: { back: string; step: number }
 
 /** Wordmark · numbered stepper (scissors travel dot to dot) · call button. */
 export function DesktopStepperHeader({ step }: { step: number }) {
-  const shown = useDisplayedStep(step);
   const list = useRef<HTMLOListElement>(null);
   const [track, setTrack] = useState<{ left: number; width: number; top: number } | null>(null);
 
@@ -107,8 +111,8 @@ export function DesktopStepperHeader({ step }: { step: number }) {
         ) : null}
         {STEPS.map((label, i) => {
           const n = i + 1;
-          const done = n < shown;
-          const on = n === shown;
+          const done = n < step;
+          const on = n === step;
           return (
             <li
               key={label}
@@ -220,15 +224,18 @@ export function ImagePanel({
 }) {
   return (
     <aside className={cn("relative overflow-hidden bg-ink text-ivory", className)}>
-      <img
-        src={src}
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover opacity-80 cine-drift"
-        style={{ objectPosition: pos }}
-        decoding="async"
-      />
+      {/* keyed by image: a new picture fades in over the previous one */}
+      <span key={src} className="soft-fade absolute inset-0">
+        <img
+          src={src}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover opacity-80 cine-drift"
+          style={{ objectPosition: pos }}
+          decoding="async"
+        />
+      </span>
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
-      <div className="stagger absolute inset-x-0 bottom-0 p-10 xl:p-12">
+      <div key={eyebrow} className="stagger absolute inset-x-0 bottom-0 p-10 xl:p-12">
         {eyebrow ? (
           <div className="text-[0.7rem] uppercase tracking-[0.32em] text-ivory/80">{eyebrow}</div>
         ) : null}
