@@ -79,6 +79,8 @@ export async function loadConfig() {
     business: set["business"] ?? legacyData["business"],
     accepting: booking["accepting"] ?? legacyData["accepting"] ?? true,
     maxAdvanceDays: booking["maxAdvanceDays"] ?? legacyData["maxAdvanceDays"] ?? 56,
+    // published wording only; drafts stay in the console
+    content: set["content"] ?? null,
     exceptions: Object.fromEntries(
       (exc.data ?? []).map((e) => [
         e.date,

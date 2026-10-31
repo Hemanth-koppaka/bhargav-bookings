@@ -1,6 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { findService, type Audience, type Service } from "./salon";
-import { createBooking, findMyBooking, updateMyBooking } from "./salon.functions";
+import { createBooking, findMyBookings, updateMyBooking } from "./salon.functions";
+
+/** How a booking proves it's the guest's: its manage key, or the phone it was booked with. */
+export const auth = (b: { token?: string | undefined; customer: { phone: string } }) =>
+  b.token ? { token: b.token } : { phone: b.customer.phone };
 
 export type BookingStatus = "confirmed" | "cancelled";
 
@@ -36,6 +40,8 @@ export type Booking = {
   customer: Customer;
   status: BookingStatus;
   createdAt: string;
+  /** Manage key from a lookup by booking ID or phone (the phone isn't sent back). */
+  token?: string;
 };
 
 const EMPTY: Draft = {
@@ -64,7 +70,8 @@ type Ctx = {
   hasFromPricing: boolean;
   bookings: Booking[];
   commitBooking: () => Promise<{ booking: Booking } | { error: string }>;
-  findBooking: (reference: string, phone: string) => Promise<Booking | undefined>;
+  /** Looks up by booking ID or by the mobile number used to book. null = couldn't reach the salon. */
+  findBookings: (query: string) => Promise<Booking[] | null>;
   cancelBooking: (reference: string) => Promise<ChangeResult>;
   rescheduleBooking: (reference: string, date: string, time: number) => Promise<ChangeResult>;
   hydrated: boolean;
@@ -177,11 +184,10 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         setBookings((b) => [booking, ...b]);
         return { booking };
       },
-      findBooking: async (reference, phone) => {
+      findBookings: async (query) => {
         try {
-          const { booking: r } = await findMyBooking({ data: { reference, phone } });
-          if (!r) return undefined;
-          const found: Booking = {
+          const { bookings: list } = await findMyBookings({ data: { query } });
+          const found: Booking[] = list.map((r) => ({
             reference: r.reference,
             audience: r.audience,
             serviceIds: r.serviceIds,
@@ -190,11 +196,13 @@ export function BookingProvider({ children }: { children: ReactNode }) {
             customer: r.customer,
             status: r.status,
             createdAt: r.createdAt,
-          };
-          setBookings((b) => [found, ...b.filter((x) => x.reference !== found.reference)]);
+            token: r.token,
+          }));
+          const refs = new Set(found.map((f) => f.reference));
+          setBookings((b) => [...found, ...b.filter((x) => !refs.has(x.reference))]);
           return found;
         } catch {
-          return undefined;
+          return null;
         }
       },
       // Both changes are confirmed by the salon's server before the screen updates.
@@ -202,7 +210,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         const bk = bookings.find((x) => x.reference === reference);
         if (!bk) return { ok: false, error: "Booking not found on this device." };
         const r = await updateMyBooking({
-          data: { reference, phone: bk.customer.phone, action: "cancel" },
+          data: { reference, ...auth(bk), action: "cancel" },
         }).catch(() => null);
         if (!r) return { ok: false, error: OFFLINE };
         if (!r.ok) return { ok: false, error: ("error" in r && r.error) || "Couldn't cancel this booking." };
@@ -215,7 +223,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         const bk = bookings.find((x) => x.reference === reference);
         if (!bk) return { ok: false, error: "Booking not found on this device." };
         const r = await updateMyBooking({
-          data: { reference, phone: bk.customer.phone, action: "reschedule", date, time },
+          data: { reference, ...auth(bk), action: "reschedule", date, time },
         }).catch(() => null);
         if (!r) return { ok: false, error: OFFLINE };
         if (!r.ok) return { ok: false, error: ("error" in r && r.error) || "Couldn't move this booking." };

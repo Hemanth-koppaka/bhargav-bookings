@@ -26,7 +26,9 @@ import { Route as TimeRouteImport } from './routes/time'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAppointmentsRouteImport } from './routes/admin.appointments'
 import { Route as AdminCalendarRouteImport } from './routes/admin.calendar'
+import { Route as AdminContentRouteImport } from './routes/admin.content'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
+import { Route as AdminRulesRouteImport } from './routes/admin.rules'
 import { Route as AdminServicesRouteImport } from './routes/admin.services'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as ApiPhotoSweepRouteImport } from './routes/api/photo-sweep'
@@ -116,9 +118,19 @@ const AdminCalendarRoute = AdminCalendarRouteImport.update({
   path: '/calendar',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminContentRoute = AdminContentRouteImport.update({
+  id: '/content',
+  path: '/content',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCustomersRoute = AdminCustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminRulesRoute = AdminRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminServicesRoute = AdminServicesRouteImport.update({
@@ -154,7 +166,9 @@ export interface FileRoutesByFullPath {
   '/time': typeof TimeRoute
   '/admin/appointments': typeof AdminAppointmentsRoute
   '/admin/calendar': typeof AdminCalendarRoute
+  '/admin/content': typeof AdminContentRoute
   '/admin/customers': typeof AdminCustomersRoute
+  '/admin/rules': typeof AdminRulesRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/api/photo-sweep': typeof ApiPhotoSweepRoute
@@ -176,7 +190,9 @@ export interface FileRoutesByTo {
   '/time': typeof TimeRoute
   '/admin/appointments': typeof AdminAppointmentsRoute
   '/admin/calendar': typeof AdminCalendarRoute
+  '/admin/content': typeof AdminContentRoute
   '/admin/customers': typeof AdminCustomersRoute
+  '/admin/rules': typeof AdminRulesRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/api/photo-sweep': typeof ApiPhotoSweepRoute
@@ -200,7 +216,9 @@ export interface FileRoutesById {
   '/time': typeof TimeRoute
   '/admin/appointments': typeof AdminAppointmentsRoute
   '/admin/calendar': typeof AdminCalendarRoute
+  '/admin/content': typeof AdminContentRoute
   '/admin/customers': typeof AdminCustomersRoute
+  '/admin/rules': typeof AdminRulesRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/api/photo-sweep': typeof ApiPhotoSweepRoute
@@ -225,7 +243,9 @@ export interface FileRouteTypes {
     | '/time'
     | '/admin/appointments'
     | '/admin/calendar'
+    | '/admin/content'
     | '/admin/customers'
+    | '/admin/rules'
     | '/admin/services'
     | '/admin/settings'
     | '/api/photo-sweep'
@@ -247,7 +267,9 @@ export interface FileRouteTypes {
     | '/time'
     | '/admin/appointments'
     | '/admin/calendar'
+    | '/admin/content'
     | '/admin/customers'
+    | '/admin/rules'
     | '/admin/services'
     | '/admin/settings'
     | '/api/photo-sweep'
@@ -270,7 +292,9 @@ export interface FileRouteTypes {
     | '/time'
     | '/admin/appointments'
     | '/admin/calendar'
+    | '/admin/content'
     | '/admin/customers'
+    | '/admin/rules'
     | '/admin/services'
     | '/admin/settings'
     | '/api/photo-sweep'
@@ -416,11 +440,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCalendarRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/content': {
+      id: '/admin/content'
+      path: '/content'
+      fullPath: '/admin/content'
+      preLoaderRoute: typeof AdminContentRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/customers': {
       id: '/admin/customers'
       path: '/customers'
       fullPath: '/admin/customers'
       preLoaderRoute: typeof AdminCustomersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/rules': {
+      id: '/admin/rules'
+      path: '/rules'
+      fullPath: '/admin/rules'
+      preLoaderRoute: typeof AdminRulesRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/services': {
@@ -450,7 +488,9 @@ declare module '@tanstack/react-router' {
 interface AdminRouteChildren {
   AdminAppointmentsRoute: typeof AdminAppointmentsRoute
   AdminCalendarRoute: typeof AdminCalendarRoute
+  AdminContentRoute: typeof AdminContentRoute
   AdminCustomersRoute: typeof AdminCustomersRoute
+  AdminRulesRoute: typeof AdminRulesRoute
   AdminServicesRoute: typeof AdminServicesRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -459,7 +499,9 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAppointmentsRoute: AdminAppointmentsRoute,
   AdminCalendarRoute: AdminCalendarRoute,
+  AdminContentRoute: AdminContentRoute,
   AdminCustomersRoute: AdminCustomersRoute,
+  AdminRulesRoute: AdminRulesRoute,
   AdminServicesRoute: AdminServicesRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminIndexRoute: AdminIndexRoute,

@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { CONTENT } from "@/lib/site-content";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowUpRight, CalendarDays, Lock, MapPin, Pencil, X } from "lucide-react";
@@ -56,6 +57,12 @@ function ReviewScreen() {
   }, [hydrated, ready, navigate]);
 
   if (!ready || !draft.customer || !draft.date || draft.time == null) return null;
+
+  // warm the confirmation film's photo so it starts the moment the guest confirms
+  useEffect(() => {
+    const img = new Image();
+    img.src = "/media/barber-kit.webp";
+  }, []);
 
   const confirm = async () => {
     if (saving) return;
@@ -168,13 +175,7 @@ function ReviewScreen() {
 
               <div className="flex gap-3 rounded-md bg-champagne/15 px-4 py-3.5 text-[0.82rem] leading-relaxed">
                 <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.25} />
-                <span>
-                  Reschedule or cancel any time from{" "}
-                  <Link to="/manage" className="underline underline-offset-4">
-                    Manage booking
-                  </Link>
-                  . No payment is taken online{hasFromPricing ? " — prices marked + are confirmed in the chair" : ""}.
-                </span>
+                <PolicyNote fromPricing={hasFromPricing} />
               </div>
             </div>
           </Screen>
@@ -375,11 +376,7 @@ function DesktopReview({
 
             <div className="flex items-center gap-5 rounded-sm bg-champagne/15 px-7 py-4 text-[0.95rem]">
               <CalendarDays className="h-5 w-5 shrink-0" strokeWidth={1.25} />
-              <span>
-                Need a change later? Reschedule or cancel any time from{" "}
-                <Link to="/manage" className="underline underline-offset-4">Manage booking</Link>. No payment is taken online
-                {hasFromPricing ? " — prices marked + are confirmed in the chair" : ""}.
-              </span>
+              <PolicyNote fromPricing={hasFromPricing} />
             </div>
           </div>
         </main>
@@ -401,5 +398,26 @@ function DesktopReview({
         </DesktopCTA>
       </DesktopBar>
     </DesktopPage>
+  );
+}
+
+/** The salon's published booking policies; "Manage booking" becomes a link. */
+function PolicyNote({ fromPricing }: { fromPricing: boolean }) {
+  const { changes, payment, lateness } = CONTENT.policies;
+  const [before, after] = changes.includes("Manage booking") ? changes.split("Manage booking", 2) : [changes, null];
+  return (
+    <span>
+      {before}
+      {after !== null ? (
+        <>
+          <Link to="/manage" className="underline underline-offset-4">
+            Manage booking
+          </Link>
+          {after}
+        </>
+      ) : null}{" "}
+      {payment.replace(/\.$/, "")}
+      {fromPricing ? " — prices marked + are confirmed in the chair" : ""}.{lateness ? ` ${lateness}` : ""}
+    </span>
   );
 }

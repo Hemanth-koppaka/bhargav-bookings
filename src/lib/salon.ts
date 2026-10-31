@@ -1,3 +1,4 @@
+import { applyContent } from "./site-content";
 import { builtInCategoryPhoto, builtInServicePhoto } from "./service-photos";
 
 // Business, menu and availability data for The Hair By Bhargav Unisex Salon.
@@ -478,6 +479,8 @@ export type SalonConfig = {
   maxAdvanceDays?: number;
   menMenu?: Category[];
   womenMenu?: Category[];
+  /** Published site wording (see site-content.ts). */
+  content?: unknown;
 };
 
 const DEFAULTS = {
@@ -498,6 +501,7 @@ export function defaultConfig(): Required<SalonConfig> {
     maxAdvanceDays: 56,
     menMenu: structuredClone(DEFAULTS.men),
     womenMenu: structuredClone(DEFAULTS.women),
+    content: null,
   };
 }
 
@@ -538,4 +542,5 @@ export function applyConfig(cfg: SalonConfig | null | undefined) {
   TOTAL_SLOTS = (CLOSE_MINUTE - OPEN_MINUTE) / SLOT_MINUTES;
   ACCEPTING_BOOKINGS = full.accepting;
   MAX_ADVANCE_DAYS = full.maxAdvanceDays;
+  applyContent(full.content);
 }

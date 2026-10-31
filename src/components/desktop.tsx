@@ -26,6 +26,7 @@ export function selectionImage(selected: { photo?: string | undefined }[], audie
 const pad = (n: number) => String(n).padStart(2, "0");
 
 export const prettyPhone = (p: string) => {
+  if (p.includes("•")) return p; // masked (from a Manage booking lookup)
   const d = p.replace(/\D/g, "");
   if (d.length === 12 && d.startsWith("91")) return `+91 ${d.slice(2, 7)} ${d.slice(7)}`;
   if (d.length === 10) return `+91 ${d.slice(0, 5)} ${d.slice(5)}`;

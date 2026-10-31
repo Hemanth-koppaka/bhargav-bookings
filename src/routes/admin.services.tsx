@@ -1,617 +1,1046 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ImagePlus, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { toast } from "sonner";
+import {
+  Archive,
+  ArrowDown,
+  ArrowUp,
+  Copy,
+  Eye,
+  EyeOff,
+  ImagePlus,
+  Loader2,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Search,
+  Star,
+} from "lucide-react";
 import { adminSaveMedia } from "@/lib/photos.functions";
 import { loadImageFile, shrinkImage } from "@/lib/image";
-import { AdminShell, Panel, TinyButton, inputClass } from "@/components/admin";
+import { AdminShell, Empty, TinyButton, inputClass } from "@/components/admin";
+import { LoadState } from "@/components/admin-ops";
+import { adminSaveCategory, adminSaveService } from "@/lib/admin-content.functions";
 import {
-  adminGetContent,
-  adminSaveService,
-  type AdminCategory,
-  type AdminService,
-} from "@/lib/admin-content.functions";
+  adminArchiveItem,
+  adminCatalogue,
+  adminDuplicateService,
+  adminReorder,
+  type CatalogueCategory,
+  type CatalogueService,
+} from "@/lib/admin-catalogue.functions";
 import { useAdmin } from "@/lib/admin-store";
-import { inr, type Audience } from "@/lib/salon";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { formatDuration, inr, type Audience } from "@/lib/salon";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/services")({
   head: () => ({
     meta: [
-      { title: "Service menu — Hair by Bhargav" },
-      { name: "description", content: "The full men's and women's service menu with pricing." },
+      { title: "Catalogue — Hair by Bhargav" },
+      { name: "description", content: "Services, categories, prices, durations and photos." },
       { name: "robots", content: "noindex" },
-      { property: "og:title", content: "Service menu — Hair by Bhargav" },
-      { property: "og:description", content: "Men's and women's pricing reference." },
+      { property: "og:title", content: "Catalogue — Hair by Bhargav" },
+      { property: "og:description", content: "The salon's service catalogue." },
     ],
   }),
-  component: ServicesAdmin,
+  component: CatalogueScreen,
 });
 
-type AdminContent = Awaited<ReturnType<typeof adminGetContent>>;
+type Data = Awaited<ReturnType<typeof adminCatalogue>>;
+type View = "live" | "hidden" | "archived";
 
-type RowState = {
-  saving?: boolean;
-  message?: string;
-  error?: string;
-};
+const DURATIONS = Array.from({ length: 48 }, (_, i) => (i + 1) * 5);
+const BUFFERS = [0, 5, 10, 15, 20, 30, 45, 60];
 
-const formatMinutes = (minutes: number) => {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h && m) return `${h} hr ${m} min`;
-  if (h) return `${h} hr`;
-  return `${m} min`;
-};
-
-function ServicesAdmin() {
-  const { pin } = useAdmin();
-  const [audience, setAudience] = useState<Audience>("women");
-  const [content, setContent] = useState<AdminContent | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
-  const [rowState, setRowState] = useState<Record<string, RowState>>({});
-  const [refreshTick, setRefreshTick] = useState(0);
-
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createName, setCreateName] = useState("");
-  const [createDescription, setCreateDescription] = useState("");
-  const [createMinutes, setCreateMinutes] = useState("30");
-  const [createPrice, setCreatePrice] = useState("0");
-  const [createFrom, setCreateFrom] = useState(false);
-  const [createCategoryId, setCreateCategoryId] = useState("");
-  const [createActive, setCreateActive] = useState(true);
-  const [createSaving, setCreateSaving] = useState(false);
-  const [createError, setCreateError] = useState("");
+function CatalogueScreen() {
+  const { pin, signOut } = useAdmin();
+  const [audience, setAudience] = useState<Audience>("men");
+  const [view, setView] = useState<View>("live");
+  const [q, setQ] = useState("");
+  const [data, setData] = useState<Data | null>(null);
+  const [error, setError] = useState("");
+  const [tick, setTick] = useState(0);
+  const [editing, setEditing] = useState<CatalogueService | "new" | null>(null);
+  const [newIn, setNewIn] = useState<string | null>(null);
+  const [catEdit, setCatEdit] = useState<CatalogueCategory | "new" | null>(null);
+  const reload = () => setTick((t) => t + 1);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      if (!pin) {
-        if (!cancelled) {
-          setContent(null);
-          setLoadError("Session expired. Please sign in again to manage services.");
-          setLoading(false);
-        }
-        return;
-      }
-
-      if (!cancelled) {
-        setLoading(true);
-        setLoadError("");
-      }
-
-      try {
-        const next = await adminGetContent({ data: { pin } });
-        if (cancelled) return;
-        setContent(next);
-      } catch (e) {
-        if (cancelled) return;
-        const message = e instanceof Error ? e.message : "Unable to load service menu.";
-        setLoadError(
-          /access code/i.test(message)
-            ? "Session expired. Please sign in again to manage services."
-            : message,
-        );
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    void load();
+    let live = true;
+    adminCatalogue({ data: { pin } })
+      .then((d) => {
+        if (!live) return;
+        setData(d);
+        setError("");
+      })
+      .catch((e: unknown) => {
+        if (!live) return;
+        if (e instanceof Error && /session/i.test(e.message))
+          return signOut("Your session ended. Please sign in again.");
+        setError("Couldn't load the catalogue.");
+      });
     return () => {
-      cancelled = true;
+      live = false;
     };
-  }, [pin, refreshTick]);
+  }, [pin, tick, signOut]);
 
-  const categories = useMemo(
+  const term = q.trim().toLowerCase();
+  const cats = useMemo(
     () =>
-      [...(content?.categories ?? [])]
+      (data?.categories ?? [])
         .filter((c) => c.gender === audience)
         .sort((a, b) => a.order - b.order),
-    [content?.categories, audience],
+    [data, audience],
   );
-
-  const services = useMemo(
+  const svcs = useMemo(
     () =>
-      [...(content?.services ?? [])]
+      (data?.services ?? [])
         .filter((s) => s.gender === audience)
         .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)),
-    [content?.services, audience],
+    [data, audience],
   );
+  const shows = (s: CatalogueService, c: CatalogueCategory | undefined) =>
+    view === "archived"
+      ? s.archived || Boolean(c?.archived)
+      : !s.archived && !c?.archived && (view === "hidden" ? !s.active || !c?.active : true);
+  const match = (s: CatalogueService) =>
+    !term || s.name.toLowerCase().includes(term) || s.description.toLowerCase().includes(term);
 
-  useEffect(() => {
-    if (!createOpen) return;
-    if (categories.length === 0) {
-      setCreateCategoryId("");
-      return;
-    }
-    if (!categories.some((c) => c.id === createCategoryId)) {
-      setCreateCategoryId(categories[0]?.id ?? "");
-    }
-  }, [createOpen, categories, createCategoryId]);
+  const counts = {
+    live: svcs.filter((s) => !s.archived).length,
+    hidden: svcs.filter((s) => !s.archived && !s.active).length,
+    archived: svcs.filter((s) => s.archived).length + cats.filter((c) => c.archived).length,
+  };
 
-  const count = services.length;
-
-  const refresh = () => setRefreshTick((n) => n + 1);
-
-  const media = useMemo(
-    () => JSON.parse(content?.mediaJson ?? "{}") as Record<string, string>,
-    [content?.mediaJson],
-  );
-
-  const saveMinutes = async (service: AdminService, minutes: number) => {
-    setRowState((s) => ({ ...s, [service.id]: { saving: true, message: "", error: "" } }));
+  /* actions */
+  const run = async (p: Promise<{ ok: boolean; error?: string }>, done: string) => {
     try {
-      await adminSaveService({ data: getServicePayload(service, { minutes }) });
-      setRowState((s) => ({ ...s, [service.id]: { saving: false, message: `Duration set to ${formatMinutes(minutes)}.` } }));
-      refresh();
+      const r = await p;
+      if (r.ok === false) return void toast.error(r.error ?? "Couldn't save.");
+      toast.success(done);
+      reload();
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Unable to save duration.";
-      setRowState((s) => ({ ...s, [service.id]: { saving: false, error: message } }));
+      toast.error(
+        e instanceof Error && e.message.length < 120
+          ? e.message
+          : "Couldn't save. Please try again.",
+      );
     }
   };
-
-  const getServicePayload = (
-    service: AdminService,
-    patch: Partial<Pick<AdminService, "price" | "active" | "minutes">>,
-  ) => ({
-    pin,
-    id: service.id,
-    categoryId: service.categoryId,
-    name: service.name,
-    description: service.description,
-    minutes: patch.minutes ?? service.minutes,
-    price: patch.price ?? service.price,
-    from: service.from,
-    order: service.order,
-    active: patch.active ?? service.active,
-  });
-
-  const savePrice = async (service: AdminService) => {
-    const next = priceDrafts[service.id] ?? String(service.price);
-    const parsed = Number(next);
-    if (!Number.isInteger(parsed) || parsed < 0) {
-      setRowState((s) => ({ ...s, [service.id]: { saving: false, error: "Enter a valid non-negative price." } }));
-      return;
-    }
-    if (!pin) {
-      setRowState((s) => ({ ...s, [service.id]: { saving: false, error: "Session expired. Please sign in again." } }));
-      return;
-    }
-
-    setRowState((s) => ({ ...s, [service.id]: { saving: true, message: "", error: "" } }));
-    try {
-      await adminSaveService({ data: getServicePayload(service, { price: parsed }) });
-      setRowState((s) => ({ ...s, [service.id]: { saving: false, message: "Price saved." } }));
-      refresh();
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Unable to save price.";
-      setRowState((s) => ({ ...s, [service.id]: { saving: false, error: message } }));
-    }
+  const payload = (s: CatalogueService, patch: Partial<CatalogueService> = {}) => {
+    const n = { ...s, ...patch };
+    return {
+      pin,
+      id: n.id,
+      categoryId: n.categoryId,
+      name: n.name,
+      description: n.description,
+      minutes: n.minutes,
+      price: n.price,
+      from: n.from,
+      order: n.order,
+      active: n.active,
+      buffer: n.buffer,
+      featured: n.featured,
+    };
   };
-
-  const toggleActive = async (service: AdminService) => {
-    if (!pin) {
-      setRowState((s) => ({ ...s, [service.id]: { saving: false, error: "Session expired. Please sign in again." } }));
-      return;
-    }
-
-    setRowState((s) => ({ ...s, [service.id]: { saving: true, message: "", error: "" } }));
-    try {
-      await adminSaveService({ data: getServicePayload(service, { active: !service.active }) });
-      setRowState((s) => ({
-        ...s,
-        [service.id]: {
-          saving: false,
-          message: service.active ? "Service hidden from customers." : "Service visible to customers.",
-        },
-      }));
-      refresh();
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Unable to update service visibility.";
-      setRowState((s) => ({ ...s, [service.id]: { saving: false, error: message } }));
-    }
-  };
-
-  const grouped = useMemo(
-    () =>
-      categories.map((category) => ({
-        category,
-        services: services
-          .filter((service) => service.categoryId === category.id)
-          .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)),
-      })),
-    [categories, services],
-  );
-
-  const uncategorised = useMemo(
-    () => services.filter((service) => !categories.some((category) => category.id === service.categoryId)),
-    [services, categories],
-  );
-
-  const resetCreateForm = () => {
-    setCreateName("");
-    setCreateDescription("");
-    setCreateMinutes("30");
-    setCreatePrice("0");
-    setCreateFrom(false);
-    setCreateActive(true);
-    setCreateError("");
-    setCreateCategoryId(categories[0]?.id ?? "");
-  };
-
-  const createService = async () => {
-    if (!pin) {
-      setCreateError("Session expired. Please sign in again.");
-      return;
-    }
-
-    const name = createName.trim();
-    if (!name) {
-      setCreateError("Service name is required.");
-      return;
-    }
-
-    const minutes = Number(createMinutes);
-    if (!Number.isInteger(minutes) || minutes < 30 || minutes > 600 || minutes % 30 !== 0) {
-      setCreateError("Duration must be an integer between 30 and 600 minutes, in 30-minute steps.");
-      return;
-    }
-
-    const price = Number(createPrice);
-    if (!Number.isInteger(price) || price < 0) {
-      setCreateError("Price must be a non-negative integer.");
-      return;
-    }
-
-    const category = categories.find((c) => c.id === createCategoryId);
-    if (!category) {
-      setCreateError("Choose a valid category for this audience.");
-      return;
-    }
-
-    const maxOrder = services
-      .filter((service) => service.categoryId === category.id)
-      .reduce((highest, service) => Math.max(highest, service.order), -1);
-
-    setCreateSaving(true);
-    setCreateError("");
-
-    try {
-      await adminSaveService({
+  const toggleService = (s: CatalogueService) =>
+    run(
+      adminSaveService({ data: payload(s, { active: !s.active }) }).then(() => ({ ok: true })),
+      s.active ? `${s.name} hidden from guests.` : `${s.name} shown to guests.`,
+    );
+  const toggleCategory = (c: CatalogueCategory) =>
+    run(
+      adminSaveCategory({
         data: {
           pin,
-          categoryId: category.id,
-          name,
-          description: createDescription.trim(),
-          minutes,
-          price,
-          from: createFrom,
-          order: maxOrder + 1,
-          active: createActive,
+          id: c.id,
+          gender: c.gender,
+          name: c.name,
+          description: c.description,
+          order: c.order,
+          active: !c.active,
         },
-      });
-      setCreateOpen(false);
-      resetCreateForm();
-      refresh();
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Unable to add service.";
-      setCreateError(message);
-    } finally {
-      setCreateSaving(false);
-    }
+      }).then(() => ({ ok: true })),
+      c.active ? `${c.name} hidden from guests.` : `${c.name} shown to guests.`,
+    );
+  const move = (
+    list: { id: string }[],
+    index: number,
+    dir: -1 | 1,
+    kind: "service" | "category",
+  ) => {
+    const j = index + dir;
+    if (j < 0 || j >= list.length) return;
+    const ids = list.map((x) => x.id);
+    [ids[index], ids[j]] = [ids[j]!, ids[index]!];
+    // optimistic: reflect the new order straight away
+    setData((d) =>
+      d
+        ? kind === "service"
+          ? {
+              ...d,
+              services: d.services.map((s) =>
+                ids.includes(s.id) ? { ...s, order: ids.indexOf(s.id) } : s,
+              ),
+            }
+          : {
+              ...d,
+              categories: d.categories.map((c) =>
+                ids.includes(c.id) ? { ...c, order: ids.indexOf(c.id) } : c,
+              ),
+            }
+        : d,
+    );
+    void adminReorder({ data: { pin, kind, ids } }).then(
+      (r) => !r.ok && (toast.error(r.error), reload()),
+    );
   };
+
+  const visibleCats = cats.filter((c) => (view === "archived" ? true : !c.archived));
 
   return (
     <AdminShell
-      title="Menu"
-      subtitle={loading ? "Loading services…" : `${count} services`}
-      right={<TinyButton onClick={() => setCreateOpen(true)}>Add New Service</TinyButton>}
-    >
-      <div className="flex gap-2">
-        {(["women", "men"] as const).map((a) => (
-          <TinyButton key={a} active={audience === a} onClick={() => setAudience(a)}>
-            {a}
+      title="Catalogue"
+      subtitle="Services, prices, durations and photos. Changes show to guests immediately."
+      right={
+        <div className="flex flex-wrap gap-2">
+          <TinyButton tone="primary" onClick={() => setEditing("new")}>
+            <Plus className="h-4 w-4" /> New service
           </TinyButton>
-        ))}
+          <TinyButton onClick={() => setCatEdit("new")}>
+            <Plus className="h-4 w-4" /> New category
+          </TinyButton>
+        </div>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex rounded-md border border-foreground/15 p-0.5">
+          {(["men", "women"] as const).map((a) => (
+            <button
+              key={a}
+              onClick={() => setAudience(a)}
+              className={cn(
+                "rounded px-4 py-1.5 text-[0.82rem] capitalize",
+                audience === a ? "bg-foreground text-background" : "text-muted-foreground",
+              )}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          {(
+            [
+              ["live", "All", counts.live],
+              ["hidden", "Hidden", counts.hidden],
+              ["archived", "Archived", counts.archived],
+            ] as const
+          ).map(([k, label, n]) => (
+            <button
+              key={k}
+              onClick={() => setView(k)}
+              className={cn(
+                "press rounded-full border px-3 py-1 text-[0.78rem]",
+                view === k
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-foreground/15",
+              )}
+            >
+              {label} <span className="opacity-60 tabular-nums">{n}</span>
+            </button>
+          ))}
+        </div>
+        <label className="ml-auto flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-foreground/15 px-3 sm:max-w-64">
+          <Search className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Find a service"
+            className="min-w-0 flex-1 bg-transparent text-[0.85rem] outline-none"
+          />
+        </label>
       </div>
 
-      {loading && !content ? (
-        <Panel className="mt-6">
-          <div className="eyebrow">Loading</div>
-          <p className="mt-2 text-sm text-muted-foreground">Loading editable services…</p>
-        </Panel>
-      ) : null}
+      <div className="mt-5 space-y-5">
+        <LoadState loading={!data && !error} error={error} onRetry={reload} />
+        {data && !visibleCats.length ? (
+          <Empty
+            title="No categories yet."
+            action={<TinyButton onClick={() => setCatEdit("new")}>Add a category</TinyButton>}
+          />
+        ) : null}
 
-      {!loading && loadError ? (
-        <Panel className="mt-6">
-          <div className="eyebrow">Unable to load menu</div>
-          <p className="mt-2 text-sm text-destructive">{loadError}</p>
-          <div className="mt-4">
-            <TinyButton onClick={refresh}>Retry</TinyButton>
-          </div>
-        </Panel>
-      ) : null}
-
-      {!loading && !loadError ? (
-        <div className="mt-6 flex flex-col gap-4">
-          {grouped.length === 0 ? (
-            <Panel>
-              <div className="eyebrow">No categories</div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                No categories are configured for this audience yet.
-              </p>
-            </Panel>
-          ) : null}
-
-          {grouped.map(({ category, services: categoryServices }) => (
-            <Panel key={category.id} className="p-0">
-              <div className="flex items-start gap-4 border-b border-hairline px-5 py-4">
-                <MediaTile mediaKey={`cat:${category.id}`} url={media[`cat:${category.id}`]} onChange={refresh} />
-                <div className="min-w-0">
-                  <div className="eyebrow">{category.name}</div>
-                  {category.description ? (
-                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{category.description}</p>
+        {visibleCats.map((c, ci) => {
+          const list = svcs.filter((s) => s.categoryId === c.id && shows(s, c) && match(s));
+          const orderable = svcs.filter((s) => s.categoryId === c.id && !s.archived);
+          if (view !== "live" && !list.length && !(view === "archived" && c.archived)) return null;
+          if (term && !list.length) return null;
+          return (
+            <section
+              key={c.id}
+              className={cn(
+                "overflow-hidden rounded-md border border-hairline bg-card",
+                (c.archived || !c.active) && view === "live" && "opacity-70",
+              )}
+            >
+              <header className="flex items-start gap-3 border-b border-hairline px-4 py-3.5 lg:px-5">
+                <PhotoTile mediaKey={`cat:${c.id}`} url={c.photo} onChange={reload} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-display text-[1.4rem] leading-tight">{c.name}</h2>
+                    {!c.active ? <Badge>Hidden</Badge> : null}
+                    {c.archived ? <Badge tone="danger">Archived</Badge> : null}
+                  </div>
+                  {c.description ? (
+                    <p className="mt-0.5 line-clamp-2 text-[0.8rem] text-muted-foreground">
+                      {c.description}
+                    </p>
                   ) : null}
                 </div>
-              </div>
-
-              {categoryServices.length ? (
-                <div className="divide-y divide-hairline px-5">
-                  {categoryServices.map((service) => {
-                    const draftPrice = priceDrafts[service.id] ?? String(service.price);
-                    const state = rowState[service.id];
-                    return (
-                      <div
-                        key={service.id}
-                        className={cn(
-                          "py-4",
-                          service.active ? "" : "bg-muted/20 opacity-70",
-                        )}
+                <div className="flex shrink-0 items-center gap-1">
+                  {c.archived ? (
+                    <IconBtn
+                      label="Restore category"
+                      onClick={() =>
+                        void run(
+                          adminArchiveItem({
+                            data: { pin, kind: "category", id: c.id, restore: true },
+                          }),
+                          `${c.name} restored.`,
+                        )
+                      }
+                    >
+                      <RotateCcw />
+                    </IconBtn>
+                  ) : (
+                    <>
+                      {view === "live" ? (
+                        <>
+                          <IconBtn
+                            label="Move up"
+                            disabled={ci === 0}
+                            onClick={() => move(visibleCats, ci, -1, "category")}
+                          >
+                            <ArrowUp />
+                          </IconBtn>
+                          <IconBtn
+                            label="Move down"
+                            disabled={ci === visibleCats.length - 1}
+                            onClick={() => move(visibleCats, ci, 1, "category")}
+                          >
+                            <ArrowDown />
+                          </IconBtn>
+                        </>
+                      ) : null}
+                      <IconBtn
+                        label={c.active ? "Hide from guests" : "Show to guests"}
+                        onClick={() => void toggleCategory(c)}
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <MediaTile mediaKey={`svc:${service.id}`} url={media[`svc:${service.id}`]} onChange={refresh} />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm">{service.name}</div>
-                            <label className="mt-1.5 inline-flex items-center gap-2 text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
-                              Duration
-                              <select
-                                className={cn(inputClass, "w-auto py-1 text-xs normal-case tracking-normal")}
-                                value={service.minutes}
-                                onChange={(e) => void saveMinutes(service, Number(e.target.value))}
-                              >
-                                {Array.from({ length: 20 }, (_, i) => (i + 1) * 30).map((m) => (
-                                  <option key={m} value={m}>
-                                    {formatMinutes(m)}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            {service.description ? (
-                              <p className="mt-1 text-xs text-muted-foreground">{service.description}</p>
-                            ) : null}
-                            {!service.active ? (
-                              <p className="mt-1 text-[0.65rem] uppercase tracking-[0.16em] text-destructive">
-                                Hidden from customer booking
-                              </p>
-                            ) : null}
-                          </div>
-
-                          <div className="flex min-w-[14rem] shrink-0 flex-col items-end gap-2">
-                            <label className="w-full text-right text-[0.6rem] uppercase tracking-[0.15em] text-muted-foreground">
-                              Price
-                              <div className="mt-1 flex items-center justify-end gap-2">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  step={1}
-                                  className={cn(inputClass, "w-24 py-1 text-right text-sm")}
-                                  value={draftPrice}
-                                  onChange={(e) => {
-                                    const next = e.target.value;
-                                    setPriceDrafts((p) => ({ ...p, [service.id]: next }));
-                                    setRowState((s) => ({
-                                      ...s,
-                                      [service.id]: { ...s[service.id], message: "", error: "" },
-                                    }));
-                                  }}
-                                />
-                                <TinyButton onClick={() => void savePrice(service)}>
-                                  {state?.saving ? "Saving…" : "Save"}
-                                </TinyButton>
-                              </div>
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <TinyButton onClick={() => void toggleActive(service)} active={service.active}>
-                                {service.active ? "Active" : "Inactive"}
-                              </TinyButton>
-                            </div>
-                            <div className="text-sm tabular-nums text-muted-foreground">
-                              {inr(service.price)}
-                              {service.from ? " +" : ""}
-                            </div>
-                            {state?.message ? <p className="text-xs text-muted-foreground">{state.message}</p> : null}
-                            {state?.error ? <p className="text-xs text-destructive">{state.error}</p> : null}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        {c.active ? <Eye /> : <EyeOff />}
+                      </IconBtn>
+                      <IconBtn label="Edit category" onClick={() => setCatEdit(c)}>
+                        <Pencil />
+                      </IconBtn>
+                    </>
+                  )}
                 </div>
-              ) : (
-                <p className="px-5 py-4 text-sm text-muted-foreground">No services in this category yet.</p>
-              )}
-            </Panel>
-          ))}
+              </header>
 
-          {uncategorised.length ? (
-            <Panel>
-              <div className="eyebrow">Uncategorised services</div>
-              <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                {uncategorised.map((service) => (
-                  <p key={service.id}>{service.name}</p>
-                ))}
-              </div>
-            </Panel>
-          ) : null}
+              <ul>
+                {list.map((s) => {
+                  const oi = orderable.findIndex((x) => x.id === s.id);
+                  return (
+                    <li
+                      key={s.id}
+                      className="flex items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 lg:px-5"
+                    >
+                      <PhotoTile mediaKey={`svc:${s.id}`} url={s.photo} onChange={reload} small />
+                      <button onClick={() => setEditing(s)} className="min-w-0 flex-1 text-left">
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={cn("text-[0.95rem]", !s.active && "text-muted-foreground")}
+                          >
+                            {s.name}
+                          </span>
+                          {s.featured ? (
+                            <Star
+                              className="h-3.5 w-3.5 fill-bronze text-bronze"
+                              aria-label="Featured"
+                            />
+                          ) : null}
+                          {!s.active ? <Badge>Hidden</Badge> : null}
+                          {s.archived ? <Badge tone="danger">Archived</Badge> : null}
+                        </span>
+                        <span className="block text-[0.78rem] text-muted-foreground">
+                          {formatDuration(s.minutes)}
+                          {s.buffer ? ` + ${s.buffer} min buffer` : ""}
+                          {s.upcoming ? ` · ${s.upcoming} upcoming` : ""}
+                        </span>
+                      </button>
+                      <span className="shrink-0 text-[0.92rem] tabular-nums">
+                        {inr(s.price)}
+                        {s.from ? "+" : ""}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        {s.archived ? (
+                          <IconBtn
+                            label="Restore"
+                            onClick={() =>
+                              void run(
+                                adminArchiveItem({
+                                  data: { pin, kind: "service", id: s.id, restore: true },
+                                }),
+                                `${s.name} restored.`,
+                              )
+                            }
+                          >
+                            <RotateCcw />
+                          </IconBtn>
+                        ) : (
+                          <>
+                            {view === "live" && !term ? (
+                              <span className="hidden sm:flex">
+                                <IconBtn
+                                  label="Move up"
+                                  disabled={oi <= 0}
+                                  onClick={() => move(orderable, oi, -1, "service")}
+                                >
+                                  <ArrowUp />
+                                </IconBtn>
+                                <IconBtn
+                                  label="Move down"
+                                  disabled={oi >= orderable.length - 1}
+                                  onClick={() => move(orderable, oi, 1, "service")}
+                                >
+                                  <ArrowDown />
+                                </IconBtn>
+                              </span>
+                            ) : null}
+                            <IconBtn
+                              label={s.active ? "Hide from guests" : "Show to guests"}
+                              onClick={() => void toggleService(s)}
+                            >
+                              {s.active ? <Eye /> : <EyeOff />}
+                            </IconBtn>
+                          </>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+                {!list.length ? (
+                  <li className="px-5 py-4 text-[0.82rem] text-muted-foreground">
+                    No services here.
+                  </li>
+                ) : null}
+              </ul>
+              {view === "live" && !c.archived && !term ? (
+                <button
+                  onClick={() => {
+                    setNewIn(c.id);
+                    setEditing("new");
+                  }}
+                  className="flex w-full items-center gap-2 border-t border-hairline px-5 py-2.5 text-[0.8rem] text-bronze hover:bg-foreground/[0.02]"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add a service to {c.name}
+                </button>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
 
-          {count === 0 && grouped.length > 0 ? (
-            <Panel>
-              <div className="eyebrow">No services</div>
-              <p className="mt-2 text-sm text-muted-foreground">Add your first service for this audience.</p>
-            </Panel>
-          ) : null}
-        </div>
-      ) : null}
-
-      <Dialog
-        open={createOpen}
-        onOpenChange={(open) => {
-          setCreateOpen(open);
-          if (open) {
-            resetCreateForm();
-          } else {
-            setCreateError("");
-          }
+      <ServiceEditor
+        service={editing}
+        audience={audience}
+        categories={cats.filter((c) => !c.archived)}
+        defaultCategory={newIn}
+        nextOrder={svcs.length}
+        onClose={() => {
+          setEditing(null);
+          setNewIn(null);
         }}
-      >
-        <DialogContent className="border-hairline bg-card p-6 sm:rounded-none">
-          <DialogHeader>
-            <DialogTitle className="font-display text-2xl font-normal">Add New Service</DialogTitle>
-            <DialogDescription className="text-xs uppercase tracking-[0.15em] text-muted-foreground">
-              This service will appear under the selected audience category.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="mt-2 space-y-4">
-            <label className="block text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Name *
-              <input
-                className={inputClass}
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                placeholder="Service name"
-              />
-            </label>
-
-            <label className="block text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Description
-              <textarea
-                className={cn(inputClass, "min-h-20 resize-y border border-hairline px-3 py-2 text-sm")}
-                value={createDescription}
-                onChange={(e) => setCreateDescription(e.target.value)}
-                placeholder="Optional notes"
-              />
-            </label>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
-                Duration (minutes) *
-                <input
-                  type="number"
-                  min={30}
-                  max={600}
-                  step={30}
-                  className={inputClass}
-                  value={createMinutes}
-                  onChange={(e) => setCreateMinutes(e.target.value)}
-                />
-              </label>
-              <label className="block text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
-                Price *
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  className={inputClass}
-                  value={createPrice}
-                  onChange={(e) => setCreatePrice(e.target.value)}
-                />
-              </label>
-            </div>
-
-            <label className="block text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Category *
-              <select
-                className={cn(inputClass, "h-11 bg-transparent")}
-                value={createCategoryId}
-                onChange={(e) => setCreateCategoryId(e.target.value)}
-              >
-                <option value="">Select category</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <TinyButton active={createFrom} onClick={() => setCreateFrom((v) => !v)}>
-                Price from {createFrom ? "On" : "Off"}
-              </TinyButton>
-              <TinyButton active={createActive} onClick={() => setCreateActive((v) => !v)}>
-                {createActive ? "Active" : "Inactive"}
-              </TinyButton>
-            </div>
-
-            {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <TinyButton onClick={() => setCreateOpen(false)}>Cancel</TinyButton>
-              <button
-                type="button"
-                onClick={() => void createService()}
-                disabled={createSaving}
-                className="label-caps border border-foreground bg-foreground px-4 py-2 text-[0.6rem] text-background transition-opacity hover:opacity-88 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {createSaving ? "Saving…" : "Save service"}
-              </button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        onSaved={reload}
+      />
+      <CategoryEditor
+        category={catEdit}
+        audience={audience}
+        nextOrder={cats.length}
+        onClose={() => setCatEdit(null)}
+        onSaved={reload}
+      />
     </AdminShell>
   );
 }
 
+/* ── small parts ──────────────────────────────────────────── */
 
-/** Photo shown to guests for a service or category; click to upload or replace. */
-function MediaTile({ mediaKey, url, onChange }: { mediaKey: string; url?: string | undefined; onChange: () => void }) {
+function Badge({ children, tone }: { children: ReactNode; tone?: "danger" }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full border px-1.5 text-[0.6rem] uppercase tracking-[0.12em]",
+        tone === "danger"
+          ? "border-destructive/30 text-destructive"
+          : "border-foreground/20 text-muted-foreground",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function IconBtn({
+  children,
+  label,
+  onClick,
+  disabled,
+}: {
+  children: ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="press grid h-8 w-8 place-items-center rounded-md text-foreground/60 hover:bg-foreground/[0.05] hover:text-foreground disabled:opacity-25 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:stroke-[1.5]"
+    >
+      {children}
+    </button>
+  );
+}
+
+const Field = ({
+  label,
+  children,
+  hint,
+}: {
+  label: string;
+  children: ReactNode;
+  hint?: string;
+}) => (
+  <label className="block">
+    <span className="mb-1 block text-[0.62rem] uppercase tracking-[0.2em] text-muted-foreground">
+      {label}
+    </span>
+    {children}
+    {hint ? <span className="mt-1 block text-[0.72rem] text-muted-foreground">{hint}</span> : null}
+  </label>
+);
+
+function Check({
+  checked,
+  onChange,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  hint?: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2.5">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-1 h-4 w-4 accent-[var(--bronze)]"
+      />
+      <span>
+        <span className="text-[0.88rem]">{label}</span>
+        {hint ? <span className="block text-[0.72rem] text-muted-foreground">{hint}</span> : null}
+      </span>
+    </label>
+  );
+}
+
+/* ── service editor ───────────────────────────────────────── */
+
+function ServiceEditor({
+  service,
+  audience,
+  categories,
+  defaultCategory,
+  nextOrder,
+  onClose,
+  onSaved,
+}: {
+  service: CatalogueService | "new" | null;
+  audience: Audience;
+  categories: CatalogueCategory[];
+  defaultCategory: string | null;
+  nextOrder: number;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { pin } = useAdmin();
+  const isNew = service === "new";
+  const blank = useMemo(
+    () => ({
+      name: "",
+      description: "",
+      categoryId: defaultCategory ?? categories[0]?.id ?? "",
+      minutes: 30,
+      buffer: 0,
+      price: "",
+      from: false,
+      featured: false,
+      active: true,
+    }),
+    [defaultCategory, categories],
+  );
+  const [f, setF] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [confirmArchive, setConfirmArchive] = useState(false);
+
+  useEffect(() => {
+    if (!service) return;
+    setErr("");
+    setConfirmArchive(false);
+    setF(
+      service === "new"
+        ? blank
+        : {
+            name: service.name,
+            description: service.description,
+            categoryId: service.categoryId,
+            minutes: service.minutes,
+            buffer: service.buffer,
+            price: String(service.price),
+            from: service.from,
+            featured: service.featured,
+            active: service.active,
+          },
+    );
+  }, [service, blank]);
+
+  const save = async () => {
+    const price = Number(f.price);
+    if (!f.name.trim()) return setErr("Give the service a name.");
+    if (!f.categoryId) return setErr("Choose a category.");
+    if (f.price === "" || !Number.isFinite(price) || price < 0)
+      return setErr("Enter a price (0 or more).");
+    setBusy(true);
+    setErr("");
+    try {
+      await adminSaveService({
+        data: {
+          pin,
+          ...(isNew ? {} : { id: (service as CatalogueService).id }),
+          categoryId: f.categoryId,
+          name: f.name.trim(),
+          description: f.description.trim(),
+          minutes: f.minutes,
+          price: Math.round(price),
+          from: f.from,
+          order: isNew ? nextOrder : (service as CatalogueService).order,
+          active: f.active,
+          buffer: f.buffer,
+          featured: f.featured,
+        },
+      });
+      toast.success(isNew ? `${f.name.trim()} added.` : "Saved.");
+      onSaved();
+      onClose();
+    } catch (e) {
+      setErr(
+        e instanceof Error && e.message.length < 120
+          ? e.message
+          : "Couldn't save. Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const act = async (p: Promise<{ ok: boolean; error?: string }>, done: string) => {
+    setBusy(true);
+    try {
+      const r = await p;
+      if (!r.ok) return setErr(r.error ?? "Couldn't save.");
+      toast.success(done);
+      onSaved();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const s = service !== "new" ? service : null;
+  return (
+    <Dialog open={Boolean(service)} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[92svh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display text-[1.7rem] font-normal">
+            {isNew ? "New service" : "Edit service"}
+          </DialogTitle>
+          <DialogDescription>
+            {isNew
+              ? `Adds to the ${audience}'s menu.`
+              : "Existing bookings keep the price and time they were booked with."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Field label="Name">
+            <input
+              className={inputClass}
+              value={f.name}
+              onChange={(e) => setF({ ...f, name: e.target.value })}
+              maxLength={120}
+            />
+          </Field>
+          <Field label="Category">
+            <select
+              className={inputClass}
+              value={f.categoryId}
+              onChange={(e) => setF({ ...f, categoryId: e.target.value })}
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Description" hint="Shown under the name on the services step.">
+            <textarea
+              className={cn(inputClass, "resize-none")}
+              rows={2}
+              value={f.description}
+              onChange={(e) => setF({ ...f, description: e.target.value })}
+              maxLength={1000}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Duration">
+              <select
+                className={inputClass}
+                value={f.minutes}
+                onChange={(e) => setF({ ...f, minutes: Number(e.target.value) })}
+              >
+                {DURATIONS.map((m) => (
+                  <option key={m} value={m}>
+                    {formatDuration(m)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Buffer after" hint="Clean-up time no one can book.">
+              <select
+                className={inputClass}
+                value={f.buffer}
+                onChange={(e) => setF({ ...f, buffer: Number(e.target.value) })}
+              >
+                {BUFFERS.map((m) => (
+                  <option key={m} value={m}>
+                    {m ? `${m} min` : "None"}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <Field label="Price (₹)">
+            <input
+              className={inputClass}
+              value={f.price}
+              onChange={(e) => setF({ ...f, price: e.target.value.replace(/\D/g, "").slice(0, 7) })}
+              inputMode="numeric"
+              placeholder="0"
+            />
+          </Field>
+          <div className="space-y-2.5">
+            <Check
+              checked={f.from}
+              onChange={(v) => setF({ ...f, from: v })}
+              label="Starting price"
+              hint="Shown as ₹1,000+ and confirmed in the chair."
+            />
+            <Check
+              checked={f.featured}
+              onChange={(v) => setF({ ...f, featured: v })}
+              label="Featured"
+              hint="Marked with a star in the console."
+            />
+            <Check
+              checked={f.active}
+              onChange={(v) => setF({ ...f, active: v })}
+              label="Visible to guests"
+            />
+          </div>
+
+          {confirmArchive && s ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/[0.04] p-3 text-[0.85rem]">
+              Archive {s.name}? Guests won't see it any more.
+              {s.upcoming
+                ? ` ${s.upcoming} upcoming booking${s.upcoming > 1 ? "s" : ""} include it — they stay booked with their original price and time.`
+                : ""}{" "}
+              You can restore it from Archived.
+              <div className="mt-2 flex gap-2">
+                <TinyButton
+                  tone="danger"
+                  disabled={busy}
+                  onClick={() =>
+                    void act(
+                      adminArchiveItem({ data: { pin, kind: "service", id: s.id } }),
+                      `${s.name} archived.`,
+                    )
+                  }
+                >
+                  Archive
+                </TinyButton>
+                <TinyButton onClick={() => setConfirmArchive(false)}>Keep</TinyButton>
+              </div>
+            </div>
+          ) : null}
+          {err ? (
+            <p role="alert" className="text-[0.85rem] text-destructive">
+              {err}
+            </p>
+          ) : null}
+
+          <div className="flex flex-wrap items-center gap-2 border-t border-hairline pt-4">
+            {s && !s.archived ? (
+              <>
+                <TinyButton
+                  disabled={busy}
+                  onClick={() =>
+                    void act(
+                      adminDuplicateService({ data: { pin, id: s.id } }),
+                      "Copy created (hidden until you show it).",
+                    )
+                  }
+                >
+                  <Copy className="h-4 w-4" /> Duplicate
+                </TinyButton>
+                <TinyButton tone="danger" disabled={busy} onClick={() => setConfirmArchive(true)}>
+                  <Archive className="h-4 w-4" /> Archive
+                </TinyButton>
+              </>
+            ) : null}
+            <span className="flex-1" />
+            <TinyButton onClick={onClose}>Cancel</TinyButton>
+            <TinyButton tone="primary" disabled={busy} onClick={() => void save()}>
+              {busy ? "Saving…" : isNew ? "Add service" : "Save"}
+            </TinyButton>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ── category editor ──────────────────────────────────────── */
+
+function CategoryEditor({
+  category,
+  audience,
+  nextOrder,
+  onClose,
+  onSaved,
+}: {
+  category: CatalogueCategory | "new" | null;
+  audience: Audience;
+  nextOrder: number;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { pin } = useAdmin();
+  const [f, setF] = useState({ name: "", description: "", active: true });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const c = category && category !== "new" ? category : null;
+
+  useEffect(() => {
+    if (!category) return;
+    setErr("");
+    setConfirmArchive(false);
+    setF(
+      c
+        ? { name: c.name, description: c.description, active: c.active }
+        : { name: "", description: "", active: true },
+    );
+  }, [category, c]);
+
+  const save = async () => {
+    if (!f.name.trim()) return setErr("Give the category a name.");
+    setBusy(true);
+    try {
+      await adminSaveCategory({
+        data: {
+          pin,
+          ...(c ? { id: c.id } : {}),
+          gender: c?.gender ?? audience,
+          name: f.name.trim(),
+          description: f.description.trim(),
+          order: c?.order ?? nextOrder,
+          active: f.active,
+        },
+      });
+      toast.success(c ? "Category saved." : `${f.name.trim()} added.`);
+      onSaved();
+      onClose();
+    } catch {
+      setErr("Couldn't save. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const archive = async () => {
+    if (!c) return;
+    setBusy(true);
+    try {
+      const r = await adminArchiveItem({ data: { pin, kind: "category", id: c.id } });
+      if (!r.ok) return setErr(r.error);
+      toast.success(`${c.name} archived.`);
+      onSaved();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={Boolean(category)} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-[1.7rem] font-normal">
+            {c ? "Edit category" : "New category"}
+          </DialogTitle>
+          <DialogDescription>
+            {c ? `On the ${c.gender}'s menu.` : `Adds to the ${audience}'s menu.`}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Field label="Name">
+            <input
+              className={inputClass}
+              value={f.name}
+              onChange={(e) => setF({ ...f, name: e.target.value })}
+              maxLength={80}
+            />
+          </Field>
+          <Field label="Description">
+            <textarea
+              className={cn(inputClass, "resize-none")}
+              rows={2}
+              value={f.description}
+              onChange={(e) => setF({ ...f, description: e.target.value })}
+              maxLength={400}
+            />
+          </Field>
+          <Check
+            checked={f.active}
+            onChange={(v) => setF({ ...f, active: v })}
+            label="Visible to guests"
+          />
+          {confirmArchive && c ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/[0.04] p-3 text-[0.85rem]">
+              Archive {c.name} and hide all of its services from guests? Bookings already made are
+              not affected.
+              <div className="mt-2 flex gap-2">
+                <TinyButton tone="danger" disabled={busy} onClick={() => void archive()}>
+                  Archive
+                </TinyButton>
+                <TinyButton onClick={() => setConfirmArchive(false)}>Keep</TinyButton>
+              </div>
+            </div>
+          ) : null}
+          {err ? (
+            <p role="alert" className="text-[0.85rem] text-destructive">
+              {err}
+            </p>
+          ) : null}
+          <div className="flex items-center gap-2 border-t border-hairline pt-4">
+            {c ? (
+              <TinyButton tone="danger" disabled={busy} onClick={() => setConfirmArchive(true)}>
+                <Archive className="h-4 w-4" /> Archive
+              </TinyButton>
+            ) : null}
+            <span className="flex-1" />
+            <TinyButton onClick={onClose}>Cancel</TinyButton>
+            <TinyButton tone="primary" disabled={busy} onClick={() => void save()}>
+              {busy ? "Saving…" : c ? "Save" : "Add category"}
+            </TinyButton>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ── photo tile (upload / replace / remove) ───────────────── */
+
+function PhotoTile({
+  mediaKey,
+  url,
+  onChange,
+  small,
+}: {
+  mediaKey: string;
+  url: string | null;
+  onChange: () => void;
+  small?: boolean;
+}) {
   const { pin } = useAdmin();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
 
   const save = async (file?: File) => {
     setBusy(true);
-    setError("");
     try {
       const dataUrl = file ? shrinkImage(await loadImageFile(file), 1200, 0.85) : undefined;
-      const r = await adminSaveMedia({ data: { pin, key: mediaKey, ...(dataUrl ? { dataUrl } : {}) } });
-      if (!r.ok) setError(r.error);
-      else onChange();
+      const r = await adminSaveMedia({
+        data: { pin, key: mediaKey, ...(dataUrl ? { dataUrl } : {}) },
+      });
+      if (!r.ok) toast.error(r.error);
+      else {
+        toast.success(file ? "Photo saved." : "Photo removed.");
+        onChange();
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't save photo.");
+      toast.error(e instanceof Error ? e.message : "Couldn't save photo.");
     } finally {
       setBusy(false);
       if (input.current) input.current.value = "";
     }
   };
 
+  const size = small ? "h-12 w-12" : "h-14 w-14";
   return (
-    <div className="flex w-16 shrink-0 flex-col items-center gap-1">
+    <div className="group relative shrink-0">
       <button
         type="button"
         onClick={() => input.current?.click()}
         disabled={busy}
         aria-label={url ? "Replace photo" : "Add photo"}
-        className="press relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-md border border-dashed border-foreground/25 bg-card text-foreground/50 hover:border-foreground/60"
+        title={url ? "Replace photo" : "Add photo"}
+        className={cn(
+          "press relative flex items-center justify-center overflow-hidden rounded-md border border-dashed border-foreground/20 bg-background text-foreground/40 hover:border-foreground/50",
+          size,
+        )}
       >
-        {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <ImagePlus className="h-5 w-5" strokeWidth={1.25} />}
+        {url ? (
+          <img src={url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <ImagePlus className="h-4 w-4" strokeWidth={1.25} />
+        )}
         {busy ? (
           <span className="absolute inset-0 flex items-center justify-center bg-background/70">
             <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
@@ -619,12 +1048,22 @@ function MediaTile({ mediaKey, url, onChange }: { mediaKey: string; url?: string
         ) : null}
       </button>
       {url && !busy ? (
-        <button type="button" onClick={() => void save()} className="text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground hover:text-destructive">
-          Remove
+        <button
+          type="button"
+          onClick={() => void save()}
+          aria-label="Remove photo"
+          className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center sm:hidden sm:group-hover:flex justify-center rounded-full border border-hairline bg-background text-[0.7rem] text-muted-foreground shadow-sm group-hover:flex hover:text-destructive"
+        >
+          ×
         </button>
       ) : null}
-      {error ? <span className="text-center text-[0.6rem] text-destructive">{error}</span> : null}
-      <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => void save(e.target.files?.[0])} />
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => void save(e.target.files?.[0])}
+      />
     </div>
   );
 }

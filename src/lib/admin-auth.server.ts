@@ -85,6 +85,17 @@ async function hmac(data: string) {
   return b64(await crypto.subtle.sign("HMAC", key, enc.encode(data)));
 }
 
+/**
+ * A guest's key to one booking (returned by Manage booking lookups), so changes
+ * can be authorised without sending the phone number back to the browser.
+ */
+export async function manageToken(reference: string) {
+  return (await hmac(`manage:${reference}`)).slice(0, 32);
+}
+export async function checkManageToken(reference: string, token: string) {
+  return token.length === 32 && same(token, await manageToken(reference));
+}
+
 /** Fingerprint of the stored code, so a code change revokes old sessions. */
 async function codeVersion(stored: string) {
   return b64(await crypto.subtle.digest("SHA-256", enc.encode(stored))).slice(0, 16);

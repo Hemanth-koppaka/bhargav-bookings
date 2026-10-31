@@ -14,6 +14,8 @@ const SERVICES: Record<string, string> = {
   [key("men", "Beard Trim")]: "/services/men-beard.webp",
   [key("men", "Bhargav's Signature")]: "/team/bhargav-portrait.webp",
   [key("women", "Bhargav's Signature")]: "/team/bhargav-portrait.webp",
+  [key("men", "Kids (U-14)")]: "/services/men-kids.webp",
+  [key("men", "Kids")]: "/services/men-kids.webp",
   [key("men", "Wash and Blast Dry")]: "/services/men-wash-blowdry.webp",
   [key("men", "Highlights")]: "/services/men-highlights.webp",
   [key("men", "Global Colour")]: "/services/men-global-colour.webp",
