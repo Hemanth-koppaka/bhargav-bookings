@@ -33,6 +33,7 @@
   --color-ink: var(--ink);
   --color-ivory: var(--ivory);
   --color-champagne: var(--champagne);
+  --color-bronze: var(--bronze);
   --font-display: "Cormorant Garamond", ui-serif, Georgia, serif;
   --font-sans: "Jost", ui-sans-serif, system-ui, sans-serif;
 }
@@ -43,6 +44,8 @@
   --ivory: oklch(0.978 0.008 85);
   --ink: oklch(0.19 0.006 60);
   --champagne: oklch(0.72 0.055 62);
+  /* deeper champagne for italic display words — readable on ivory */
+  --bronze: oklch(0.52 0.075 55);
 
   --background: oklch(0.978 0.008 85);
   --foreground: oklch(0.19 0.006 60);
