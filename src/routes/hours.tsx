@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Coffee } from "lucide-react";
 import { BookCTA, InfoPage, InfoTitle } from "@/components/info-page";
 import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel } from "@/lib/salon";
-import womenImg from "@/assets/women.jpg.asset.json";
 
 export const Route = createFileRoute("/hours")({
   head: () => ({
@@ -37,8 +36,8 @@ function HoursScreen() {
   return (
     <InfoPage
       label="Hours"
-      image={womenImg.url}
-      imagePos="45% 25%"
+      image="/team/bhargav-sketch.webp"
+      imagePos="50% 22%"
       panelEyebrow="Open six days"
       panelTitle={
         <>
