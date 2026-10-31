@@ -4,7 +4,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock, Coffee, Sun, Sunrise, S
 import { haptic } from "@/lib/utils";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import {
-  AUDIENCE_IMAGE,
+  selectionImage,
   Accent,
   DesktopBar,
   DesktopCTA,
@@ -463,7 +463,7 @@ function DesktopTime({
   const toSlots = () =>
     window.setTimeout(() => slotsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
 
-  const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
+  const img = selectionImage(selected, draft.audience);
   const first = selected[0];
 
   return (

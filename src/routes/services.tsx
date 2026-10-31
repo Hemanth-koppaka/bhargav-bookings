@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock, Plus, Search, Shoppin
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
 import { useRewindBack } from "@/components/scissors-line";
+import { BHARGAV_FULL, isSignature } from "@/lib/service-photos";
 import { ServiceGlyph, ServiceIconTile, categoryKind, serviceKind } from "@/components/service-icons";
 import {
   AUDIENCE_IMAGE,
@@ -254,7 +255,7 @@ function DesktopServices({
   const men = draft.audience === "men";
   const img = AUDIENCE_IMAGE[men ? "men" : "women"];
   const [sort, setSort] = useState<SortKey>("popular");
-  const goBack = useRewindBack("/book", 1);
+  const goBack = useRewindBack("/book");
 
   return (
     <DesktopPage>
@@ -426,20 +427,37 @@ function DesktopServices({
         </section>
         </div>
 
-        <ImagePanel
-          className="hidden lg:block"
-          src={img.src}
-          pos={img.pos}
-          eyebrow="Expert styling"
-          title={
-            <>
-              A style
-              <br />
-              that's <span className="italic text-champagne">you</span>.
-            </>
-          }
-          sub={men ? "Precision cuts. Modern styles. Timeless confidence." : "Colour. Care. Makeover. Made for you."}
-        />
+        {selected.some(isSignature) ? (
+          <ImagePanel
+            className="hidden lg:block"
+            src={BHARGAV_FULL}
+            pos="50% 22%"
+            eyebrow="Bhargav's Signature"
+            title={
+              <>
+                Styled by
+                <br />
+                <span className="italic text-champagne">Bhargav</span>.
+              </>
+            }
+            sub="Consultation, cut, beard, wash and styling."
+          />
+        ) : (
+          <ImagePanel
+            className="hidden lg:block"
+            src={img.src}
+            pos={img.pos}
+            eyebrow="Expert styling"
+            title={
+              <>
+                A style
+                <br />
+                that's <span className="italic text-champagne">you</span>.
+              </>
+            }
+            sub={men ? "Precision cuts. Modern styles. Timeless confidence." : "Colour. Care. Makeover. Made for you."}
+          />
+        )}
       </div>
 
       <DesktopBar>
