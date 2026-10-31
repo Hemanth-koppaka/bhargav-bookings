@@ -439,3 +439,86 @@ export const adminSaveCustomer = createServerFn({ method: "POST" })
     }
     return { ok: true as const };
   });
+
+/* ── reports & exports (Phase 4) ───────────────────────────── */
+
+const reportShape = (b: AdminBooking) => ({
+  reference: b.reference,
+  date: b.date,
+  time: b.time,
+  minutes: b.minutes,
+  status: b.status,
+  price: b.price,
+  amountPaid: b.amountPaid,
+  source: b.source,
+  customerId: b.customerId,
+  phone: b.customer.phone,
+  services: b.services,
+});
+
+export const adminAnalytics = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ pin, from: isoDate, to: isoDate }).parse(d))
+  .handler(async ({ data }) => {
+    const sb = await admin(data.pin);
+    const L = await lookup();
+    const { buildReport, daysBetween } = await import("./analytics");
+    if (data.to < data.from) throw new Error("Invalid range");
+    const span = Math.min(daysBetween(data.from, data.to) + 1, 400);
+    const prevTo = addDays(data.from, -1);
+    const prevFrom = addDays(data.from, -span);
+    const fetchRange = async (from: string, to: string) => {
+      const { data: rows } = await sb.from("bookings").select("*").gte("date", from).lte("date", to).limit(10000);
+      return ((rows ?? []) as Row[]).map((r) => reportShape(toAdmin(r, L)));
+    };
+    const [current, previous] = await Promise.all([fetchRange(data.from, data.to), fetchRange(prevFrom, prevTo)]);
+    // who had visited before this period (for "returning customers")
+    const { data: earlier } = await sb.from("bookings").select("*").lt("date", data.from).neq("status", "cancelled").limit(20000);
+    const seenBefore = new Set<string>();
+    for (const r of (earlier ?? []) as unknown as Row[]) {
+      if (r["customer_id"]) seenBefore.add(r["customer_id"] as string);
+      const p = ((r["customer"] as { phone?: string } | null)?.phone ?? "").replace(/\D/g, "").slice(-10);
+      if (p) seenBefore.add(p);
+    }
+    return buildReport(current, { from: data.from, to: data.to, seenBefore, previous });
+  });
+
+/** CSV downloads for the salon's own records (admin only). */
+export const adminExportCsv = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ pin, kind: z.enum(["bookings", "customers"]), from: isoDate.optional(), to: isoDate.optional() }).parse(d))
+  .handler(async ({ data }) => {
+    const sb = await admin(data.pin);
+    const { toCsv } = await import("./analytics");
+    const E = await engine();
+    const stamp = E.salonNow().iso;
+    const L = await lookup();
+    if (data.kind === "bookings") {
+      let q = sb.from("bookings").select("*").order("date").order("time");
+      if (data.from) q = q.gte("date", data.from);
+      if (data.to) q = q.lte("date", data.to);
+      const { data: rows } = await q.limit(20000);
+      const list = ((rows ?? []) as Row[]).map((r) => toAdmin(r, L));
+      const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+      const csv = toCsv([
+        ["Booking ID", "Date", "Start", "End", "Minutes", "Status", "Customer", "Phone", "Email", "Services", "Price", "Paid", "Payment", "Source", "Booked at", "Cancel reason", "Internal note"],
+        ...list.map((b) => [b.reference, b.date, hhmm(b.time), hhmm(b.end), b.minutes, b.status, b.customer.name, b.customer.phone, b.customer.email, b.services.map((s) => s.name).join("; "), b.price, b.amountPaid ?? "", b.payment, b.source, b.createdAt, b.cancelReason, b.note]),
+      ]);
+      await E.audit({ action: "export.bookings", entity: "export", summary: `Exported ${list.length} bookings${data.from ? ` from ${data.from}` : ""}${data.to ? ` to ${data.to}` : ""}` });
+      return { filename: `hair-by-bhargav-bookings-${stamp}.csv`, csv, rows: list.length };
+    }
+    const { data: cust, error } = await sb.from("customers" as never).select("*").is("archived_at", null).order("name").limit(20000);
+    if (error) return { filename: "", csv: "", rows: 0 };
+    const ids = ((cust ?? []) as Row[]).map((c) => c["id"] as string);
+    const { data: bk } = ids.length ? await sb.from("bookings").select("*").not("customer_id" as never, "is", null).limit(50000) : { data: [] };
+    const by = new Map<string, AdminBooking[]>();
+    for (const r of (bk ?? []) as Row[]) {
+      const b = toAdmin(r, L);
+      if (b.customerId) by.set(b.customerId, [...(by.get(b.customerId) ?? []), b]);
+    }
+    const rows = ((cust ?? []) as Row[]).map((c) => summarise(c, by.get(c["id"] as string) ?? []));
+    const csv = toCsv([
+      ["Name", "Phone", "Email", "Visits", "No-shows", "Cancelled", "Total spent", "First visit", "Last visit", "Usual service", "Booking messages", "Customer since", "Notes"],
+      ...rows.map((c, i) => [c.name, c.phone, c.email, c.completed, c.noShows, c.cancelled, c.spend, c.firstVisit ?? "", c.lastVisit ?? "", c.favourite ?? "", ((cust as Row[])[i]?.["notify_consent"] ? "yes" : "no"), c.createdAt.slice(0, 10), c.notes]),
+    ]);
+    await E.audit({ action: "export.customers", entity: "export", summary: `Exported ${rows.length} customers` });
+    return { filename: `hair-by-bhargav-customers-${stamp}.csv`, csv, rows: rows.length };
+  });

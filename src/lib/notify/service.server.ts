@@ -669,6 +669,14 @@ export async function dispatchDue(limit = 40) {
       .eq("status", "sending");
     counts.stale++;
   }
+  // System health reads this to tell whether the schedule is running
+  await sb
+    .from("site_settings")
+    .upsert({ key: "job_notify_dispatch", value: { at: Date.now(), ...counts } as never })
+    .then(
+      () => undefined,
+      () => undefined,
+    );
   return { ok: true, ...counts };
 }
 
