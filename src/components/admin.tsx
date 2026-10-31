@@ -4,15 +4,16 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  Activity,
   CalendarDays,
   Ellipsis,
+  FileText,
   LayoutGrid,
   ListChecks,
   LogOut,
   Scissors,
   Search,
   Settings,
+  SlidersHorizontal,
   Users,
   X,
 } from "lucide-react";
@@ -34,8 +35,20 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: "/admin/customers", label: "Customers", icon: Users },
     ],
   },
-  { label: "Catalogue", items: [{ to: "/admin/services", label: "Services", icon: Scissors }] },
-  { label: "System", items: [{ to: "/admin/settings", label: "Settings", icon: Settings }] },
+  {
+    label: "Catalogue",
+    items: [
+      { to: "/admin/services", label: "Services", icon: Scissors },
+      { to: "/admin/content", label: "Site content", icon: FileText },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { to: "/admin/rules", label: "Booking rules", icon: SlidersHorizontal },
+      { to: "/admin/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
 /** Flat list (kept for older imports). */
@@ -210,8 +223,9 @@ export function AdminShell({
               <div className="mt-2 grid grid-cols-3 gap-2">
                 {[
                   { to: "/admin/services", label: "Services", icon: Scissors },
+                  { to: "/admin/content", label: "Site content", icon: FileText },
+                  { to: "/admin/rules", label: "Booking rules", icon: SlidersHorizontal },
                   { to: "/admin/settings", label: "Settings", icon: Settings },
-                  { to: "/admin/settings", label: "Activity", icon: Activity },
                 ].map((n) => (
                   <Link
                     key={n.label}

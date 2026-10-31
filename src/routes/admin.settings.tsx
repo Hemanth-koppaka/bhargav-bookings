@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AdminShell, Panel, TinyButton, inputClass } from "@/components/admin";
 import { useAdmin } from "@/lib/admin-store";
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/admin/settings")({
 });
 
 function SettingsScreen() {
-  const { staff, addStaff, toggleStaff, removeStaff, settings, updateSettings, signOut, changeCode, pin: adminPin } =
+  const { staff, addStaff, toggleStaff, removeStaff, signOut, changeCode, pin: adminPin } =
     useAdmin();
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
@@ -311,18 +311,11 @@ function SettingsScreen() {
       <Panel className="mt-4">
         <div className="eyebrow">Online bookings</div>
         <p className="mt-3 text-sm text-muted-foreground">
-          {settings.acceptingBookings
-            ? "Customers can reserve chairs online."
-            : "New online reservations are paused."}
+          Pausing bookings, notice, how far ahead guests can book and cancellation deadlines now live in Booking rules.
         </p>
-        <div className="mt-4">
-          <TinyButton
-            active={settings.acceptingBookings}
-            onClick={() => updateSettings({ acceptingBookings: !settings.acceptingBookings })}
-          >
-            {settings.acceptingBookings ? "Accepting" : "Paused"}
-          </TinyButton>
-        </div>
+        <Link to="/admin/rules" className="mt-4 inline-block border-b border-foreground/30 pb-0.5 text-sm">
+          Open booking rules
+        </Link>
       </Panel>
 
       <Panel className="mt-4">

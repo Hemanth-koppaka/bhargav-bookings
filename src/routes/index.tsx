@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { CONTENT } from "@/lib/site-content";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowRight, Phone } from "lucide-react";
 import { BUSINESS, hoursFor, isClosed, minuteLabel, toISO } from "@/lib/salon";
@@ -75,6 +76,16 @@ function StatusPill({ className }: { className?: string }) {
       </span>
       {status.text}
     </span>
+  );
+}
+
+/** Optional line the salon can publish from the console (holiday hours, offers…). */
+function Announcement({ className }: { className?: string }) {
+  if (!CONTENT.announcement.enabled || !CONTENT.announcement.text) return null;
+  return (
+    <p className={"border-l-2 border-bronze/60 pl-3 text-[0.85rem] leading-relaxed text-foreground/80 " + (className ?? "")}>
+      {CONTENT.announcement.text}
+    </p>
   );
 }
 
@@ -297,17 +308,16 @@ function MobileHome() {
           <StatusLine />
           <div className="mt-4 text-[0.6rem] uppercase tracking-[0.28em] text-muted-foreground md:mt-0">{BUSINESS.locationShort}</div>
           <h1 className="mt-2 font-display text-[clamp(2.6rem,12vw,3.4rem)] leading-[0.95] tracking-[-0.015em]">
-            Reserve <span className="italic text-bronze">your chair.</span>
+            {CONTENT.home.headline} <span className="italic text-bronze">{CONTENT.home.headlineAccent}</span>
           </h1>
-          <p className="mt-3 text-[0.9rem] leading-relaxed text-muted-foreground">
-            Hair, beauty and makeover. Pick a time that's genuinely free — booked in under a minute.
-          </p>
+          <p className="mt-3 text-[0.9rem] leading-relaxed text-muted-foreground">{CONTENT.home.intro}</p>
+          <Announcement className="mt-3" />
           <div className="mt-[clamp(1rem,2.5svh,1.5rem)] space-y-2.5">
             <Link
               to="/book"
               className="label-caps press sheen group flex min-h-14 w-full items-center justify-between gap-4 rounded-sm bg-foreground px-6 text-background hover:bg-foreground/88"
             >
-              <span>Book an appointment</span>
+              <span>{CONTENT.home.ctaLabel}</span>
               <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" strokeWidth={1.25} />
             </Link>
             <Link
@@ -368,20 +378,18 @@ function DesktopHome() {
             {BUSINESS.tagline}
           </div>
           <h1 className="mt-8 font-display text-[clamp(4.25rem,7vw,7rem)] leading-[0.92] tracking-[-0.02em]">
-            Reserve
+            {CONTENT.home.headline}
             <br />
-            <span className="italic text-bronze">your chair.</span>
+            <span className="italic text-bronze">{CONTENT.home.headlineAccent}</span>
           </h1>
-          <p className="mt-8 max-w-md text-[1.1rem] leading-relaxed text-muted-foreground">
-            Hair, beauty and makeover by {BUSINESS.founder}. Choose a service, pick a time that is genuinely
-            free, and you're booked.
-          </p>
+          <p className="mt-8 max-w-md text-[1.1rem] leading-relaxed text-muted-foreground">{CONTENT.home.introLong}</p>
+          <Announcement className="mt-5 max-w-md" />
           <div className="mt-10 flex items-center gap-4">
             <Link
               to="/book"
               className="press sheen group flex h-[4.25rem] items-center gap-5 whitespace-nowrap rounded-sm bg-foreground px-8 text-[1.05rem] text-background hover:bg-foreground/88 xl:px-10"
             >
-              Book an appointment
+              {CONTENT.home.ctaLabel}
               <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" strokeWidth={1.25} />
             </Link>
             <Link
