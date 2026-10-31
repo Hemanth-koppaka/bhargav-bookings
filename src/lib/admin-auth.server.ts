@@ -15,6 +15,8 @@ const FREE_ATTEMPTS = 5;
 const BASE_LOCK_MS = 5 * 60_000;
 const MAX_LOCK_MS = 60 * 60_000;
 const GUARD_KEY = "admin_guard";
+/** Sessions issued before this moment are signed out ("sign out on all devices"). */
+const EPOCH_KEY = "admin_session_epoch";
 
 const enc = new TextEncoder();
 
@@ -104,7 +106,7 @@ async function codeVersion(stored: string) {
 async function issueToken(stored: string, weak: boolean) {
   const exp = Date.now() + SESSION_HOURS * 3600_000;
   const body = b64(
-    enc.encode(JSON.stringify({ exp, v: await codeVersion(stored), w: weak ? 1 : 0 })),
+    enc.encode(JSON.stringify({ exp, iat: Date.now(), v: await codeVersion(stored), w: weak ? 1 : 0 })),
   );
   return { token: `${body}.${await hmac(body)}`, expiresAt: exp };
 }
@@ -119,15 +121,43 @@ async function readSecret() {
 export async function assertAdmin(token: string) {
   const [body, sig] = token.split(".");
   if (!body || !sig || !same(sig, await hmac(body))) throw new Error("Session not valid");
-  let claims: { exp?: number; v?: string };
+  let claims: { exp?: number; v?: string; iat?: number };
   try {
     claims = JSON.parse(new TextDecoder().decode(unb64(body)));
   } catch {
     throw new Error("Session not valid");
   }
   if (!claims.exp || claims.exp < Date.now()) throw new Error("Session expired");
-  if (claims.v !== (await codeVersion(await readSecret()))) throw new Error("Session revoked");
+  const [secret, epoch] = await Promise.all([readSecret(), readEpoch()]);
+  if (claims.v !== (await codeVersion(secret))) throw new Error("Session revoked");
+  if (epoch && (claims.iat ?? 0) < epoch) throw new Error("Session revoked");
   return supabaseAdmin;
+}
+
+async function readEpoch(): Promise<number> {
+  const { data } = await supabaseAdmin.from("site_settings").select("value").eq("key", EPOCH_KEY).maybeSingle();
+  return Number((data?.value as { at?: number } | null)?.at ?? 0);
+}
+
+/** Signs out every admin session, on every device (including this one). */
+export async function signOutEverywhere(token: string) {
+  await assertAdmin(token);
+  const { error } = await supabaseAdmin.from("site_settings").upsert({ key: EPOCH_KEY, value: { at: Date.now() } as never });
+  return { ok: !error };
+}
+
+/** Lockout state and session policy, for the security panel. */
+export async function securityStatus() {
+  const g = await readGuard();
+  const stored = await readSecret().catch(() => "");
+  return {
+    failedAttempts: g.fails,
+    lockedUntil: g.lockedUntil > Date.now() ? g.lockedUntil : 0,
+    hashed: stored.startsWith("pbkdf2$"),
+    sessionHours: SESSION_HOURS,
+    attemptsBeforeLock: FREE_ATTEMPTS,
+    dedicatedSecret: Boolean(process.env["ADMIN_SESSION_SECRET"]),
+  };
 }
 
 /* ── throttling ─────────────────────────────────────────────── */

@@ -4,6 +4,10 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  BarChart3,
+  BellRing,
+  HeartPulse,
+  History,
   CalendarDays,
   Ellipsis,
   FileText,
@@ -43,9 +47,18 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
+    label: "Insights",
+    items: [
+      { to: "/admin/reports", label: "Reports", icon: BarChart3 },
+      { to: "/admin/activity", label: "Activity", icon: History },
+    ],
+  },
+  {
     label: "System",
     items: [
       { to: "/admin/rules", label: "Booking rules", icon: SlidersHorizontal },
+      { to: "/admin/notifications", label: "Notifications", icon: BellRing },
+      { to: "/admin/system", label: "System health", icon: HeartPulse },
       { to: "/admin/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -225,6 +238,10 @@ export function AdminShell({
                   { to: "/admin/services", label: "Services", icon: Scissors },
                   { to: "/admin/content", label: "Site content", icon: FileText },
                   { to: "/admin/rules", label: "Booking rules", icon: SlidersHorizontal },
+                  { to: "/admin/notifications", label: "Messages", icon: BellRing },
+                  { to: "/admin/reports", label: "Reports", icon: BarChart3 },
+                  { to: "/admin/activity", label: "Activity", icon: History },
+                  { to: "/admin/system", label: "Health", icon: HeartPulse },
                   { to: "/admin/settings", label: "Settings", icon: Settings },
                 ].map((n) => (
                   <Link

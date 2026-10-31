@@ -7,14 +7,12 @@ import { cn } from "@/lib/utils";
 import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
 import { ScissorsLine, useRewindBack } from "@/components/scissors-line";
-import menImg from "@/assets/men.jpg.asset.json";
-import womenImg from "@/assets/women.jpg.asset.json";
 
 export const STEPS = ["Who", "Services", "Time", "Details", "Confirm"] as const;
 
 export const AUDIENCE_IMAGE: Record<Audience, { src: string; pos: string }> = {
-  men: { src: menImg.url, pos: "60% 30%" },
-  women: { src: womenImg.url, pos: "45% 25%" },
+  men: { src: "/services/men-panel.webp", pos: "50% 8%" },
+  women: { src: "/services/women-panel.webp", pos: "50% 20%" },
 };
 
 /** Picture for a booking summary: the first chosen service's photo, else the men/women image. */

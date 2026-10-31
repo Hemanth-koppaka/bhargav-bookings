@@ -94,7 +94,28 @@ const bookingInput = z.object({
     .array(z.string().regex(/^pending\/[0-9a-f-]{36}\/[a-z0-9]+\.(jpg|png|webp)$/))
     .max(3)
     .optional(),
+  /** Agreed to booking messages on WhatsApp/SMS. */
+  consent: z.boolean().optional(),
 });
+
+/** The site address the request came from (for links in messages); "" if unknown. */
+async function requestOrigin(): Promise<string> {
+  try {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const req = getRequest();
+    const h = req.headers;
+    const host = h.get("x-forwarded-host") ?? h.get("host");
+    const proto = h.get("x-forwarded-proto") ?? "https";
+    const o = h.get("origin") || (host ? `${proto.split(",")[0]}://${host.split(",")[0]}` : "");
+    return /^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(o) ? o : "";
+  } catch {
+    return "";
+  }
+}
+
+/** Booking notifications run after the booking is saved and never affect it. */
+const notify = async (...a: Parameters<typeof import("./notify/service.server").notifySoon>) =>
+  (await import("./notify/service.server")).notifySoon(...a).catch(() => undefined);
 
 export const createBooking = createServerFn({ method: "POST" })
   .inputValidator((d) => bookingInput.parse(d))
@@ -107,12 +128,16 @@ export const createBooking = createServerFn({ method: "POST" })
         time: data.time,
         customer: data.customer,
         source: "online",
+        notifyConsent: Boolean(data.consent),
+        siteOrigin: await requestOrigin(),
       },
       { staff: false, ...(data.photos?.length ? { photos: data.photos } : {}) },
     );
     const { sweepPhotos } = await import("./photos.server");
     await sweepPhotos().catch(() => {});
     if (!r.ok) return { ok: false as const, error: r.error };
+    // the booking is committed; now tell the guest and the salon
+    await notify(r.reference, "BOOKING_CONFIRMED", { actor: "guest" });
     return { ok: true as const, reference: r.reference };
   });
 
@@ -298,6 +323,7 @@ export const updateMyBooking = createServerFn({ method: "POST" })
       const { deleteBookingPhotos } = await import("./photos.server");
       await deleteBookingPhotos(r.reference).catch(() => {});
       await E.audit({ actor: "guest", action: "booking.cancel", entity: "booking", entityId: r.reference, summary: `Guest cancelled ${r.reference}` });
+      await notify(r.reference, "BOOKING_CANCELLED", { actor: "guest" });
       return { ok: true };
     }
 
@@ -330,6 +356,7 @@ export const updateMyBooking = createServerFn({ method: "POST" })
       before: { date: r.date, time: r.time },
       after: { date: data.date, time: data.time },
     });
+    await notify(r.reference, "BOOKING_RESCHEDULED", { actor: "guest", previous: { date: r.date, time: r.time } });
     return { ok: true };
   });
 
@@ -401,6 +428,8 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
       );
       if (!r.ok) throw new Error(r.error);
       await E.audit({ action: "booking.create", entity: "booking", entityId: r.reference, summary: `Added ${i.source} booking ${r.reference} for ${i.customer.name}`, after: { date: i.date, time: i.time, services: i.serviceIds } });
+      // phone/WhatsApp bookings get a confirmation; walk-ins are already in the chair
+      if (i.source !== "walk-in") await notify(r.reference, "BOOKING_CONFIRMED", { actor: "admin" });
       return { ok: true, reference: r.reference };
     }
     if (!data.patch) return { ok: true, reference: data.reference };
@@ -460,6 +489,13 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
     } else if (metaStatus && metaStatus !== prevStatus) {
       await E.audit({ action: "booking.status", entity: "booking", entityId: data.reference, summary: `${data.reference}: ${prevStatus ?? "upcoming"} → ${metaStatus}`, before: { status: prevStatus ?? "upcoming" }, after: { status: metaStatus } });
     }
+
+    // messages: guest is told about moves and cancellations; reminders follow the booking
+    if (cancelling && current.status !== "cancelled") await notify(data.reference, "BOOKING_CANCELLED", { actor: "admin" });
+    else if (moved) await notify(data.reference, "BOOKING_RESCHEDULED", { actor: "admin", previous: { date: current.date, time: current.time } });
+    else if (metaStatus === "upcoming" && prevStatus === "pending") await notify(data.reference, "BOOKING_CONFIRMED", { actor: "admin" });
+    else if (metaStatus === "completed" && prevStatus !== "completed") await notify(data.reference, "BOOKING_COMPLETED", { actor: "admin" });
+    else if (metaStatus === "no-show" && prevStatus !== "no-show") await notify(data.reference, "NO_SHOW", { actor: "admin" });
 
     // Reference photos are only kept until the visit is over.
     if (cancelling || metaStatus === "completed" || metaStatus === "no-show") {

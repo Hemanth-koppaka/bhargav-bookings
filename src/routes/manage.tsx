@@ -12,6 +12,9 @@ import { haptic } from "@/lib/utils";
 import portrait from "@/assets/portrait.jpg.asset.json";
 
 export const Route = createFileRoute("/manage")({
+  // links in booking messages carry the booking ID: /manage?ref=HB-2026-00124
+  validateSearch: (s: Record<string, unknown>): { ref?: string } =>
+    typeof s["ref"] === "string" && /^[A-Z0-9-]{4,20}$/i.test(s["ref"]) ? { ref: s["ref"].toUpperCase() } : {},
   head: () => ({
     meta: [
       { title: "Manage your booking — Hair by Bhargav" },
@@ -35,7 +38,8 @@ const longDate = (iso: string) =>
 
 function ManageScreen() {
   const { findBookings, bookings, cancelBooking, rescheduleBooking } = useBooking();
-  const [query, setQuery] = useState("");
+  const { ref } = Route.useSearch();
+  const [query, setQuery] = useState(ref ?? "");
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [searching, setSearching] = useState(false);
@@ -78,6 +82,12 @@ function ManageScreen() {
       setFoundRef(list[0]!.reference);
     } else setMatches(list);
   };
+
+  // opened from a booking message: look the booking up straight away
+  useEffect(() => {
+    if (ref) void lookup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <InfoPage
