@@ -14,14 +14,11 @@ import {
   Thumb,
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
-import { getBusySlots } from "@/lib/salon.functions";
+import { getAvailability } from "@/lib/salon.functions";
+import type { DayAvailability } from "@/lib/engine.server";
 import {
-  availableSlots,
-  breaksFor,
   calendarDays,
   formatDuration,
-  hoursFor,
-  isClosed,
   fromISO,
   inr,
   minuteLabel,
@@ -46,7 +43,7 @@ export const Route = createFileRoute("/time")({
 });
 
 function TimeScreen() {
-  const { draft, hydrated, totalSlots, selected } = useBooking();
+  const { draft, hydrated, totalMinutes, selected } = useBooking();
   const navigate = useNavigate();
   const [now] = useState(() => new Date());
 
@@ -62,37 +59,22 @@ function TimeScreen() {
   }, [draft.date, hydrated]);
 
   const days = useMemo(() => calendarDays(56, now), [now]);
-  const [busy, setBusy] = useState<{ time: number; slots: number }[]>([]);
-  useEffect(() => {
-    if (!draft.date) return;
-    let live = true;
-    setBusy([]);
-    getBusySlots({ data: { date: draft.date } })
-      .then((r) => live && setBusy(r.busy))
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [draft.date]);
-  const slots = useMemo(
-    () => (draft.date ? availableSlots(draft.date, totalSlots, now, busy) : []),
-    [draft.date, totalSlots, now, busy],
-  );
-  const selectedHours = draft.date ? hoursFor(draft.date) : null;
-  const selectedBreaks = draft.date ? breaksFor(draft.date) : [];
+  const day = useDayAvailability(draft.date, draft.audience, draft.serviceIds);
+  const slots = day.data?.slots ?? [];
+  const selectedBreaks = day.data?.breaks ?? [];
 
   const breakNote = selectedBreaks.length
-    ? ` · Break ${selectedBreaks.map((b) => `${minuteLabel(b.start)}–${minuteLabel(b.end)}`).join(", ")}`
+    ? ` · ${selectedBreaks.map((b) => `${b.label ?? "Break"} ${minuteLabel(b.start)}–${minuteLabel(b.end)}`).join(", ")}`
     : "";
 
   return (
     <>
-      <DesktopTime days={days} slots={slots} busy={busy} />
+      <DesktopTime days={days} day={day} />
       <div className="md:hidden">
         <Page>
           <StepHeader back="/services" step={3} />
           <Screen className="px-5">
-            <StepIntro eyebrow="Step three" sub={`We'll reserve ${formatDuration(totalSlots)} for your visit.`}>
+            <StepIntro eyebrow="Step three" sub={`We'll reserve ${formatDuration(totalMinutes)} for your visit.`}>
               Choose a <span className="italic text-bronze">time.</span>
             </StepIntro>
 
@@ -111,15 +93,15 @@ function TimeScreen() {
                   <div className="min-w-0">
                     <div className="text-[0.95rem]">{longDate(draft.date)}</div>
                     <div className="text-[0.75rem] text-muted-foreground">
-                      {isClosed(draft.date)
+                      {day.data?.closed
                         ? "Salon closed"
-                        : selectedHours
-                          ? `Open ${minuteLabel(selectedHours.open)} – ${minuteLabel(selectedHours.close)}${breakNote}`
+                        : day.data
+                          ? `Open ${minuteLabel(day.data.open)} – ${minuteLabel(day.data.close)}${breakNote}`
                           : ""}
                     </div>
                   </div>
                 </div>
-                <SlotGroups slots={slots} busy={busy} />
+                <SlotGroups day={day} />
                 {slots.length > 0 && slots.every((x) => !x.available) ? (
                   <p className="mt-6 text-sm text-muted-foreground">No slots left on this day. Please try another date.</p>
                 ) : null}
@@ -152,7 +134,43 @@ function TimeScreen() {
   );
 }
 
-type Slot = { minute: number; available: boolean };
+type DayState = { data: DayAvailability | null; loading: boolean; error: string };
+
+/** Live availability for the chosen day and services, straight from the booking engine. */
+function useDayAvailability(date: string | null, audience: string | null, serviceIds: string[]): DayState {
+  const [state, setState] = useState<DayState>({ data: null, loading: false, error: "" });
+  const key = serviceIds.join(",");
+  useEffect(() => {
+    if (!date || !audience || !key) {
+      setState({ data: null, loading: false, error: "" });
+      return;
+    }
+    let live = true;
+    setState((s) => ({ data: s.data?.date === date ? s.data : null, loading: true, error: "" }));
+    const load = () =>
+      getAvailability({ data: { date, audience: audience as "men" | "women", serviceIds: key.split(",") } })
+        .then((r) => live && setState({ data: r, loading: false, error: "" }))
+        .catch(() => live && setState({ data: null, loading: false, error: "Couldn't load times. Check your connection and try again." }));
+    void load();
+    // keep the picture fresh while the guest decides
+    const t = window.setInterval(() => void load(), 45_000);
+    return () => {
+      live = false;
+      window.clearInterval(t);
+    };
+  }, [date, audience, key]);
+  return state;
+}
+
+function SlotSkeleton() {
+  return (
+    <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6" aria-label="Loading times">
+      {Array.from({ length: 12 }, (_, i) => (
+        <span key={i} className="h-13 animate-pulse rounded-md bg-foreground/[0.06]" />
+      ))}
+    </div>
+  );
+}
 
 const PERIODS = [
   { label: "Morning", icon: Sunrise, test: (m: number) => m < 13 * 60 },
@@ -215,11 +233,14 @@ function BreakDivider({ start, end }: { start: number; end: number }) {
   );
 }
 
-function SlotGroups({ slots, busy }: { slots: Slot[]; busy: { time: number; slots: number }[] }) {
+function SlotGroups({ day }: { day: DayState }) {
   const { draft, update } = useBooking();
-  const booked = (m: number) =>
-    busy.some((b) => m < b.time + b.slots * SLOT_MINUTES && b.time < m + SLOT_MINUTES);
-  const breaks = draft.date ? breaksFor(draft.date) : [];
+  if (day.loading && !day.data) return <SlotSkeleton />;
+  if (day.error) return <p className="mt-6 text-sm text-destructive">{day.error}</p>;
+  if (day.data?.message) return <p className="mt-6 text-[0.95rem] text-muted-foreground">{day.data.message}</p>;
+  const slots = day.data?.slots ?? [];
+  const interval = day.data?.interval ?? SLOT_MINUTES;
+  const breaks = day.data?.breaks ?? [];
   // Times that fall inside a break are never bookable, so they're replaced by a divider.
   const visible = slots.filter((x) => !breaks.some((b) => x.minute >= b.start && x.minute < b.end));
   const groups = PERIODS.map((p) => ({ p, items: visible.filter((x) => p.test(x.minute)) })).filter(
@@ -234,7 +255,7 @@ function SlotGroups({ slots, busy }: { slots: Slot[]; busy: { time: number; slot
         const lastMin = items[items.length - 1]!.minute;
         const between = breaks.filter((b) => b.start >= prevEnd && b.start < firstMin);
         const inside = breaks.filter((b) => b.start > firstMin && b.start <= lastMin);
-        prevEnd = lastMin + SLOT_MINUTES;
+        prevEnd = lastMin + interval;
         const free = items.filter((x) => x.available).length;
         return (
           <section key={p.label} className="mt-5">
@@ -276,7 +297,7 @@ function SlotGroups({ slots, busy }: { slots: Slot[]; busy: { time: number; slot
                   >
                     <span className={x.available ? "" : "line-through decoration-foreground/25"}>{minuteLabel(x.minute)}</span>
                     {!x.available ? (
-                      <span className="text-[0.66rem] lg:text-[0.72rem]">{booked(x.minute) ? "Booked" : "Unavailable"}</span>
+                      <span className="text-[0.66rem] lg:text-[0.72rem]">{x.reason === "booked" ? "Booked" : "Unavailable"}</span>
                     ) : null}
                   </button>
                 );
@@ -429,14 +450,13 @@ const longDate = (iso: string) =>
 
 function DesktopTime({
   days,
-  slots,
-  busy,
+  day,
 }: {
   days: { iso: string; date: Date; selectable: boolean }[];
-  slots: Slot[];
-  busy: { time: number; slots: number }[];
+  day: DayState;
 }) {
-  const { draft, totalSlots, totalPrice, hasFromPricing, selected } = useBooking();
+  const slots = day.data?.slots ?? [];
+  const { draft, totalMinutes, totalPrice, hasFromPricing, selected } = useBooking();
   const navigate = useNavigate();
   // After the guest picks a day, glide down to its times.
   const slotsRef = useRef<HTMLDivElement>(null);
@@ -462,7 +482,7 @@ function DesktopTime({
             <div>
               <div className="text-[1.1rem]">{draft.date ? longDate(draft.date) : "Pick a day"}</div>
               <div className="mt-0.5 text-[0.92rem] text-muted-foreground">
-                We'll reserve {formatDuration(totalSlots)} for your visit.
+                We'll reserve {formatDuration(totalMinutes)} for your visit.
               </div>
             </div>
           </div>
@@ -482,7 +502,7 @@ function DesktopTime({
             <EmptySlots text="The salon is closed on this day. Please pick another date." />
           ) : (
             <div key={draft.date} className="slide-in lg:-mt-5">
-              <SlotGroups slots={slots} busy={busy} />
+              <SlotGroups day={day} />
               {slots.every((x) => !x.available) ? (
                 <p className="mt-6 text-muted-foreground">No slots left on this day. Please try another date.</p>
               ) : null}
@@ -499,7 +519,7 @@ function DesktopTime({
               {selected.length > 1 ? `${first?.name} + ${selected.length - 1} more` : first?.name}
             </div>
             <div className="mt-0.5 text-[0.95rem] text-muted-foreground">
-              {formatDuration(totalSlots)} · {inr(totalPrice)}
+              {formatDuration(totalMinutes)} · {inr(totalPrice)}
               {hasFromPricing ? "+" : ""}
             </div>
           </div>

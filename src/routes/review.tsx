@@ -39,7 +39,7 @@ function ReviewScreen() {
     draft,
     hydrated,
     selected,
-    totalSlots,
+    totalMinutes,
     totalPrice,
     hasFromPricing,
     removeService,
@@ -119,7 +119,7 @@ function ReviewScreen() {
                     </div>
                     <div className="mt-0.5 flex items-center justify-between gap-3 text-[0.88rem] text-muted-foreground">
                       <span>
-                        {minuteLabel(draft.time)} · {formatDuration(totalSlots)}
+                        {minuteLabel(draft.time)} · {formatDuration(totalMinutes)}
                       </span>
                       <Link to="/time" className="text-[0.8rem] text-bronze underline underline-offset-4">
                         Change time
@@ -250,7 +250,7 @@ function DesktopReview({
   saving: boolean;
   saveError: string;
 }) {
-  const { draft, selected, totalSlots, totalPrice, hasFromPricing, removeService } = useBooking();
+  const { draft, selected, totalMinutes, totalPrice, hasFromPricing, removeService } = useBooking();
   if (!draft.customer || !draft.date || draft.time == null) return null;
   const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
   const c = draft.customer;
@@ -303,7 +303,7 @@ function DesktopReview({
                     {fromISO(draft.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
                   </div>
                   <div className="mt-1 flex items-center gap-4 text-[1.1rem] text-muted-foreground">
-                    {minuteLabel(draft.time)} · {formatDuration(totalSlots)}
+                    {minuteLabel(draft.time)} · {formatDuration(totalMinutes)}
                     <Link to="/time" className="text-[0.9rem] text-bronze underline underline-offset-4">
                       Change time
                     </Link>

@@ -58,6 +58,8 @@ type Ctx = {
   resetDraft: () => void;
   selected: Service[];
   totalSlots: number;
+  /** Service time of the selection, in minutes. */
+  totalMinutes: number;
   totalPrice: number;
   hasFromPricing: boolean;
   bookings: Booking[];
@@ -84,12 +86,6 @@ function read<T>(key: string, fallback: T): T {
   }
 }
 
-function makeReference() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return "HB-" + out;
-}
 
 export function BookingProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -119,7 +115,8 @@ export function BookingProvider({ children }: { children: ReactNode }) {
           .filter((x): x is Service => Boolean(x))
       : [];
 
-    const totalSlots = selected.reduce((n, s) => n + s.slots, 0);
+    const totalMinutes = selected.reduce((n, s) => n + (s.minutes ?? s.slots * 30), 0);
+    const totalSlots = Math.ceil(totalMinutes / 30);
     const totalPrice = selected.reduce((n, s) => n + s.price, 0);
     const hasFromPricing = selected.some((s) => s.from);
 
@@ -128,6 +125,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       hydrated,
       selected,
       totalSlots,
+      totalMinutes,
       totalPrice,
       hasFromPricing,
       bookings,
@@ -153,7 +151,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         if (!draft.audience || !draft.date || draft.time == null || !draft.customer)
           return { error: "Your booking is incomplete." };
         const booking: Booking = {
-          reference: makeReference(),
+          reference: "",
           audience: draft.audience,
           serviceIds: draft.serviceIds,
           date: draft.date,
@@ -163,15 +161,16 @@ export function BookingProvider({ children }: { children: ReactNode }) {
           createdAt: new Date().toISOString(),
         };
         try {
+          const { reference: _unused, ...payload } = booking;
           const res = await createBooking({
             data: {
-              ...booking,
-              slots: Math.max(1, totalSlots),
+              ...payload,
               customer: { ...booking.customer, email: booking.customer.email ?? "" },
               ...(draft.photos?.length ? { photos: draft.photos.map((x) => x.path) } : {}),
             },
           });
           if (!res.ok) return { error: res.error };
+          booking.reference = res.reference; // issued by the salon (HB-2026-00124)
         } catch {
           return { error: "We couldn't reach the salon. Check your connection and try again." };
         }

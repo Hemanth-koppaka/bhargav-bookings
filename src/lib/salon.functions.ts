@@ -1,16 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import {
-  ACCEPTING_BOOKINGS,
-  MAX_ADVANCE_DAYS,
-  SLOT_MINUTES,
-  applyConfig,
-  breaksFor,
-  findService,
-  hoursFor,
-  isClosed,
-  type SalonConfig,
-} from "./salon";
+import { withHistory, type HistoryEntry } from "./history";
 
 // All salon data lives in tables with no public access; every read/write goes
 // through these handlers. Customer calls expose only free slots or a booking
@@ -40,7 +30,7 @@ export type BookingRow = {
   slots: number;
   customer: { name: string; phone: string; email: string; notes?: string };
   status: "confirmed" | "cancelled";
-  source: "online" | "walk-in";
+  source: "online" | "walk-in" | "phone" | "whatsapp" | "admin";
   meta: Record<string, string | number | boolean | null>;
   createdAt: string;
 };
@@ -64,186 +54,35 @@ function toRow(r: any): BookingRow {
 
 /* ── Public ─────────────────────────────────────────────────── */
 
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const toMin = (t: string | null | undefined) => {
   if (!t) return undefined;
   const [h, m] = t.split(":").map(Number);
   return (h ?? 0) * 60 + (m ?? 0);
 };
 const hhmm = (t: string) => t.slice(0, 5);
-
 type PersistedBreaks = Record<string, { start: string; end: string }[]>;
 
-/** Builds the full salon configuration from the online tables. */
-async function loadConfig() {
-  const sb = await db();
-  const today = new Date().toISOString().slice(0, 10);
-  const [cats, svcs, hours, exc, settings, legacy] = await Promise.all([
-    sb.from("service_categories").select("*").eq("active", true).order("display_order"),
-    sb.from("services").select("*").eq("active", true).order("display_order"),
-    sb.from("opening_hours").select("*"),
-    sb.from("opening_exceptions").select("*").gte("date", today),
-    sb.from("site_settings").select("key, value"),
-    sb.from("salon_config").select("data").eq("id", 1).maybeSingle(),
-  ]);
-  const err = cats.error || svcs.error || hours.error || exc.error || settings.error;
-  if (err) throw new Error("Salon data unavailable");
-  const set = Object.fromEntries((settings.data ?? []).map((r) => [r.key, r.value])) as Record<
-    string,
-    Record<string, unknown>
-  >;
-  const hoursSetting = (set["business_hours"] ?? {}) as { breaksByDay?: PersistedBreaks };
-  // Until the salon saves its own break periods, every open day has lunch 1–2 PM.
-  const breaksByDay: PersistedBreaks =
-    hoursSetting.breaksByDay ??
-    Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [String(d), [{ start: "13:00", end: "14:00" }]]));
-  const media = (set["media"] ?? {}) as Record<string, string>;
-  const menu = (g: string) =>
-    (cats.data ?? [])
-      .filter((c) => c.gender === g)
-      .map((c) => ({
-        id: c.slug,
-        title: c.name,
-        blurb: c.description || undefined,
-        photo: media[`cat:${c.id}`] || undefined,
-        services: (svcs.data ?? [])
-          .filter((s) => s.category_id === c.id)
-          .map((s) => ({
-            id: s.id,
-            name: s.name,
-            note: s.description || undefined,
-            price: s.price,
-            from: s.price_from || undefined,
-            slots: Math.max(1, Math.round(s.duration_minutes / 30)),
-            photo: media[`svc:${s.id}`] || undefined,
-          })),
-      }))
-      .filter((c) => c.services.length > 0);
-  // Staff lives alongside the config but is for the console only.
-  const { staff: _staff, ...legacyData } = (legacy.data?.data ?? {}) as Record<string, unknown>;
-  const booking = set["booking"] ?? {};
-  const config: Record<string, unknown> = {
-    ...legacyData,
-    business: set["business"] ?? legacyData["business"],
-    accepting: booking["accepting"] ?? legacyData["accepting"] ?? true,
-    maxAdvanceDays: booking["maxAdvanceDays"] ?? legacyData["maxAdvanceDays"] ?? 56,
-    exceptions: Object.fromEntries(
-      (exc.data ?? []).map((e) => [
-        e.date,
-        { closed: !e.is_open, open: toMin(e.opening_time), close: toMin(e.closing_time), note: e.note },
-      ]),
-    ),
-  };
-  if ((hours.data ?? []).length === 7) {
-    const order = [1, 2, 3, 4, 5, 6, 0];
-    config["week"] = order.map((d) => {
-      const h = hours.data!.find((x) => x.day_of_week === d)!;
-      const breaks = (breaksByDay[String(d)] ?? [])
-        .map((b) => ({ start: toMin(b.start), end: toMin(b.end) }))
-        .filter((b): b is { start: number; end: number } => b.start != null && b.end != null && b.end > b.start);
-      return {
-        day: DAYS[d],
-        closed: !h.is_open,
-        open: toMin(h.opening_time),
-        close: toMin(h.closing_time),
-        breaks,
-      };
-    });
-  }
-  const men = menu("men");
-  const women = menu("women");
-  if (men.length) config["menMenu"] = men;
-  if (women.length) config["womenMenu"] = women;
-  return config;
-}
+const loadConfig = async () => (await import("./config.server")).loadConfig();
 
 export const getSalonConfig = createServerFn({ method: "GET" }).handler(async () => {
   return { configJson: JSON.stringify(await loadConfig()) };
 });
 
-export const getBusySlots = createServerFn({ method: "GET" })
-  .inputValidator((d) => z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(d))
-  .handler(async ({ data }) => {
-    const sb = await db();
-    const { data: rows } = await sb
-      .from("bookings")
-      .select("time, slots, meta")
-      .eq("date", data.date)
-      .neq("status", "cancelled");
-    return {
-      busy: (rows ?? [])
-        .filter((r) => (r.meta as { status?: string })?.status !== "cancelled")
-        .map((r) => ({ time: r.time, slots: r.slots })),
-    };
-  });
-
-/** India time, as the salon sees it. */
-function salonNow() {
-  const t = new Date(Date.now() + 330 * 60_000);
-  return { iso: t.toISOString().slice(0, 10), minute: t.getUTCHours() * 60 + t.getUTCMinutes() };
-}
-
-const dayDiff = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
-
-/**
- * Checks a requested appointment against the live schedule: services exist,
- * the day is open and within the booking window, the time is in opening hours,
- * not in a break, not in the past, and not overlapping another booking.
- * Returns the authoritative number of 30-minute slots.
- */
-async function checkSlot(
-  input: { audience: "men" | "women"; serviceIds: string[]; date: string; time: number },
-  ignoreReference?: string,
-): Promise<{ ok: true; slots: number } | { ok: false; error: string }> {
-  const sb = await db();
-  applyConfig((await loadConfig()) as SalonConfig);
-  if (!ACCEPTING_BOOKINGS) return { ok: false, error: "Online booking is paused right now." };
-
-  const services = input.serviceIds.map((id) => findService(input.audience, id));
-  if (!services.length || services.some((x) => !x)) {
-    return { ok: false, error: "One of the selected services is no longer offered. Please choose again." };
-  }
-  const slots = Math.max(1, services.reduce((n, x) => n + (x?.slots ?? 0), 0));
-  const end = input.time + slots * SLOT_MINUTES;
-
-  const now = salonNow();
-  if (input.date < now.iso || (input.date === now.iso && input.time < now.minute + 30)) {
-    return { ok: false, error: "That time has already passed. Please pick another." };
-  }
-  if (dayDiff(now.iso, input.date) > MAX_ADVANCE_DAYS) {
-    return { ok: false, error: "That date is too far ahead to book online." };
-  }
-  if (isClosed(input.date)) return { ok: false, error: "The salon is closed that day." };
-  const h = hoursFor(input.date);
-  if (input.time < h.open || end > h.close || (input.time - h.open) % SLOT_MINUTES !== 0) {
-    return { ok: false, error: "That time is outside opening hours." };
-  }
-  if (breaksFor(input.date).some((b) => input.time < b.end && b.start < end)) {
-    return { ok: false, error: "That time overlaps the salon's break. Please pick another." };
-  }
-  const { data: rows } = await sb
-    .from("bookings")
-    .select("reference, time, slots, meta")
-    .eq("date", input.date)
-    .neq("status", "cancelled");
-  const clash = (rows ?? []).some(
-    (r) =>
-      r.reference !== ignoreReference &&
-      (r.meta as { status?: string })?.status !== "cancelled" &&
-      input.time < r.time + r.slots * SLOT_MINUTES &&
-      r.time < end,
-  );
-  if (clash) return { ok: false, error: "That time was just taken. Please pick another." };
-  return { ok: true, slots };
-}
+// Booking writes live in a server-only module (also exercised by tests).
+const B = () => import("./bookings.server");
+const engine = async () => (await B()).engine();
+type Sb = Awaited<ReturnType<typeof db>>;
+const insertBooking = async (...a: Parameters<Awaited<ReturnType<typeof B>>["insertBooking"]>) => (await B()).insertBooking(...a);
+const patchBooking = async (_sb: Sb, ...a: Parameters<Awaited<ReturnType<typeof B>>["patchBooking"]>) => (await B()).patchBooking(...a);
 
 const bookingInput = z.object({
-  reference: z.string().regex(/^HB-[A-Z0-9]{6}$/),
+  // accepted for compatibility; the server issues the real booking ID
+  reference: z.string().max(20).optional(),
   audience: z.enum(["men", "women"]),
   serviceIds: z.array(z.string().max(80)).min(1).max(20),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.number().int().min(0).max(1440),
-  slots: z.number().int().min(1).max(40),
+  slots: z.number().int().min(1).max(40).optional(),
   customer: z.object({
     name: z.string().trim().min(1).max(100),
     phone: z.string().trim().min(7).max(20),
@@ -260,28 +99,72 @@ const bookingInput = z.object({
 export const createBooking = createServerFn({ method: "POST" })
   .inputValidator((d) => bookingInput.parse(d))
   .handler(async ({ data }) => {
-    const sb = await db();
-    const check = await checkSlot(data);
-    if (!check.ok) return { ok: false as const, error: check.error };
-    const photoLib = await import("./photos.server");
-    const photos = data.photos?.length ? await photoLib.attachPhotos(data.reference, data.photos) : [];
-    const { error } = await sb.from("bookings").insert({
-      reference: data.reference,
-      audience: data.audience,
-      service_ids: data.serviceIds,
-      date: data.date,
-      time: data.time,
-      slots: check.slots,
-      customer: { ...data.customer, ...(photos.length ? { photos } : {}) },
-      source: "online",
-    });
-    await photoLib.sweepPhotos().catch(() => {});
-    if (error) {
-      console.error(error);
-      return { ok: false as const, error: "We couldn't save your booking. Please try again." };
-    }
-    return { ok: true as const };
+    const r = await insertBooking(
+      {
+        audience: data.audience,
+        serviceIds: data.serviceIds,
+        date: data.date,
+        time: data.time,
+        customer: data.customer,
+        source: "online",
+      },
+      { staff: false, ...(data.photos?.length ? { photos: data.photos } : {}) },
+    );
+    const { sweepPhotos } = await import("./photos.server");
+    await sweepPhotos().catch(() => {});
+    if (!r.ok) return { ok: false as const, error: r.error };
+    return { ok: true as const, reference: r.reference };
   });
+
+/** Bookable start times for a day, for the selected services (customer time picker). */
+export const getAvailability = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z
+      .object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        audience: z.enum(["men", "women"]),
+        serviceIds: z.array(z.string().max(80)).min(1).max(20),
+        // when moving an existing booking, its own time doesn't count as taken
+        reference: z.string().max(20).optional(),
+        phone: z.string().max(20).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const E = await engine();
+    const rules = await E.loadRules();
+    let q: { minutes: number; buffer: number } = E.quote(data.audience, data.serviceIds) ?? { minutes: 30, buffer: 0 };
+    let ignore: string | undefined;
+    if (data.reference && data.phone) {
+      const sb = await db();
+      const { data: r } = await sb.from("bookings").select("*").eq("reference", data.reference).maybeSingle();
+      if (r && last10((r.customer as { phone: string }).phone) === last10(data.phone)) {
+        ignore = r.reference;
+        // a booking keeps the length it was made with
+        const row = r as Record<string, unknown>;
+        q = { minutes: (row["duration_minutes"] as number | null) ?? r.slots * 30, buffer: (row["buffer_minutes"] as number | null) ?? 0 };
+      }
+    }
+    return E.availability(data.date, q, rules, ignore ? { ignoreReference: ignore } : {});
+  });
+
+/** Public booking rules the customer screens need (no internal settings). */
+export const getPublicRules = createServerFn({ method: "GET" }).handler(async () => {
+  const E = await engine();
+  const r = await E.loadRules();
+  return {
+    accepting: r.accepting,
+    pauseMessage: r.pauseMessage,
+    allowMultiple: r.allowMultiple,
+    maxServices: r.maxServices,
+    maxAdvanceDays: r.maxAdvanceDays,
+    allowSameDay: r.allowSameDay,
+    customerCancel: r.customerCancel,
+    cancelDeadlineMinutes: r.cancelDeadlineMinutes,
+    customerReschedule: r.customerReschedule,
+    rescheduleDeadlineMinutes: r.rescheduleDeadlineMinutes,
+  };
+});
 
 const lookup = z.object({ reference: z.string().max(20), phone: z.string().max(20) });
 
@@ -321,23 +204,62 @@ export const updateMyBooking = createServerFn({ method: "POST" })
     if (!r || last10((r.customer as { phone: string }).phone) !== last10(data.phone)) {
       return { ok: false, error: "Booking not found." };
     }
-    if (r.status === "cancelled") return { ok: false, error: "This booking was cancelled." };
+    const row = r as Record<string, unknown>;
+    const status = (r.meta as { status?: string })?.status;
+    if (r.status === "cancelled" || status === "cancelled") return { ok: false, error: "This booking was cancelled." };
+    if (status === "completed" || status === "no-show") return { ok: false, error: "This appointment has already taken place." };
+
+    const E = await engine();
+    const rules = await E.loadRules();
+    const now = E.salonNow();
+    const minutesUntil = E.dayDiff(now.iso, r.date) * 1440 + r.time - now.minute;
+
     if (data.action === "cancel") {
-      await sb.from("bookings").update({ status: "cancelled" }).eq("reference", r.reference);
+      if (!rules.customerCancel) return { ok: false, error: "Online cancellation is off. Please call the studio." };
+      if (minutesUntil < rules.cancelDeadlineMinutes) {
+        return { ok: false, error: "It's too close to your appointment to cancel online. Please call the studio." };
+      }
+      const error = await patchBooking(sb, r.reference, { status: "cancelled" }, {
+        cancelled_at: new Date().toISOString(),
+        cancel_reason: "Cancelled by guest online",
+        history: withHistory(row, { by: "guest", action: "cancelled" }),
+      });
+      if (error) return { ok: false, error: "Couldn't cancel this booking. Please try again." };
       const { deleteBookingPhotos } = await import("./photos.server");
       await deleteBookingPhotos(r.reference).catch(() => {});
+      await E.audit({ actor: "guest", action: "booking.cancel", entity: "booking", entityId: r.reference, summary: `Guest cancelled ${r.reference}` });
       return { ok: true };
     }
+
     if (!data.date || data.time == null) return { ok: false, error: "Pick a new date and time." };
-    const check = await checkSlot(
-      { audience: r.audience as "men" | "women", serviceIds: r.service_ids ?? [], date: data.date, time: data.time },
-      r.reference,
-    );
-    if (!check.ok) return { ok: false, error: check.error };
-    await sb
-      .from("bookings")
-      .update({ date: data.date, time: data.time, slots: check.slots })
-      .eq("reference", r.reference);
+    if (!rules.customerReschedule) return { ok: false, error: "Online rescheduling is off. Please call the studio." };
+    if (minutesUntil < rules.rescheduleDeadlineMinutes) {
+      return { ok: false, error: "It's too close to your appointment to move it online. Please call the studio." };
+    }
+    const moves = ((row["history"] as HistoryEntry[] | undefined) ?? []).filter((h) => h.by === "guest" && h.action === "rescheduled").length;
+    if (moves >= rules.maxReschedules) return { ok: false, error: "This booking can't be moved online again. Please call the studio." };
+    // the appointment keeps the length it was booked with
+    const held = {
+      minutes: (row["duration_minutes"] as number | null) ?? r.slots * 30,
+      buffer: (row["buffer_minutes"] as number | null) ?? 0,
+    };
+    const check = await E.checkTime(data.date, data.time, held, rules, { ignoreReference: r.reference });
+    if (!check.ok) return check;
+    const error = await patchBooking(sb, r.reference, { date: data.date, time: data.time }, {
+      history: withHistory(row, { by: "guest", action: "rescheduled", from: { date: r.date, time: r.time }, to: { date: data.date, time: data.time } }),
+    });
+    if (error) {
+      return { ok: false, error: E.isSlotTaken(error) ? "That time was just booked. Please choose another time." : "Couldn't move this booking. Please try again." };
+    }
+    await E.audit({
+      actor: "guest",
+      action: "booking.reschedule",
+      entity: "booking",
+      entityId: r.reference,
+      summary: `Guest moved ${r.reference}`,
+      before: { date: r.date, time: r.time },
+      after: { date: data.date, time: data.time },
+    });
     return { ok: true };
   });
 
@@ -379,13 +301,17 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
     pinOnly
       .extend({
         reference: z.string().max(20),
-        insert: bookingInput.omit({ reference: true }).extend({ source: z.enum(["online", "walk-in"]) }).optional(),
+        insert: bookingInput
+          .omit({ reference: true })
+          .extend({ source: z.enum(["online", "walk-in", "phone", "whatsapp", "admin"]) })
+          .optional(),
         patch: z
           .object({
             date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-            time: z.number().int().optional(),
+            time: z.number().int().min(0).max(1440).optional(),
             status: z.enum(["confirmed", "cancelled"]).optional(),
             meta: z.record(z.string(), z.unknown()).optional(),
+            cancelReason: z.string().max(200).optional(),
           })
           .optional(),
       })
@@ -393,37 +319,81 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const sb = await assertPin(data.pin);
+    const E = await engine();
     if (data.insert) {
       const i = data.insert;
-      const { error } = await sb.from("bookings").insert({
-        reference: data.reference,
-        audience: i.audience,
-        service_ids: i.serviceIds,
-        date: i.date,
-        time: i.time,
-        slots: i.slots,
-        customer: i.customer,
-        source: i.source,
+      const r = await insertBooking(
+        { audience: i.audience, serviceIds: i.serviceIds, date: i.date, time: i.time, customer: i.customer, source: i.source },
+        { staff: true },
+      );
+      if (!r.ok) throw new Error(r.error);
+      await E.audit({ action: "booking.create", entity: "booking", entityId: r.reference, summary: `Added ${i.source} booking ${r.reference} for ${i.customer.name}`, after: { date: i.date, time: i.time, services: i.serviceIds } });
+      return { ok: true, reference: r.reference };
+    }
+    if (!data.patch) return { ok: true, reference: data.reference };
+
+    const { data: current } = await sb.from("bookings").select("*").eq("reference", data.reference).maybeSingle();
+    if (!current) throw new Error("Booking not found");
+    const row = current as Record<string, unknown>;
+    const p = data.patch;
+    const base: Record<string, unknown> = {};
+    const extra: Record<string, unknown> = {};
+    const moved = (p.date && p.date !== current.date) || (p.time != null && p.time !== current.time);
+
+    if (moved) {
+      // admins can't create clashes either; the booking keeps its booked length
+      const held = {
+        minutes: (row["duration_minutes"] as number | null) ?? current.slots * 30,
+        buffer: (row["buffer_minutes"] as number | null) ?? 0,
+      };
+      const check = await E.checkTime(p.date ?? current.date, p.time ?? current.time, held, await E.loadRules(), {
+        staff: true,
+        ignoreReference: current.reference,
       });
-      if (error) throw new Error("Couldn't add the walk-in");
-    } else if (data.patch) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await sb.from("bookings").update(data.patch as any).eq("reference", data.reference);
-      if (error) throw new Error("Couldn't update the appointment");
-      // Reference photos are only kept until the visit is over.
-      const status = (data.patch.meta as { status?: string } | undefined)?.status;
-      if (data.patch.status === "cancelled" || status === "completed" || status === "no-show" || status === "cancelled") {
-        const { deleteBookingPhotos } = await import("./photos.server");
-        await deleteBookingPhotos(data.reference).catch(() => {});
-        const { data: row } = await sb.from("bookings").select("customer").eq("reference", data.reference).maybeSingle();
-        const c = row?.customer as Record<string, unknown> | undefined;
-        if (c?.["photos"]) {
-          const { photos: _gone, ...rest } = c;
-          await sb.from("bookings").update({ customer: rest as never }).eq("reference", data.reference);
-        }
+      if (!check.ok) throw new Error(check.error.replace("just booked", "already booked"));
+      base["date"] = p.date ?? current.date;
+      base["time"] = p.time ?? current.time;
+      extra["history"] = withHistory(row, { by: "admin", action: "rescheduled", from: { date: current.date, time: current.time }, to: { date: base["date"], time: base["time"] } });
+    }
+    const metaStatus = (p.meta as { status?: string } | undefined)?.status;
+    const prevStatus = (current.meta as { status?: string } | null)?.status;
+    const cancelling = p.status === "cancelled" || metaStatus === "cancelled";
+    if (p.status) base["status"] = p.status;
+    if (p.meta) base["meta"] = p.meta;
+    if (cancelling && current.status !== "cancelled") {
+      base["status"] = "cancelled";
+      extra["cancelled_at"] = new Date().toISOString();
+      extra["cancel_reason"] = p.cancelReason ?? "";
+      extra["history"] = withHistory({ history: extra["history"] ?? row["history"] }, { by: "admin", action: "cancelled", ...(p.cancelReason ? { reason: p.cancelReason } : {}) });
+    } else if (metaStatus && metaStatus !== prevStatus) {
+      extra["history"] = withHistory({ history: extra["history"] ?? row["history"] }, { by: "admin", action: `status:${metaStatus}` });
+      if (current.status === "cancelled" && metaStatus !== "cancelled") base["status"] = "confirmed"; // restored
+    }
+
+    const error = await patchBooking(sb, data.reference, base, extra);
+    if (error) {
+      throw new Error(E.isSlotTaken(error) ? "That time is no longer available." : "Couldn't update the appointment");
+    }
+    if (moved) {
+      await E.audit({ action: "booking.reschedule", entity: "booking", entityId: data.reference, summary: `Moved ${data.reference}`, before: { date: current.date, time: current.time }, after: { date: base["date"], time: base["time"] } });
+    }
+    if (cancelling && current.status !== "cancelled") {
+      await E.audit({ action: "booking.cancel", entity: "booking", entityId: data.reference, summary: `Cancelled ${data.reference}`, reason: p.cancelReason ?? "" });
+    } else if (metaStatus && metaStatus !== prevStatus) {
+      await E.audit({ action: "booking.status", entity: "booking", entityId: data.reference, summary: `${data.reference}: ${prevStatus ?? "upcoming"} → ${metaStatus}`, before: { status: prevStatus ?? "upcoming" }, after: { status: metaStatus } });
+    }
+
+    // Reference photos are only kept until the visit is over.
+    if (cancelling || metaStatus === "completed" || metaStatus === "no-show") {
+      const { deleteBookingPhotos } = await import("./photos.server");
+      await deleteBookingPhotos(data.reference).catch(() => {});
+      const c = current.customer as Record<string, unknown> | undefined;
+      if (c?.["photos"]) {
+        const { photos: _gone, ...rest } = c;
+        await sb.from("bookings").update({ customer: rest as never }).eq("reference", data.reference);
       }
     }
-    return { ok: true };
+    return { ok: true, reference: data.reference };
   });
 
 export const adminSaveConfig = createServerFn({ method: "POST" })
@@ -440,6 +410,10 @@ export const adminSaveConfig = createServerFn({ method: "POST" })
     const { error } = await sb.from("salon_config").update({ data: merged as any }).eq("id", 1);
     if (error) throw new Error("Couldn't save settings");
     const c = data.config as { accepting?: boolean; maxAdvanceDays?: number };
+    const E = await import("./engine.server");
+    if (c.accepting !== undefined) {
+      await E.audit({ action: c.accepting ? "bookings.resume" : "bookings.pause", entity: "settings", entityId: "booking", summary: c.accepting ? "Resumed online bookings" : "Paused online bookings" });
+    }
     if (c.accepting !== undefined || c.maxAdvanceDays !== undefined) {
       const { data: cur } = await sb.from("site_settings").select("value").eq("key", "booking").maybeSingle();
       const value = { ...((cur?.value as object) ?? {}), ...(c.accepting !== undefined ? { accepting: c.accepting } : {}), ...(c.maxAdvanceDays !== undefined ? { maxAdvanceDays: c.maxAdvanceDays } : {}) };
@@ -515,6 +489,8 @@ export const adminSaveBusinessHours = createServerFn({ method: "POST" })
       .from("site_settings")
       .upsert({ key: "business_hours", value });
     if (settingError) throw new Error("Couldn't save break periods");
+    const E = await import("./engine.server");
+    await E.audit({ action: "hours.update", entity: "hours", summary: "Updated opening hours and breaks", after: { hours: sorted, breaksByDay } });
 
     return { ok: true };
   });
@@ -526,5 +502,10 @@ export const adminChangePin = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { changeCode } = await import("./admin-auth.server");
-    return changeCode(data.pin, data.current, data.next);
+    const r = await changeCode(data.pin, data.current, data.next);
+    if (r.ok) {
+      const E = await import("./engine.server");
+      await E.audit({ action: "security.code_change", entity: "security", summary: "Changed the admin access code" });
+    }
+    return r;
   });

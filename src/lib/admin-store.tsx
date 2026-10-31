@@ -57,7 +57,7 @@ export type Appointment = {
   time: number;
   customer: Customer;
   createdAt: string;
-  source: "online" | "walk-in";
+  source: "online" | "walk-in" | "phone" | "whatsapp" | "admin";
   meta: ApptMeta;
   services: Service[];
   total: number;
@@ -249,7 +249,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(() => {
     const build = (
       b: Pick<Booking, "reference" | "audience" | "serviceIds" | "date" | "time" | "customer" | "createdAt">,
-      source: "online" | "walk-in",
+      source: Appointment["source"],
       cancelled: boolean,
     ): Appointment => {
       const services = b.serviceIds
@@ -374,7 +374,12 @@ export function AdminProvider({ children }: { children: ReactNode }) {
               source: "walk-in",
             },
           },
-        }), "Couldn't save the walk-in. Please add it again.");
+        }), "Couldn't save the walk-in. Please add it again.").then(() => {
+          // the server issues the real booking ID; drop the local placeholder and reload
+          setWalkIns((w) => w.filter((x) => x.reference !== entry.reference));
+          setRows((rs) => rs.filter((r) => r.reference !== entry.reference));
+          void load(pinCode);
+        });
         return appt;
       },
 

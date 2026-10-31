@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CalendarPlus, Check, Copy, Download, MapPin } from "lucide-react";
 import { LogoReveal } from "@/components/motion";
 import { useBooking, servicesOf, type Booking } from "@/lib/booking-store";
-import { BUSINESS, formatDuration, formatLongDate, fromISO, minuteLabel, SLOT_MINUTES } from "@/lib/salon";
+import { BUSINESS, formatDuration, formatLongDate, fromISO, minuteLabel } from "@/lib/salon";
 import portrait from "@/assets/portrait.jpg.asset.json";
 import logo from "@/assets/logo.png.asset.json";
 
@@ -48,7 +48,7 @@ function icsStamp(date: string, minutes: number) {
 }
 
 function downloadIcs(booking: Booking, title: string) {
-  const slots = servicesOf(booking).reduce((n, s) => n + s.slots, 0) || 1;
+  const minutes = servicesOf(booking).reduce((n, s) => n + (s.minutes ?? s.slots * 30), 0) || 30;
   const ics = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -56,7 +56,7 @@ function downloadIcs(booking: Booking, title: string) {
     "BEGIN:VEVENT",
     `UID:${booking.reference}@hairbybhargav`,
     `DTSTART:${icsStamp(booking.date, booking.time)}`,
-    `DTEND:${icsStamp(booking.date, booking.time + slots * SLOT_MINUTES)}`,
+    `DTEND:${icsStamp(booking.date, booking.time + minutes)}`,
     `SUMMARY:${title} — Hair by Bhargav`,
     `LOCATION:${BUSINESS.address.replace(/,/g, "\\,")}`,
     `DESCRIPTION:Reference ${booking.reference}`,
@@ -207,7 +207,7 @@ function ConfirmedScreen() {
 
   const services = booking ? servicesOf(booking) : [];
   const serviceLine = services.map((s) => s.name).join(" · ") || "Appointment";
-  const totalSlots = services.reduce((n, s) => n + s.slots, 0);
+  const totalMinutes = services.reduce((n, s) => n + (s.minutes ?? s.slots * 30), 0);
 
   const [copied, setCopied] = useState(false);
 
@@ -350,7 +350,7 @@ function ConfirmedScreen() {
                     {fromISO(booking.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
                   </div>
                   <div className="mt-1 font-display text-[1.5rem] italic text-[#E8D9B6] lg:text-[1.7rem]">
-                    {minuteLabel(booking.time)} · {formatDuration(totalSlots || 1)}
+                    {minuteLabel(booking.time)} · {formatDuration(totalMinutes || 30)}
                   </div>
                   <div className="my-6 h-px bg-gradient-to-r from-[#C9A96A]/40 via-[#C9A96A]/15 to-transparent" />
                   <dl className="space-y-4">

@@ -5,8 +5,9 @@ import { GhostAction, PrimaryAction } from "@/components/screen";
 import { InfoPage, InfoTitle, SectionLabel } from "@/components/info-page";
 import { ScrollStrip, prettyPhone } from "@/components/desktop";
 import { useBooking, servicesOf, type Booking, type ChangeResult } from "@/lib/booking-store";
-import { getBusySlots } from "@/lib/salon.functions";
-import { availableSlots, calendarDays, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
+import { getAvailability } from "@/lib/salon.functions";
+import type { DayAvailability } from "@/lib/engine.server";
+import { calendarDays, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
 import { haptic } from "@/lib/utils";
 import portrait from "@/assets/portrait.jpg.asset.json";
 
@@ -193,13 +194,14 @@ function BookingPanel({
 }) {
   const services = servicesOf(booking);
   const total = services.reduce((n, s) => n + s.price, 0);
-  const slotsNeeded = services.reduce((n, s) => n + s.slots, 0);
+  const minutesNeeded = services.reduce((n, s) => n + (s.minutes ?? s.slots * 30), 0);
   const cancelled = booking.status === "cancelled";
 
   const [mode, setMode] = useState<"view" | "reschedule" | "confirm-cancel">("view");
   const [date, setDate] = useState(booking.date);
   const [time, setTime] = useState<number | null>(null);
-  const [busy, setBusy] = useState<{ time: number; slots: number }[]>([]);
+  const [day, setDay] = useState<DayAvailability | null>(null);
+  const [loadingDay, setLoadingDay] = useState(false);
   const [working, setWorking] = useState(false);
   const [problem, setProblem] = useState("");
   const [notice, setNotice] = useState("");
@@ -224,20 +226,22 @@ function BookingPanel({
   useEffect(() => {
     if (mode !== "reschedule") return;
     let live = true;
-    setBusy([]);
-    getBusySlots({ data: { date } })
-      .then((r) => {
-        if (!live) return;
-        // don't let the booking block itself when moving within the same day
-        setBusy(date === booking.date ? r.busy.filter((b) => b.time !== booking.time) : r.busy);
-      })
-      .catch(() => {});
+    setLoadingDay(true);
+    // the server keeps this booking's own time free and uses its booked length
+    getAvailability({
+      data: { date, audience: booking.audience, serviceIds: booking.serviceIds, reference: booking.reference, phone: booking.customer.phone },
+    })
+      .then((r) => live && setDay(r))
+      .catch(() => live && setDay(null))
+      .finally(() => live && setLoadingDay(false));
     return () => {
       live = false;
     };
-  }, [date, mode, booking.date, booking.time]);
+  }, [date, mode, booking.audience, booking.serviceIds, booking.reference, booking.customer.phone]);
 
-  const slots = useMemo(() => availableSlots(date, slotsNeeded, now, busy), [date, slotsNeeded, now, busy]);
+  const slots = (day?.date === date ? day.slots : []).filter(
+    (x) => !(day?.breaks ?? []).some((b) => x.minute >= b.start && x.minute < b.end),
+  );
 
   return (
     <div className="page-in">
@@ -296,7 +300,7 @@ function BookingPanel({
         <div className="mt-4 flex items-center gap-5 text-[0.85rem] text-muted-foreground">
           <span className="flex items-center gap-2">
             <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
-            {formatDuration(slotsNeeded || 1)}
+            {formatDuration(minutesNeeded || 30)}
           </span>
           <span>
             {booking.customer.name} · {prettyPhone(booking.customer.phone)}
@@ -400,7 +404,11 @@ function BookingPanel({
               );
             })}
           </div>
-          {slots.length === 0 ? (
+          {loadingDay && !slots.length ? (
+            <p className="mt-4 text-[0.9rem] text-muted-foreground">Checking free times…</p>
+          ) : day?.message ? (
+            <p className="mt-4 text-[0.9rem] text-muted-foreground">{day.message}</p>
+          ) : slots.length === 0 ? (
             <p className="mt-4 text-[0.9rem] text-muted-foreground">The salon is closed on this day.</p>
           ) : null}
 

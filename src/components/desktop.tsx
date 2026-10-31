@@ -1,12 +1,12 @@
 // Laptop / desktop (lg+) building blocks for the booking flow.
 // Mobile keeps using the components in ./screen.tsx.
 import { Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Clock, MapPin, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
-import { SnipLine } from "@/components/motion";
+import { ScissorsLine, useDisplayedStep, useRewindBack } from "@/components/scissors-line";
 import menImg from "@/assets/men.jpg.asset.json";
 import womenImg from "@/assets/women.jpg.asset.json";
 
@@ -37,12 +37,15 @@ export function DesktopPage({ children }: { children: ReactNode }) {
 
 /** Back · centred wordmark · step counter, with a progress line underneath. */
 export function DesktopStepHeader({ back, step }: { back: string; step: number }) {
+  const goBack = useRewindBack(back, step - 1);
+  const shown = useDisplayedStep(step);
   return (
     <header className="shrink-0">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center px-6 py-4 lg:px-10 xl:px-16">
         <Link
           to={back as never}
-          className="label-caps inline-flex items-center gap-3 justify-self-start text-foreground/80 transition-opacity hover:opacity-60"
+          onClick={(e) => void goBack(e)}
+          className="label-caps press inline-flex items-center gap-3 justify-self-start text-foreground/80 transition-opacity hover:opacity-60"
         >
           <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.25} />
           Back
@@ -51,59 +54,83 @@ export function DesktopStepHeader({ back, step }: { back: string; step: number }
           <Wordmark className="h-12" />
         </Link>
         <span className="label-caps justify-self-end tabular-nums text-foreground/80">
-          {pad(step)} / {pad(STEPS.length)}
+          <span key={shown} className="tick-in">{pad(shown)}</span> / {pad(STEPS.length)}
         </span>
       </div>
-      <ProgressLine step={step} />
+      <ScissorsLine kind="header" step={step} total={STEPS.length} />
     </header>
   );
 }
 
-export function ProgressLine({ step, className }: { step: number; className?: string }) {
-  return <SnipLine step={step} total={STEPS.length} className={className} />;
-}
-
-/** Wordmark · numbered stepper · call button (services screen). */
+/** Wordmark · numbered stepper (scissors travel dot to dot) · call button. */
 export function DesktopStepperHeader({ step }: { step: number }) {
+  const shown = useDisplayedStep(step);
+  const list = useRef<HTMLOListElement>(null);
+  const [track, setTrack] = useState<{ left: number; width: number; top: number } | null>(null);
+
+  // The strand runs between the real first and last dots, so it lines up at every size.
+  useLayoutEffect(() => {
+    const ol = list.current;
+    if (!ol) return;
+    const measure = () => {
+      const dots = ol.querySelectorAll<HTMLElement>("[data-dot]");
+      const first = dots[0]?.getBoundingClientRect();
+      const last = dots[dots.length - 1]?.getBoundingClientRect();
+      const box = ol.getBoundingClientRect();
+      if (!first || !last || !first.width) return;
+      setTrack({
+        left: first.left + first.width / 2 - box.left,
+        width: last.left - first.left,
+        top: first.top + first.height / 2 - box.top,
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(ol);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <header className="flex shrink-0 items-center justify-between gap-6 hairline-b px-6 py-4 lg:gap-8 lg:px-10 xl:px-16">
       <Link to="/" aria-label="Hair by Bhargav" className="inline-flex shrink-0">
         <Wordmark className="h-11 lg:h-14" />
       </Link>
-      <ol className="flex flex-1 items-start justify-center" aria-label="Booking progress">
+      <ol ref={list} className="relative flex flex-1 items-start justify-center" aria-label="Booking progress">
+        {track ? (
+          <ScissorsLine
+            kind="stepper"
+            step={step}
+            total={STEPS.length}
+            className="!absolute"
+            style={{ left: track.left, width: track.width, top: track.top }}
+          />
+        ) : null}
         {STEPS.map((label, i) => {
           const n = i + 1;
-          const done = n < step;
-          const on = n === step;
+          const done = n < shown;
+          const on = n === shown;
           return (
             <li
               key={label}
               className="relative flex w-[4.5rem] flex-col items-center lg:w-28 xl:w-36"
               aria-current={on ? "step" : undefined}
             >
-              {i > 0 ? (
-                <span
-                  className={cn(
-                    "absolute top-[1.4rem] right-1/2 h-px w-full",
-                    n <= step ? "bg-bronze/60" : "bg-foreground/15",
-                  )}
-                />
-              ) : null}
               <span
                 className={cn(
-                  "text-[0.65rem] tabular-nums tracking-[0.12em]",
+                  "text-[0.65rem] tabular-nums tracking-[0.12em] transition-colors duration-300",
                   on ? "text-bronze" : "text-foreground/45",
                 )}
               >
                 {pad(n)}
               </span>
               <span
+                data-dot
                 className={cn(
-                  "relative z-10 mt-1.5 h-2.5 w-2.5 rounded-full border bg-background",
+                  "relative z-10 mt-1.5 h-2.5 w-2.5 rounded-full border bg-background transition-colors duration-300",
                   on ? "border-bronze bg-bronze" : done ? "border-bronze" : "border-foreground/30",
                 )}
               />
-              <span className={cn("label-caps mt-2.5", on ? "text-bronze" : "text-foreground/50")}>
+              <span className={cn("label-caps mt-2.5 transition-colors duration-300", on ? "text-bronze" : "text-foreground/50")}>
                 {label}
               </span>
             </li>
@@ -123,7 +150,7 @@ export function CallButton({ withNumber = true }: { withNumber?: boolean }) {
       className="group flex shrink-0 items-center gap-4"
       aria-label="Call the studio"
     >
-      <span className="flex h-12 w-12 items-center justify-center border border-foreground/15 transition-colors lg:h-14 lg:w-14 group-hover:border-foreground/40">
+      <span className="press flex h-12 w-12 items-center justify-center rounded-full border border-foreground/15 transition-colors lg:h-14 lg:w-14 group-hover:border-foreground/40">
         <Phone className="h-5 w-5" strokeWidth={1.25} />
       </span>
       {withNumber ? (

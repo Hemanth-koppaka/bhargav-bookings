@@ -268,13 +268,14 @@ export function ServiceIconTile({
 }: {
   kind: IconKind;
   active?: boolean | undefined;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "thumb";
   photo?: string | undefined;
   /** Give icons the same footprint as photos, so mixed lists stay aligned. */
   framed?: boolean | undefined;
   className?: string;
 }) {
-  const box = size === "sm" ? "h-14 w-14" : size === "lg" ? "h-24 w-32" : "h-[4.5rem] w-24";
+  const box =
+    size === "sm" ? "h-14 w-14" : size === "lg" ? "h-24 w-32" : size === "thumb" ? "h-16 w-16" : "h-[4.5rem] w-24";
   if (!photo && framed) {
     return (
       <span
@@ -295,12 +296,13 @@ export function ServiceIconTile({
         className={cn(
           "relative shrink-0 overflow-hidden rounded-md bg-muted",
           box,
-          active && "photo-pop ring-2 ring-ink ring-offset-2 ring-offset-background",
+          active && "photo-pop",
+          active && size !== "thumb" && "ring-2 ring-ink ring-offset-2 ring-offset-background",
           className,
         )}
       >
         <img src={photo} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
-        {active ? (
+        {active && size !== "thumb" ? (
           <span className="pop-in absolute right-1 bottom-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-champagne">
             <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5}>
               <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />

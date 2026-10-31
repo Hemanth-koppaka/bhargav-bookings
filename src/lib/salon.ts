@@ -10,7 +10,14 @@ export type Service = {
   note?: string;
   price: number;
   from?: boolean; // "onwards" pricing
+  /** Legacy 30-minute block count (kept for older bookings). */
   slots: number;
+  /** Service time in minutes. */
+  minutes: number;
+  /** Minutes held after the service before the next booking (cleanup). */
+  buffer?: number;
+  /** Shown first under "Popular". */
+  featured?: boolean;
   /** Photo uploaded by the salon in the admin Menu (falls back to an icon). */
   photo?: string;
 };
@@ -88,6 +95,7 @@ const s = (id: string, name: string, price: number, slots: number, extra?: Parti
   name,
   price,
   slots,
+  minutes: slots * 30,
   ...extra,
 });
 
@@ -339,8 +347,8 @@ export const findService = (a: Audience, id: string): Service | undefined => {
 
 export const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
-export const formatDuration = (slots: number) => {
-  const mins = slots * SLOT_MINUTES;
+/** "1 hr 15 min" from a number of minutes. */
+export const formatDuration = (mins: number) => {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   if (h && m) return `${h} hr ${m} min`;
