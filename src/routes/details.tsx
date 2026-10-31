@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Lock, MessageCircle, ShieldCheck } from "lucide-react";
-import { Page, Screen, ScreenHeader, StickyBar, PrimaryAction } from "@/components/screen";
+import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
+import { haptic } from "@/lib/utils";
 import {
   AUDIENCE_IMAGE,
   Accent,
@@ -30,9 +31,6 @@ export const Route = createFileRoute("/details")({
   component: DetailsScreen,
 });
 
-const field =
-  "w-full border-0 border-b border-foreground/20 bg-transparent px-0 py-3 text-[1.05rem] outline-none scroll-mb-40 aria-[invalid=true]:border-destructive transition-colors placeholder:text-foreground/30 focus:border-foreground";
-
 function DetailsScreen() {
   const { draft, hydrated, update } = useBooking();
   const navigate = useNavigate();
@@ -42,6 +40,7 @@ function DetailsScreen() {
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
   const [touched, setTouched] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -66,7 +65,11 @@ function DetailsScreen() {
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
     setTouched(true);
-    if (!valid) return;
+    setAttempt((n) => n + 1);
+    if (!valid) {
+      haptic(20);
+      return;
+    }
     const customer: Customer = {
       name: name.trim(),
       phone: phone.trim(),
@@ -86,98 +89,69 @@ function DetailsScreen() {
 
   return (
     <>
-    <DesktopDetails fields={fields} submit={submit} />
-    <div className="lg:hidden">
-    <Page>
-      <ScreenHeader back="/time" title="Step 4 of 5" />
-      <Screen>
-        <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
-          Who should we <span className="italic">expect?</span>
-        </h1>
+    <DesktopDetails fields={fields} submit={submit} attempt={attempt} />
+    <div className="md:hidden">
+      <Page>
+        <StepHeader back="/time" step={4} />
+        <Screen className="px-5">
+          <StepIntro eyebrow="Step four" sub="Almost there. Share your details to confirm your booking.">
+            Your <span className="italic text-bronze">details.</span>
+          </StepIntro>
 
-        <form noValidate className="mt-8 space-y-6 sm:mt-10" onSubmit={submit}>
-          <div>
-            <label className="eyebrow" htmlFor="name">
-              Full name
-            </label>
-            <input
-              id="name"
-              className={field}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
-              autoComplete="name"
-              enterKeyHint="next"
-              aria-invalid={touched && !validName}
-            />
-            <p role="alert" className="mt-2 min-h-4 text-xs text-destructive">{touched && !validName ? "Please enter your name." : ""}</p>
-          </div>
+          <MobileSummary />
 
-          <div>
-            <label className="eyebrow" htmlFor="phone">
-              Mobile number
-            </label>
-            <input
-              id="phone"
-              className={field}
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="10-digit mobile"
-              type="tel"
-              inputMode="tel"
-              enterKeyHint="next"
-              aria-invalid={touched && !validPhone}
-              autoComplete="tel"
-            />
-            <p role="alert" className="mt-2 min-h-4 text-xs text-destructive">{touched && !validPhone ? "Enter a valid 10-digit number." : ""}</p>
-          </div>
+          <form noValidate className="mt-6" onSubmit={submit}>
+            <DetailsFields fields={fields} idPrefix="m-" attempt={attempt} />
+            <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+          </form>
 
-          <div>
-            <label className="eyebrow" htmlFor="email">
-              Email <span className="normal-case tracking-normal">(optional)</span>
-            </label>
-            <input
-              id="email"
-              className={field}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@email.com"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              autoCapitalize="off"
-              enterKeyHint="next"
-              aria-invalid={touched && !validEmail}
-            />
-            <p role="alert" className="mt-2 min-h-4 text-xs text-destructive">{touched && !validEmail ? "That email doesn't look right." : ""}</p>
-          </div>
+          <p className="mt-4 flex items-center gap-2.5 text-[0.8rem] text-muted-foreground">
+            <Lock className="h-3.5 w-3.5 shrink-0" strokeWidth={1.25} />
+            Your details are only used to manage your appointment.
+          </p>
+        </Screen>
 
-          <div>
-            <label className="eyebrow" htmlFor="notes">
-              Notes for the stylist <span className="normal-case tracking-normal">(optional)</span>
-            </label>
-            <textarea
-              id="notes"
-              className={field + " resize-none"}
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Anything we should know"
-            />
-          </div>
-        </form>
-      </Screen>
-
-      <StickyBar>
-        <PrimaryAction onClick={() => submit()}>Review booking</PrimaryAction>
-      </StickyBar>
-    </Page>
+        <StickyBar>
+          <PrimaryAction onClick={() => submit()}>Review appointment</PrimaryAction>
+        </StickyBar>
+      </Page>
     </div>
     </>
   );
 }
 
+function MobileSummary() {
+  const { draft, selected, totalSlots, totalPrice, hasFromPricing } = useBooking();
+  const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
+  return (
+    <div className="mt-5 flex items-center gap-4 rounded-md border border-hairline bg-card p-3.5">
+      <Thumb src={img.src} pos={img.pos} className="h-16 w-16" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-display text-[1.25rem] leading-tight">
+          {selected.length > 1 ? `${selected[0]?.name} + ${selected.length - 1} more` : selected[0]?.name}
+        </div>
+        <div className="mt-0.5 text-[0.8rem] text-muted-foreground">
+          {draft.date
+            ? fromISO(draft.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
+            : ""}
+          {draft.time != null ? ` · ${minuteLabel(draft.time)}` : ""} · {formatDuration(totalSlots)}
+        </div>
+      </div>
+      <div className="text-right">
+        <div className="font-display text-[1.3rem] leading-none">
+          {inr(totalPrice)}
+          {hasFromPricing ? "+" : ""}
+        </div>
+        <Link to="/time" className="mt-1.5 inline-block text-[0.75rem] text-bronze underline underline-offset-4">
+          Change
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 type Field = { value: string; set: (v: string) => void; error: string };
+type Fields = Record<"name" | "phone" | "email" | "notes", Field>;
 
 const box =
   "w-full rounded-sm border border-foreground/18 bg-card px-5 py-4 text-[1.05rem] outline-none transition-colors placeholder:text-foreground/35 focus:border-foreground/60 aria-[invalid=true]:border-destructive";
@@ -190,24 +164,106 @@ function FieldLabel({ htmlFor, children }: { htmlFor: string; children: ReactNod
   );
 }
 
-function FieldError({ children }: { children: string }) {
+function FieldError({ children, attempt }: { children: string; attempt: number }) {
   return (
-    <p role="alert" className="mt-2 min-h-4 text-sm text-destructive">
+    <p key={children ? attempt : "ok"} role="alert" className={"mt-2 min-h-4 text-sm text-destructive " + (children ? "shake" : "")}>
       {children}
     </p>
+  );
+}
+
+function DetailsFields({
+  fields,
+  idPrefix,
+  attempt,
+}: {
+  fields: Fields;
+  idPrefix: string;
+  attempt: number;
+}) {
+  const { name, phone, email, notes } = fields;
+  return (
+    <>
+    <div>
+      <FieldLabel htmlFor={`${idPrefix}name`}>Full name *</FieldLabel>
+      <input
+        id={`${idPrefix}name`}
+        className={box}
+        value={name.value}
+        onChange={(e) => name.set(e.target.value)}
+        placeholder="Your name"
+        autoComplete="name"
+        aria-invalid={Boolean(name.error)}
+      />
+      <FieldError attempt={attempt}>{name.error}</FieldError>
+    </div>
+
+    <div className="mt-3">
+      <FieldLabel htmlFor={`${idPrefix}phone`}>Mobile number *</FieldLabel>
+      <div
+        className={
+          "flex items-stretch rounded-sm border bg-card transition-colors focus-within:border-foreground/60 " +
+          (phone.error ? "border-destructive" : "border-foreground/18")
+        }
+      >
+        <span className="flex items-center border-r border-foreground/12 px-5 text-[1.05rem] text-foreground/80">+91</span>
+        <input
+          id={`${idPrefix}phone`}
+          className="min-w-0 flex-1 bg-transparent px-5 py-4 text-[1.05rem] outline-none placeholder:text-foreground/35"
+          value={phone.value}
+          onChange={(e) => phone.set(e.target.value)}
+          placeholder="Enter mobile number"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel-national"
+          aria-invalid={Boolean(phone.error)}
+        />
+      </div>
+      <FieldError attempt={attempt}>{phone.error}</FieldError>
+    </div>
+
+    <div className="mt-3">
+      <FieldLabel htmlFor={`${idPrefix}email`}>Email (optional)</FieldLabel>
+      <input
+        id={`${idPrefix}email`}
+        className={box}
+        value={email.value}
+        onChange={(e) => email.set(e.target.value)}
+        placeholder="Enter your email"
+        type="email"
+        autoComplete="email"
+        autoCapitalize="off"
+        aria-invalid={Boolean(email.error)}
+      />
+      <FieldError attempt={attempt}>{email.error}</FieldError>
+    </div>
+
+    <div className="mt-3">
+      <FieldLabel htmlFor={`${idPrefix}notes`}>Note (optional)</FieldLabel>
+      <textarea
+        id={`${idPrefix}notes`}
+        className={box + " resize-none"}
+        rows={3}
+        value={notes.value}
+        onChange={(e) => notes.set(e.target.value)}
+        placeholder="Anything you'd like us to know?"
+      />
+    </div>
+    </>
   );
 }
 
 function DesktopDetails({
   fields,
   submit,
+  attempt,
 }: {
-  fields: Record<"name" | "phone" | "email" | "notes", Field>;
+  fields: Fields;
   submit: (e?: FormEvent) => void;
+  attempt: number;
 }) {
   const { draft, selected, totalSlots, totalPrice, hasFromPricing } = useBooking();
   const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
-  const { name, phone, email, notes } = fields;
 
   const assurances = [
     { icon: ShieldCheck, title: "Your information is safe", body: "Your details are only used to manage your appointment." },
@@ -220,8 +276,8 @@ function DesktopDetails({
       <DesktopStepHeader back="/time" step={4} />
 
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-        <div className="page-in mx-auto grid max-w-[90rem] grid-cols-[minmax(0,1fr)_minmax(22rem,34rem)] gap-12 px-14 py-9 xl:gap-16 xl:px-24">
-          <form noValidate onSubmit={submit} className="border-r border-hairline pr-12 xl:pr-16">
+        <div className="page-in mx-auto grid max-w-[90rem] grid-cols-1 gap-10 px-8 py-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)] lg:px-10 lg:py-9 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,34rem)] xl:gap-16 xl:px-24">
+          <form noValidate onSubmit={submit} className="lg:border-r lg:border-hairline lg:pr-10 xl:pr-16">
             <StepTitle step="four">
               Your <Accent>details</Accent>
             </StepTitle>
@@ -230,75 +286,13 @@ function DesktopDetails({
             </p>
 
             <div className="mt-8">
-              <FieldLabel htmlFor="d-name">Full name *</FieldLabel>
-              <input
-                id="d-name"
-                className={box}
-                value={name.value}
-                onChange={(e) => name.set(e.target.value)}
-                placeholder="Your name"
-                autoComplete="name"
-                aria-invalid={Boolean(name.error)}
-              />
-              <FieldError>{name.error}</FieldError>
-            </div>
-
-            <div className="mt-3">
-              <FieldLabel htmlFor="d-phone">Mobile number *</FieldLabel>
-              <div
-                className={
-                  "flex items-stretch rounded-sm border bg-card transition-colors focus-within:border-foreground/60 " +
-                  (phone.error ? "border-destructive" : "border-foreground/18")
-                }
-              >
-                <span className="flex items-center border-r border-foreground/12 px-5 text-[1.05rem] text-foreground/80">+91</span>
-                <input
-                  id="d-phone"
-                  className="min-w-0 flex-1 bg-transparent px-5 py-4 text-[1.05rem] outline-none placeholder:text-foreground/35"
-                  value={phone.value}
-                  onChange={(e) => phone.set(e.target.value)}
-                  placeholder="Enter mobile number"
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel-national"
-                  aria-invalid={Boolean(phone.error)}
-                />
-              </div>
-              <FieldError>{phone.error}</FieldError>
-            </div>
-
-            <div className="mt-3">
-              <FieldLabel htmlFor="d-email">Email (optional)</FieldLabel>
-              <input
-                id="d-email"
-                className={box}
-                value={email.value}
-                onChange={(e) => email.set(e.target.value)}
-                placeholder="Enter your email"
-                type="email"
-                autoComplete="email"
-                autoCapitalize="off"
-                aria-invalid={Boolean(email.error)}
-              />
-              <FieldError>{email.error}</FieldError>
-            </div>
-
-            <div className="mt-3">
-              <FieldLabel htmlFor="d-notes">Note (optional)</FieldLabel>
-              <textarea
-                id="d-notes"
-                className={box + " resize-none"}
-                rows={3}
-                value={notes.value}
-                onChange={(e) => notes.set(e.target.value)}
-                placeholder="Anything you'd like us to know?"
-              />
+              <DetailsFields fields={fields} idPrefix="d-" attempt={attempt} />
             </div>
             {/* lets Enter submit the form */}
             <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
           </form>
 
-          <aside className="pt-4">
+          <aside className="lg:pt-4">
             <div className="rounded-sm border border-hairline bg-card p-8">
               <div className="flex items-baseline justify-between">
                 <span className="text-[0.72rem] uppercase tracking-[0.3em] text-foreground/75">Your appointment</span>
@@ -331,7 +325,7 @@ function DesktopDetails({
               </div>
             </div>
 
-            <ul className="mt-8 space-y-7 px-1">
+            <ul className="mt-8 grid gap-6 px-1 md:grid-cols-3 lg:grid-cols-1 lg:gap-7">
               {assurances.map(({ icon: Icon, title, body }) => (
                 <li key={title} className="flex gap-6">
                   <Icon className="mt-0.5 h-7 w-7 shrink-0" strokeWidth={1.1} />
@@ -351,7 +345,7 @@ function DesktopDetails({
           <Lock className="h-4 w-4" strokeWidth={1.25} />
           Your details are only used to manage your appointment.
         </p>
-        <DesktopCTA onClick={() => submit()} className="min-w-[26rem] justify-between">
+        <DesktopCTA onClick={() => submit()} className="justify-between md:min-w-[16rem] lg:min-w-[26rem]">
           Review appointment
         </DesktopCTA>
       </DesktopBar>

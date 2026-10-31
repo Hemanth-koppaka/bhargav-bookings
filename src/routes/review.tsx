@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowUpRight, CalendarDays, Lock, MapPin, Pencil, X } from "lucide-react";
-import { Page, Screen, ScreenHeader, StickyBar, PrimaryAction, Rule } from "@/components/screen";
+import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import {
   AUDIENCE_IMAGE,
   Accent,
@@ -15,7 +15,9 @@ import {
   prettyPhone,
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
-import { BUSINESS, formatDuration, formatLongDate, fromISO, inr, minuteLabel } from "@/lib/salon";
+import { haptic } from "@/lib/utils";
+import { ServiceGlyph, serviceKind } from "@/components/service-icons";
+import { BUSINESS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
 
 export const Route = createFileRoute("/review")({
   head: () => ({
@@ -61,136 +63,161 @@ function ReviewScreen() {
     setSaveError("");
     const res = await commitBooking();
     setSaving(false);
-    if ("error" in res) setSaveError(res.error);
-    else navigate({ to: "/confirmed", search: { ref: res.booking.reference, seq: 1 } });
+    if ("error" in res) {
+      haptic(30);
+      setSaveError(res.error);
+      return;
+    }
+    haptic(15);
+    navigate({ to: "/confirmed", search: { ref: res.booking.reference, seq: 1 } });
   };
+
+  const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
+  const c = draft.customer;
 
   return (
     <>
-    <DesktopReview confirm={confirm} saving={saving} saveError={saveError} />
-    <div className="lg:hidden">
-    <Page>
-      <ScreenHeader back="/details" title="Step 5 of 5" />
-      <Screen>
-        <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
-          Everything <span className="italic">right?</span>
-        </h1>
+      <DesktopReview confirm={confirm} saving={saving} saveError={saveError} />
+      <div className="md:hidden">
+        <Page>
+          <StepHeader back="/details" step={5} />
+          <Screen className="px-5">
+            <StepIntro eyebrow="Step five" sub="One last look. You can edit anything below.">
+              Review your <span className="italic text-bronze">appointment.</span>
+            </StepIntro>
 
-        <section className="mt-10">
-          <div className="flex items-baseline justify-between">
-            <div className="eyebrow">Services</div>
-            <Link to="/services" className="label-caps border-b border-foreground/30 pb-0.5">
-              Edit
-            </Link>
-          </div>
-          <ul className="mt-4 space-y-3">
-            {selected.map((s) => (
-              <li key={s.id} className="flex items-baseline justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-[0.95rem]">{s.name}</div>
-                  <div className="mt-0.5 text-[0.7rem] tracking-[0.14em] uppercase text-muted-foreground">
-                    {formatDuration(s.slots)}
+            <div className="stagger mt-6 space-y-3">
+              <Card title="Appointment" action={<EditLink to="/services" />}>
+                <div className="flex gap-4">
+                  <Thumb src={img.src} pos={img.pos} className="h-20 w-20" />
+                  <div className="min-w-0 flex-1">
+                    <ul className="space-y-1">
+                      {selected.map((x) => (
+                        <li key={x.id} className="flex items-baseline justify-between gap-3">
+                          <span className="flex items-center gap-2.5 font-display text-[1.35rem] leading-tight">
+                            <ServiceGlyph kind={serviceKind(x)} className="h-4 w-4 shrink-0 text-bronze" />
+                            {x.name}
+                          </span>
+                          {selected.length > 1 ? (
+                            <span className="flex shrink-0 items-center gap-2 text-[0.82rem] text-muted-foreground">
+                              {inr(x.price)}
+                              {x.from ? "+" : ""}
+                              <button
+                                onClick={() => removeService(x.id)}
+                                aria-label={`Remove ${x.name}`}
+                                className="press -m-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-foreground/40 hover:text-destructive"
+                              >
+                                <X className="h-3.5 w-3.5" strokeWidth={1.5} />
+                              </button>
+                            </span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-1.5 text-[0.88rem] text-muted-foreground">
+                      {fromISO(draft.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+                    </div>
+                    <div className="mt-0.5 flex items-center justify-between gap-3 text-[0.88rem] text-muted-foreground">
+                      <span>
+                        {minuteLabel(draft.time)} · {formatDuration(totalSlots)}
+                      </span>
+                      <Link to="/time" className="text-[0.8rem] text-bronze underline underline-offset-4">
+                        Change time
+                      </Link>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-baseline gap-4">
-                  <span className="text-sm text-muted-foreground">
-                    {inr(s.price)}
-                    {s.from ? "+" : ""}
-                  </span>
-                  <button
-                    onClick={() => removeService(s.id)}
-                    className="text-xs text-foreground/40 transition-colors hover:text-destructive"
-                    aria-label={`Remove ${s.name}`}
+              </Card>
+
+              <Card title="Your details" action={<EditLink to="/details" />}>
+                <dl className="space-y-3">
+                  {[
+                    ["Full name", c.name],
+                    ["Mobile", prettyPhone(c.phone)],
+                    ["Email", c.email || "—"],
+                    ...(c.notes ? [["Note", c.notes]] : []),
+                  ].map(([k, v]) => (
+                    <div key={k} className="flex items-baseline justify-between gap-6">
+                      <dt className="shrink-0 text-[0.62rem] uppercase tracking-[0.24em] text-muted-foreground">{k}</dt>
+                      <dd className="min-w-0 text-right text-[0.95rem] [overflow-wrap:anywhere]">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </Card>
+
+              <Card
+                title="Studio"
+                action={
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BUSINESS.mapsQuery)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[0.85rem] text-bronze"
                   >
-                    ✕
-                  </button>
+                    <span className="underline underline-offset-4">Directions</span>
+                    <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={1.25} />
+                  </a>
+                }
+              >
+                <div className="flex gap-3">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-bronze" strokeWidth={1.25} />
+                  <address className="text-[0.9rem] not-italic leading-relaxed">{BUSINESS.address}</address>
                 </div>
-              </li>
-            ))}
-          </ul>
-        </section>
+              </Card>
 
-        <div className="my-8">
-          <Rule />
-        </div>
+              <div className="flex gap-3 rounded-md bg-champagne/15 px-4 py-3.5 text-[0.82rem] leading-relaxed">
+                <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.25} />
+                <span>
+                  Reschedule or cancel any time from{" "}
+                  <Link to="/manage" className="underline underline-offset-4">
+                    Manage booking
+                  </Link>
+                  . No payment is taken online{hasFromPricing ? " — prices marked + are confirmed in the chair" : ""}.
+                </span>
+              </div>
+            </div>
+          </Screen>
 
-        <section>
-          <div className="flex items-baseline justify-between">
-            <div className="eyebrow">When</div>
-            <Link to="/time" className="label-caps border-b border-foreground/30 pb-0.5">
-              Edit
-            </Link>
-          </div>
-          <div className="mt-4 font-display text-2xl">
-            {formatLongDate(draft.date)} · {minuteLabel(draft.time)}
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">
-            Approximately {formatDuration(totalSlots)}
-          </div>
-        </section>
-
-        <div className="my-8">
-          <Rule />
-        </div>
-
-        <section>
-          <div className="flex items-baseline justify-between">
-            <div className="eyebrow">Your details</div>
-            <Link to="/details" className="label-caps border-b border-foreground/30 pb-0.5">
-              Edit
-            </Link>
-          </div>
-          <div className="mt-4 space-y-1 text-[0.95rem]">
-            <div>{draft.customer.name}</div>
-            <div className="text-muted-foreground">{draft.customer.phone}</div>
-            {draft.customer.email ? (
-              <div className="text-muted-foreground">{draft.customer.email}</div>
-            ) : null}
-            {draft.customer.notes ? (
-              <p className="pt-2 text-sm leading-relaxed text-muted-foreground">
-                {draft.customer.notes}
+          <StickyBar>
+            <div className="mb-3 flex items-baseline justify-between">
+              <span className="text-[0.62rem] uppercase tracking-[0.28em] text-foreground/65">
+                {hasFromPricing ? "Estimated total" : "Total"}
+              </span>
+              <span key={totalPrice} className="tick-in font-display text-[1.7rem] leading-none">
+                {inr(totalPrice)}
+                {hasFromPricing ? "+" : ""}
+              </span>
+            </div>
+            {saveError ? (
+              <p role="alert" className="shake mb-3 text-[0.85rem] text-destructive">
+                {saveError}
               </p>
             ) : null}
-          </div>
-        </section>
-
-        <p className="mt-10 text-xs leading-relaxed text-muted-foreground">
-          Prices marked "onwards" are confirmed in the chair, based on hair length and density. No
-          payment is taken online.
-        </p>
-      </Screen>
-
-      <StickyBar>
-        <div className="mb-3 flex items-baseline justify-between">
-          <div className="label-caps text-foreground/60">Estimated total</div>
-          <div className="font-display text-2xl">
-            {inr(totalPrice)}
-            {hasFromPricing ? "+" : ""}
-          </div>
-        </div>
-        <PrimaryAction onClick={confirm}>Confirm booking</PrimaryAction>
-      </StickyBar>
-    </Page>
-    </div>
+            <PrimaryAction onClick={confirm} disabled={saving}>
+              {saving ? "Confirming…" : "Confirm appointment"}
+            </PrimaryAction>
+          </StickyBar>
+        </Page>
+      </div>
     </>
   );
 }
 
 function Card({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-sm border border-hairline bg-card">
-      <div className="mx-7 flex items-center justify-between hairline-b py-4">
-        <h2 className="font-sans text-[0.78rem] font-normal uppercase tracking-[0.3em]">{title}</h2>
+    <section className="rounded-md border border-hairline bg-card">
+      <div className="mx-4 flex items-center justify-between hairline-b py-3.5 lg:mx-7 lg:py-4">
+        <h2 className="font-sans text-[0.68rem] font-normal uppercase tracking-[0.3em] lg:text-[0.78rem]">{title}</h2>
         {action}
       </div>
-      <div className="px-7 py-4">{children}</div>
+      <div className="px-4 py-4 lg:px-7">{children}</div>
     </section>
   );
 }
 
 function EditLink({ to }: { to: "/services" | "/time" | "/details" }) {
   return (
-    <Link to={to} className="inline-flex items-center gap-2 text-[0.95rem] text-bronze">
+    <Link to={to} className="press inline-flex items-center gap-2 text-[0.85rem] text-bronze lg:text-[0.95rem]">
       <span className="underline underline-offset-4">Edit</span>
       <Pencil className="h-4 w-4" strokeWidth={1.25} />
     </Link>
@@ -219,7 +246,7 @@ function DesktopReview({
       <DesktopStepHeader back="/details" step={5} />
 
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-        <main className="page-in mx-auto max-w-6xl px-14 py-6">
+        <main className="page-in mx-auto max-w-6xl px-8 py-6 lg:px-14">
           <StepTitle step="five">
             Review your <Accent>appointment</Accent>
           </StepTitle>
@@ -235,6 +262,7 @@ function DesktopReview({
                   <ul className="space-y-1">
                     {selected.map((x) => (
                       <li key={x.id} className="group flex items-center gap-3">
+                        <ServiceGlyph kind={serviceKind(x)} className="h-5 w-5 shrink-0 text-bronze" />
                         <span className="font-display text-[1.7rem] leading-tight">{x.name}</span>
                         {selected.length > 1 ? (
                           <span className="text-[0.9rem] text-muted-foreground">
@@ -246,7 +274,7 @@ function DesktopReview({
                           <button
                             onClick={() => removeService(x.id)}
                             aria-label={`Remove ${x.name}`}
-                            className="text-foreground/35 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+                            className="press -m-2 inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/35 opacity-0 transition-opacity hover:bg-foreground/5 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
                           >
                             <X className="h-4 w-4" strokeWidth={1.25} />
                           </button>
@@ -264,7 +292,7 @@ function DesktopReview({
                     </Link>
                   </div>
                 </div>
-                <div className="self-stretch border-l border-hairline pl-14 pr-6">
+                <div className="self-stretch border-l border-hairline pl-8 pr-2 lg:pl-14 lg:pr-6">
                   <div className="flex h-full flex-col justify-center">
                     <div className="text-[0.72rem] uppercase tracking-[0.3em] text-foreground/70">
                       {hasFromPricing ? "Estimated price" : "Price"}
@@ -322,7 +350,7 @@ function DesktopReview({
                   src={embedUrl}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
-                  className="h-24 w-80 shrink-0 rounded-sm border-0 bg-muted grayscale"
+                  className="h-24 w-56 shrink-0 rounded-sm border-0 bg-muted grayscale lg:w-80"
                 />
               </div>
             </Card>
@@ -350,7 +378,7 @@ function DesktopReview({
             </p>
           )}
         </div>
-        <DesktopCTA onClick={confirm} disabled={saving} className="min-w-[30rem] justify-between">
+        <DesktopCTA onClick={confirm} disabled={saving} className="justify-between md:min-w-[16rem] lg:min-w-[30rem]">
           {saving ? "Confirming…" : "Confirm appointment"}
         </DesktopCTA>
       </DesktopBar>

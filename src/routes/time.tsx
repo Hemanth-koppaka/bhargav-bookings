@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Clock } from "lucide-react";
-import { Page, Screen, ScreenHeader, StickyBar, PrimaryAction } from "@/components/screen";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, Coffee, Sun, Sunrise, Sunset } from "lucide-react";
+import { haptic } from "@/lib/utils";
+import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import {
   AUDIENCE_IMAGE,
   Accent,
@@ -9,11 +10,9 @@ import {
   DesktopCTA,
   DesktopPage,
   DesktopStepHeader,
-  ImagePanel,
   StepTitle,
   Thumb,
 } from "@/components/desktop";
-import portrait from "@/assets/portrait.jpg.asset.json";
 import { useBooking } from "@/lib/booking-store";
 import { getBusySlots } from "@/lib/salon.functions";
 import {
@@ -21,13 +20,13 @@ import {
   breaksFor,
   calendarDays,
   formatDuration,
-  formatLongDate,
   hoursFor,
   isClosed,
   fromISO,
   inr,
   minuteLabel,
   SLOT_MINUTES,
+  toISO,
 } from "@/lib/salon";
 
 export const Route = createFileRoute("/time")({
@@ -47,7 +46,7 @@ export const Route = createFileRoute("/time")({
 });
 
 function TimeScreen() {
-  const { draft, hydrated, update, totalSlots, selected } = useBooking();
+  const { draft, hydrated, totalSlots, selected } = useBooking();
   const navigate = useNavigate();
   const [now] = useState(() => new Date());
 
@@ -82,112 +81,73 @@ function TimeScreen() {
   const selectedHours = draft.date ? hoursFor(draft.date) : null;
   const selectedBreaks = draft.date ? breaksFor(draft.date) : [];
 
+  const breakNote = selectedBreaks.length
+    ? ` · Break ${selectedBreaks.map((b) => `${minuteLabel(b.start)}–${minuteLabel(b.end)}`).join(", ")}`
+    : "";
+
   return (
     <>
-    <DesktopTime days={days} slots={slots} busy={busy} />
-    <div className="lg:hidden">
-    <Page>
-      <ScreenHeader back="/services" title="Step 3 of 5" step={formatDuration(totalSlots)} />
-      <Screen>
-        <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
-          When suits <span className="italic">you?</span>
-        </h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Choose a day and time. Blocked, closed, booked, and break periods are shown unavailable.
-        </p>
+      <DesktopTime days={days} slots={slots} busy={busy} />
+      <div className="md:hidden">
+        <Page>
+          <StepHeader back="/services" step={3} />
+          <Screen className="px-5">
+            <StepIntro eyebrow="Step three" sub={`We'll reserve ${formatDuration(totalSlots)} for your visit.`}>
+              Choose a <span className="italic text-bronze">time.</span>
+            </StepIntro>
 
-        <div ref={dayRow} aria-label="Choose a date" className="-mx-6 mt-8 overflow-x-auto overscroll-x-contain scroll-px-6 px-6 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex w-max gap-2">
-            {days.map((d) => {
-              const on = draft.date === d.iso;
-              return (
-                <button
-                  key={d.iso}
-                  disabled={!d.selectable}
-                  aria-pressed={on}
-                  aria-label={d.date.toDateString() + (d.selectable ? "" : " (closed)")}
-                  onClick={() => update({ date: d.iso, time: null })}
-                  className={
-                    "flex w-[3.75rem] shrink-0 flex-col items-center border py-3 transition-colors duration-200 " +
-                    (on
-                      ? "border-foreground bg-foreground text-background"
-                      : d.selectable
-                        ? "border-foreground/15 hover:border-foreground/45"
-                        : "border-transparent text-foreground/25 line-through")
-                  }
-                >
-                  <span className="text-[0.62rem] tracking-[0.16em] uppercase">
-                    {d.date.toLocaleDateString("en-GB", { weekday: "short" })}
-                  </span>
-                  <span className="mt-1.5 font-display text-2xl leading-none">
-                    {d.date.getDate()}
-                  </span>
-                  <span className="mt-1 text-[0.6rem] tracking-[0.16em] uppercase">
-                    {d.date.toLocaleDateString("en-GB", { month: "short" })}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {draft.date ? (
-          <div className="mt-10">
-            <div className="eyebrow">{formatLongDate(draft.date)}</div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {isClosed(draft.date)
-                ? "Salon closed"
-                : selectedHours
-                  ? `Open ${minuteLabel(selectedHours.open)} — ${minuteLabel(selectedHours.close)}`
-                  : ""}
-              {selectedBreaks.length
-                ? ` · Break ${selectedBreaks.map((b) => `${minuteLabel(b.start)}–${minuteLabel(b.end)}`).join(", ")}`
-                : ""}
-            </p>
-            <div className="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
-              {slots.map((s) => {
-                const on = draft.time === s.minute;
-                return (
-                  <button
-                    key={s.minute}
-                    disabled={!s.available}
-                    aria-pressed={on}
-                    onClick={() => update({ time: s.minute })}
-                    className={
-                      "min-h-12 whitespace-nowrap border px-1 py-3 text-[0.78rem] tracking-[0.08em] transition-colors duration-200 " +
-                      (on
-                        ? "border-foreground bg-foreground text-background"
-                        : s.available
-                          ? "border-foreground/15 hover:border-foreground/45"
-                          : "border-transparent text-foreground/22 line-through")
-                    }
-                  >
-                    {minuteLabel(s.minute)}
-                  </button>
-                );
-              })}
+            <div
+              ref={dayRow}
+              aria-label="Choose a date"
+              className="-mx-5 mt-6 overflow-x-auto overscroll-x-contain scroll-px-5 px-5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              <DayStrip days={days} />
             </div>
-            {slots.every((s) => !s.available) ? (
-              <p className="mt-6 text-sm text-muted-foreground">
-                No slots left on this day. Please try another date.
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <p className="mt-10 text-sm text-muted-foreground">Select a date to see free slots.</p>
-        )}
-      </Screen>
 
-      <StickyBar>
-        <PrimaryAction
-          disabled={!draft.date || draft.time == null}
-          onClick={() => navigate({ to: "/details" })}
-        >
-          Your details
-        </PrimaryAction>
-      </StickyBar>
-    </Page>
-    </div>
+            {draft.date ? (
+              <div key={draft.date} className="slide-in mt-4">
+                <div className="flex items-center gap-3 rounded-md bg-champagne/12 px-4 py-3">
+                  <CalendarDays className="h-5 w-5 shrink-0 text-bronze" strokeWidth={1.25} />
+                  <div className="min-w-0">
+                    <div className="text-[0.95rem]">{longDate(draft.date)}</div>
+                    <div className="text-[0.75rem] text-muted-foreground">
+                      {isClosed(draft.date)
+                        ? "Salon closed"
+                        : selectedHours
+                          ? `Open ${minuteLabel(selectedHours.open)} – ${minuteLabel(selectedHours.close)}${breakNote}`
+                          : ""}
+                    </div>
+                  </div>
+                </div>
+                <SlotGroups slots={slots} busy={busy} />
+                {slots.length > 0 && slots.every((x) => !x.available) ? (
+                  <p className="mt-6 text-sm text-muted-foreground">No slots left on this day. Please try another date.</p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-8 text-sm text-muted-foreground">Select a date to see free slots.</p>
+            )}
+          </Screen>
+
+          <StickyBar>
+            <div className="mb-3 flex items-center justify-between gap-3 text-[0.9rem]">
+              <span className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" strokeWidth={1.25} />
+                {draft.date ? shortDate(draft.date) : "Pick a day"}
+              </span>
+              <span className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" strokeWidth={1.25} />
+                <span key={draft.time ?? "none"} className="tick-in">
+                  {draft.time != null ? minuteLabel(draft.time) : "Pick a time"}
+                </span>
+              </span>
+            </div>
+            <PrimaryAction disabled={!draft.date || draft.time == null} onClick={() => navigate({ to: "/details" })}>
+              Your details
+            </PrimaryAction>
+          </StickyBar>
+        </Page>
+      </div>
     </>
   );
 }
@@ -195,10 +155,272 @@ function TimeScreen() {
 type Slot = { minute: number; available: boolean };
 
 const PERIODS = [
-  { label: "Morning", test: (m: number) => m < 13 * 60 },
-  { label: "Afternoon", test: (m: number) => m >= 13 * 60 && m < 17 * 60 },
-  { label: "Evening", test: (m: number) => m >= 17 * 60 },
+  { label: "Morning", icon: Sunrise, test: (m: number) => m < 13 * 60 },
+  { label: "Afternoon", icon: Sun, test: (m: number) => m >= 13 * 60 && m < 17 * 60 },
+  { label: "Evening", icon: Sunset, test: (m: number) => m >= 17 * 60 },
 ];
+
+function DayStrip({ days }: { days: { iso: string; date: Date; selectable: boolean }[] }) {
+  const { draft, update } = useBooking();
+  return (
+    <div className="flex w-max gap-2 pb-2">
+      {days.map((d) => {
+        const on = draft.date === d.iso;
+        return (
+          <button
+            key={d.iso}
+            disabled={!d.selectable}
+            aria-pressed={on}
+            aria-label={d.date.toDateString() + (d.selectable ? "" : " (closed)")}
+            onClick={() => {
+              haptic();
+              update({ date: d.iso, time: null });
+            }}
+            className={
+              "press flex w-[4rem] shrink-0 flex-col items-center rounded-md border py-2.5 lg:w-[4.25rem] " +
+              (on
+                ? "border-foreground bg-foreground text-background shadow-[0_10px_24px_-14px_color-mix(in_oklab,var(--ink)_70%,transparent)]"
+                : d.selectable
+                  ? "border-foreground/12 bg-card hover:border-foreground/45"
+                  : "border-transparent text-foreground/25")
+            }
+          >
+            <span className="text-[0.62rem] uppercase tracking-[0.16em]">
+              {d.date.toLocaleDateString("en-GB", { weekday: "short" })}
+            </span>
+            <span className={"mt-1 font-display text-2xl leading-none " + (d.selectable ? "" : "line-through")}>
+              {d.date.getDate()}
+            </span>
+            <span className="mt-1 text-[0.6rem] uppercase tracking-[0.16em]">
+              {d.selectable ? d.date.toLocaleDateString("en-GB", { month: "short" }) : "Closed"}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function BreakDivider({ start, end }: { start: number; end: number }) {
+  const lunch = start >= 12 * 60 && start < 15 * 60;
+  return (
+    <div className="col-span-full my-1 flex items-center gap-4">
+      <span className="h-px flex-1 bg-hairline" />
+      <span className="flex items-center gap-2.5 text-[0.62rem] uppercase tracking-[0.28em] text-bronze">
+        <Coffee className="h-4 w-4" strokeWidth={1.25} aria-hidden />
+        {lunch ? "Lunch break" : "Break"} · {minuteLabel(start)} – {minuteLabel(end)}
+      </span>
+      <span className="h-px flex-1 bg-hairline" />
+    </div>
+  );
+}
+
+function SlotGroups({ slots, busy }: { slots: Slot[]; busy: { time: number; slots: number }[] }) {
+  const { draft, update } = useBooking();
+  const booked = (m: number) =>
+    busy.some((b) => m < b.time + b.slots * SLOT_MINUTES && b.time < m + SLOT_MINUTES);
+  const breaks = draft.date ? breaksFor(draft.date) : [];
+  // Times that fall inside a break are never bookable, so they're replaced by a divider.
+  const visible = slots.filter((x) => !breaks.some((b) => x.minute >= b.start && x.minute < b.end));
+  const groups = PERIODS.map((p) => ({ p, items: visible.filter((x) => p.test(x.minute)) })).filter(
+    (g) => g.items.length > 0,
+  );
+  let prevEnd = -1;
+
+  return (
+    <>
+      {groups.map(({ p, items }) => {
+        const firstMin = items[0]!.minute;
+        const lastMin = items[items.length - 1]!.minute;
+        const between = breaks.filter((b) => b.start >= prevEnd && b.start < firstMin);
+        const inside = breaks.filter((b) => b.start > firstMin && b.start <= lastMin);
+        prevEnd = lastMin + SLOT_MINUTES;
+        const free = items.filter((x) => x.available).length;
+        return (
+          <section key={p.label} className="mt-5">
+            {between.map((b) => (
+              <div key={b.start} className="mb-5 grid">
+                <BreakDivider start={b.start} end={b.end} />
+              </div>
+            ))}
+            <div className="flex items-center gap-4">
+              <h2 className="flex shrink-0 items-center gap-2.5 font-sans text-[0.72rem] font-normal uppercase tracking-[0.3em] lg:text-[0.78rem]">
+                <p.icon className="h-[18px] w-[18px] text-bronze" strokeWidth={1.25} aria-hidden />
+                {p.label}
+              </h2>
+              <span className="h-px flex-1 bg-hairline" />
+              <span className="shrink-0 text-[0.72rem] uppercase tracking-[0.2em] text-muted-foreground">
+                {free ? `${free} ${free === 1 ? "slot" : "slots"}` : "Fully booked"}
+              </span>
+            </div>
+            <div className="stagger mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-4 lg:gap-3 xl:grid-cols-5">
+              {items.flatMap((x) => {
+                const on = draft.time === x.minute;
+                const cell = (
+                  <button
+                    key={x.minute}
+                    disabled={!x.available}
+                    aria-pressed={on}
+                    onClick={() => {
+                      haptic();
+                      update({ time: x.minute });
+                    }}
+                    className={
+                      "press flex min-h-13 flex-col items-center justify-center rounded-md border px-1 py-2 text-[0.92rem] tabular-nums lg:min-h-14 lg:text-[1rem] " +
+                      (on
+                        ? "ring-pulse border-foreground bg-foreground text-background"
+                        : x.available
+                          ? "border-foreground/12 bg-card hover:border-foreground/50"
+                          : "border-transparent bg-foreground/[0.045] text-foreground/35")
+                    }
+                  >
+                    <span className={x.available ? "" : "line-through decoration-foreground/25"}>{minuteLabel(x.minute)}</span>
+                    {!x.available ? (
+                      <span className="text-[0.66rem] lg:text-[0.72rem]">{booked(x.minute) ? "Booked" : "Unavailable"}</span>
+                    ) : null}
+                  </button>
+                );
+                const br = inside.find((b) => b.end <= x.minute && !items.some((y) => y.minute < x.minute && y.minute >= b.end));
+                return br ? [<BreakDivider key={`b${br.start}`} start={br.start} end={br.end} />, cell] : [cell];
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </>
+  );
+}
+
+function EmptySlots({ text }: { text: string }) {
+  return (
+    <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-foreground/15 px-6 text-center text-muted-foreground lg:h-full">
+      <Clock className="h-6 w-6 text-bronze/70" strokeWidth={1.1} />
+      {text}
+    </div>
+  );
+}
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** Month grid date picker (tablet and laptop). Only the bookable window is selectable. */
+function MonthCalendar({
+  days,
+  onPicked,
+}: {
+  days: { iso: string; date: Date; selectable: boolean }[];
+  onPicked?: () => void;
+}) {
+  const { draft, update } = useBooking();
+  const bookable = useMemo(() => new Map(days.map((d) => [d.iso, d.selectable])), [days]);
+  const first = days[0]!.date;
+  const last = days[days.length - 1]!.date;
+  const todayIso = days[0]!.iso;
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
+  // Open on the selected day's month; otherwise skip a month that has under a week left.
+  const [view, setView] = useState(() => {
+    if (draft.date) return startOf(fromISO(draft.date));
+    const leftThisMonth = days.filter((d) => d.selectable && d.date.getMonth() === first.getMonth()).length;
+    return leftThisMonth < 7 ? new Date(first.getFullYear(), first.getMonth() + 1, 1) : startOf(first);
+  });
+  // Follow the selected day (e.g. once the saved draft loads, or after "Soonest").
+  const selectedMonth = draft.date ? startOf(fromISO(draft.date)).getTime() : null;
+  useEffect(() => {
+    if (selectedMonth != null) setView(new Date(selectedMonth));
+  }, [selectedMonth]);
+  const minView = startOf(first);
+  const maxView = startOf(last);
+  const canPrev = view > minView;
+  const canNext = view < maxView;
+
+  const offset = (view.getDay() + 6) % 7;
+  const inMonth = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+  const cells = Array.from({ length: Math.ceil((offset + inMonth) / 7) * 7 }, (_, i) => {
+    const d = new Date(view.getFullYear(), view.getMonth(), 1 - offset + i);
+    return { d, iso: toISO(d), current: d.getMonth() === view.getMonth() };
+  });
+
+  const pick = (iso: string) => {
+    haptic();
+    update({ date: iso, time: null });
+    onPicked?.();
+  };
+  const jumpToday = () => {
+    const firstOpen = days.find((d) => d.selectable);
+    if (!firstOpen) return;
+    setView(startOf(firstOpen.date));
+    pick(firstOpen.iso);
+  };
+  const nav =
+    "press flex h-11 w-11 items-center justify-center rounded-full border border-foreground/12 bg-card text-foreground/75 hover:border-foreground/40 disabled:opacity-30";
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button type="button" aria-label="Previous month" disabled={!canPrev} onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))} className={nav}>
+            <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+          <div key={view.getTime()} aria-live="polite" className="tick-in min-w-40 text-center font-display text-[1.15rem] uppercase tracking-[0.16em] xl:text-[1.25rem]">
+            {view.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+          </div>
+          <button type="button" aria-label="Next month" disabled={!canNext} onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))} className={nav}>
+            <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={jumpToday}
+          className="press inline-flex h-11 items-center gap-2.5 rounded-sm border border-foreground/12 bg-card px-4 text-[0.88rem] hover:border-foreground/40"
+        >
+          <CalendarDays className="h-4 w-4" strokeWidth={1.25} />
+          Soonest
+        </button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-7 gap-2 text-center text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
+        {WEEKDAYS.map((w) => (
+          <span key={w}>{w}</span>
+        ))}
+      </div>
+      <div key={view.getTime()} className="slide-in mt-2 grid grid-cols-7 gap-2">
+        {cells.map(({ d, iso, current }) => {
+          const inWindow = bookable.has(iso);
+          const open = bookable.get(iso) === true;
+          const closed = inWindow && !open;
+          const on = draft.date === iso;
+          return (
+            <button
+              key={iso}
+              type="button"
+              disabled={!open}
+              aria-pressed={on}
+              aria-label={d.toDateString() + (closed ? " (closed)" : !inWindow ? " (unavailable)" : "")}
+              onClick={() => pick(iso)}
+              className={
+                "press relative flex h-14 flex-col items-center justify-center rounded-md border lg:h-[3.4rem] " +
+                (on
+                  ? "ring-pulse border-foreground bg-foreground text-background"
+                  : open
+                    ? "border-foreground/12 bg-card hover:border-foreground/50"
+                    : closed
+                      ? "border-transparent bg-foreground/[0.04] text-foreground/30"
+                      : "border-transparent text-foreground/20") +
+                (current ? "" : " opacity-50")
+              }
+            >
+              <span className={"font-display text-[1.35rem] leading-none " + (closed ? "line-through decoration-1" : "")}>
+                {d.getDate()}
+              </span>
+              <span className="mt-1 text-[0.55rem] uppercase tracking-[0.16em]">
+                {closed ? "Closed" : iso === todayIso ? "Today" : d.toLocaleDateString("en-GB", { month: "short" })}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const shortDate = (iso: string) =>
   fromISO(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -214,17 +436,13 @@ function DesktopTime({
   slots: Slot[];
   busy: { time: number; slots: number }[];
 }) {
-  const { draft, update, totalSlots, totalPrice, hasFromPricing, selected } = useBooking();
+  const { draft, totalSlots, totalPrice, hasFromPricing, selected } = useBooking();
   const navigate = useNavigate();
-  const dayRow = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    dayRow.current
-      ?.querySelector<HTMLElement>('[aria-pressed="true"]')
-      ?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-  }, [draft.date]);
+  // After the guest picks a day, glide down to its times.
+  const slotsRef = useRef<HTMLDivElement>(null);
+  const toSlots = () =>
+    window.setTimeout(() => slotsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
 
-  const booked = (m: number) =>
-    busy.some((b) => m < b.time + b.slots * SLOT_MINUTES && b.time < m + SLOT_MINUTES);
   const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
   const first = selected[0];
 
@@ -232,131 +450,50 @@ function DesktopTime({
     <DesktopPage>
       <DesktopStepHeader back="/services" step={3} />
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(20rem,32%)]">
-        <main className="page-in min-h-0 overflow-y-auto px-14 py-9 [scrollbar-width:thin] xl:px-20">
+      {/* tablet portrait: one column (calendar, then times); from lg the calendar and the times sit side by side */}
+      <main className="page-in min-h-0 flex-1 overflow-y-auto px-8 py-8 [scrollbar-width:thin] lg:grid lg:grid-cols-[minmax(21rem,27rem)_minmax(0,1fr)] lg:gap-12 lg:overflow-hidden lg:px-12 lg:py-0 xl:gap-16 xl:px-20">
+        <div className="lg:min-h-0 lg:overflow-y-auto lg:py-9 lg:[scrollbar-width:none]">
           <StepTitle step="three">
             Choose a <Accent>time.</Accent>
           </StepTitle>
 
-          <div className="mt-6 flex items-start gap-5">
-            <CalendarDays className="mt-0.5 h-7 w-7 shrink-0" strokeWidth={1.1} />
+          <div className="mt-6 flex items-start gap-4">
+            <CalendarDays className="mt-0.5 h-6 w-6 shrink-0 text-bronze" strokeWidth={1.1} />
             <div>
-              <div className="text-[1.15rem]">{draft.date ? longDate(draft.date) : "Pick a day below"}</div>
-              <div className="mt-0.5 text-[0.95rem] text-muted-foreground">
+              <div className="text-[1.1rem]">{draft.date ? longDate(draft.date) : "Pick a day"}</div>
+              <div className="mt-0.5 text-[0.92rem] text-muted-foreground">
                 We'll reserve {formatDuration(totalSlots)} for your visit.
               </div>
             </div>
           </div>
 
-          <div
-            ref={dayRow}
-            aria-label="Choose a date"
-            className="-mx-1 mt-6 overflow-x-auto px-1 py-1 [scrollbar-width:thin]"
-          >
-            <div className="flex w-max gap-2 pb-2">
-              {days.map((d) => {
-                const on = draft.date === d.iso;
-                return (
-                  <button
-                    key={d.iso}
-                    disabled={!d.selectable}
-                    aria-pressed={on}
-                    aria-label={d.date.toDateString() + (d.selectable ? "" : " (closed)")}
-                    onClick={() => update({ date: d.iso, time: null })}
-                    className={
-                      "flex w-[4.25rem] shrink-0 flex-col items-center rounded-sm border py-2.5 transition-colors duration-200 " +
-                      (on
-                        ? "border-foreground bg-foreground text-background"
-                        : d.selectable
-                          ? "border-foreground/15 bg-card hover:border-foreground/45"
-                          : "border-transparent text-foreground/25 line-through")
-                    }
-                  >
-                    <span className="text-[0.62rem] uppercase tracking-[0.16em]">
-                      {d.date.toLocaleDateString("en-GB", { weekday: "short" })}
-                    </span>
-                    <span className="mt-1 font-display text-2xl leading-none">{d.date.getDate()}</span>
-                    <span className="mt-1 text-[0.6rem] uppercase tracking-[0.16em]">
-                      {d.date.toLocaleDateString("en-GB", { month: "short" })}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+          <div className="mt-7 max-w-2xl">
+            <MonthCalendar days={days} onPicked={toSlots} />
           </div>
+        </div>
 
+        <div
+          ref={slotsRef}
+          className="mt-4 scroll-mt-4 lg:mt-0 lg:min-h-0 lg:overflow-y-auto lg:py-9 lg:pr-2 lg:[scrollbar-width:thin]"
+        >
           {!draft.date ? (
-            <p className="mt-8 text-muted-foreground">Select a date to see free slots.</p>
+            <EmptySlots text="Pick a day on the calendar to see its free times." />
           ) : slots.length === 0 ? (
-            <p className="mt-8 text-muted-foreground">The salon is closed on this day. Please pick another date.</p>
+            <EmptySlots text="The salon is closed on this day. Please pick another date." />
           ) : (
-            <div key={draft.date} className="slide-in mt-4">
-              {PERIODS.map((p) => {
-                const group = slots.filter((x) => p.test(x.minute));
-                if (group.length === 0) return null;
-                const free = group.filter((x) => x.available).length;
-                return (
-                  <section key={p.label} className="mt-5 hairline-t pt-5">
-                    <div className="flex items-baseline justify-between">
-                      <h2 className="font-sans text-[0.78rem] font-normal uppercase tracking-[0.3em]">{p.label}</h2>
-                      <span className="text-[0.85rem] text-muted-foreground">
-                        {free} {free === 1 ? "slot" : "slots"} available
-                      </span>
-                    </div>
-                    <div className="mt-4 grid grid-cols-4 gap-3 xl:grid-cols-6">
-                      {group.map((x) => {
-                        const on = draft.time === x.minute;
-                        return (
-                          <button
-                            key={x.minute}
-                            disabled={!x.available}
-                            aria-pressed={on}
-                            onClick={() => update({ time: x.minute })}
-                            className={
-                              "flex min-h-14 flex-col items-center justify-center rounded-sm border px-2 py-2 text-[1rem] transition-colors duration-200 " +
-                              (on
-                                ? "border-foreground bg-foreground text-background"
-                                : x.available
-                                  ? "border-foreground/15 bg-card hover:border-foreground/50"
-                                  : "border-transparent bg-foreground/[0.05] text-foreground/35")
-                            }
-                          >
-                            {minuteLabel(x.minute)}
-                            {!x.available ? (
-                              <span className="text-[0.75rem]">{booked(x.minute) ? "Booked" : "Unavailable"}</span>
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              })}
+            <div key={draft.date} className="slide-in lg:-mt-5">
+              <SlotGroups slots={slots} busy={busy} />
               {slots.every((x) => !x.available) ? (
                 <p className="mt-6 text-muted-foreground">No slots left on this day. Please try another date.</p>
               ) : null}
             </div>
           )}
-        </main>
-
-        <ImagePanel
-          src={portrait.url}
-          sub="More than a haircut."
-          title={
-            <>
-              Precision
-              <br />
-              Care
-              <br />
-              <span className="italic text-champagne">Confidence</span>
-            </>
-          }
-        />
-      </div>
+        </div>
+      </main>
 
       <DesktopBar>
         <div className="flex min-w-0 flex-1 items-center gap-6">
-          <Thumb src={img.src} pos={img.pos} className="h-20 w-20" />
+          <Thumb src={img.src} pos={img.pos} className="hidden h-20 w-20 xl:block" />
           <div className="min-w-0">
             <div className="truncate font-display text-[1.6rem] leading-tight">
               {selected.length > 1 ? `${first?.name} + ${selected.length - 1} more` : first?.name}
@@ -367,7 +504,7 @@ function DesktopTime({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-8 border-x border-hairline px-10 py-4 text-[1.05rem]">
+        <div className="flex shrink-0 items-center gap-6 border-x border-hairline px-6 py-4 text-[1.05rem] xl:gap-8 xl:px-10">
           <span className="flex items-center gap-3">
             <CalendarDays className="h-5 w-5" strokeWidth={1.25} />
             {draft.date ? shortDate(draft.date) : "Pick a day"}
@@ -377,9 +514,9 @@ function DesktopTime({
             {draft.time != null ? minuteLabel(draft.time) : "Pick a time"}
           </span>
         </div>
-        <div className="text-center">
+        <div className="hidden text-center lg:block">
           <div className="text-[0.85rem] text-muted-foreground">Total</div>
-          <div className="font-display text-3xl leading-tight">
+          <div key={totalPrice} className="tick-in font-display text-3xl leading-tight">
             {inr(totalPrice)}
             {hasFromPricing ? "+" : ""}
           </div>

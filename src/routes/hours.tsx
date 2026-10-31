@@ -1,6 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Page, Screen, ScreenHeader } from "@/components/screen";
-import { BUSINESS, WEEK, minuteLabel } from "@/lib/salon";
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { BookCTA, InfoPage, InfoTitle } from "@/components/info-page";
+import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel } from "@/lib/salon";
+import womenImg from "@/assets/women.jpg.asset.json";
 
 export const Route = createFileRoute("/hours")({
   head: () => ({
@@ -19,44 +21,63 @@ export const Route = createFileRoute("/hours")({
 });
 
 function HoursScreen() {
-  return (
-    <Page>
-      <ScreenHeader back="/" title="Hours" />
-      <Screen>
-        <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
-          When we're <span className="italic">open.</span>
-        </h1>
+  // Highlight today on the client only (the server may be in another timezone).
+  const [today, setToday] = useState<string | null>(null);
+  useEffect(() => setToday(new Date().toLocaleDateString("en-GB", { weekday: "long" })), []);
 
-        <ul className="mt-10">
-          {WEEK.map((d) => (
-            <li key={d.day} className="flex items-baseline justify-between py-4 hairline-b">
-              <span className="text-[1.05rem]">{d.day}</span>
-              <span
-                className={
-                  "text-sm " + (d.closed ? "text-foreground/35 italic" : "text-muted-foreground")
-                }
-              >
+  return (
+    <InfoPage
+      label="Hours"
+      image={womenImg.url}
+      imagePos="45% 25%"
+      panelEyebrow="Open six days"
+      panelTitle={
+        <>
+          Time,
+          <br />
+          <span className="italic text-champagne">well kept.</span>
+        </>
+      }
+      panelSub={`Closed ${BUSINESS.closedDay}s`}
+    >
+      <InfoTitle eyebrow="Opening hours" sub="Booking slots run every 30 minutes, and we only show times that are genuinely free.">
+        When we're <span className="italic text-bronze">open.</span>
+      </InfoTitle>
+
+      <ul className="stagger mt-9 overflow-hidden rounded-md border border-hairline bg-card">
+        {WEEK.map((d) => {
+          const isToday = d.day === today;
+          return (
+            <li
+              key={d.day}
+              className={
+                "flex items-center justify-between gap-4 border-b border-hairline px-4 py-4 last:border-b-0 lg:px-6 " +
+                (isToday ? "bg-champagne/14" : "")
+              }
+            >
+              <span className="flex items-center gap-3 text-[1rem]">
+                {d.day}
+                {isToday ? (
+                  <span className="rounded-full bg-bronze px-2 py-0.5 text-[0.6rem] uppercase tracking-[0.18em] text-ivory">
+                    Today
+                  </span>
+                ) : null}
+              </span>
+              <span className={"text-[0.9rem] tabular-nums " + (d.closed ? "italic text-foreground/40" : "text-muted-foreground")}>
                 {d.closed
                   ? "Closed"
-                  : `${minuteLabel(d.open ?? 10 * 60)} — ${minuteLabel(d.close ?? 20 * 60)}`}
+                  : `${minuteLabel(d.open ?? OPEN_MINUTE)} – ${minuteLabel(d.close ?? CLOSE_MINUTE)}`}
               </span>
             </li>
-          ))}
-        </ul>
+          );
+        })}
+      </ul>
 
-        <p className="mt-8 text-sm leading-relaxed text-muted-foreground">
-          Last appointment starts at {BUSINESS.lastSlot}. Booking slots run in 30-minute intervals,
-          and we only show times that are genuinely free.
-        </p>
+      <p className="mt-6 text-[0.9rem] leading-relaxed text-muted-foreground">
+        Last appointment starts at {BUSINESS.lastSlot}.
+      </p>
 
-        <Link
-          to="/book"
-          className="label-caps mt-10 flex w-full items-center justify-between gap-4 bg-foreground px-6 py-4.5 text-background"
-        >
-          <span>Book an appointment</span>
-          <span>→</span>
-        </Link>
-      </Screen>
-    </Page>
+      <BookCTA className="mt-10" />
+    </InfoPage>
   );
 }

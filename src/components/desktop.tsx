@@ -1,11 +1,12 @@
 // Laptop / desktop (lg+) building blocks for the booking flow.
 // Mobile keeps using the components in ./screen.tsx.
 import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Phone } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Clock, MapPin, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BUSINESS, type Audience } from "@/lib/salon";
+import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
+import { SnipLine } from "@/components/motion";
 import menImg from "@/assets/men.jpg.asset.json";
 import womenImg from "@/assets/women.jpg.asset.json";
 
@@ -28,7 +29,7 @@ export const prettyPhone = (p: string) => {
 /** Full-height desktop shell: header, scrolling body, sticky footer bar. */
 export function DesktopPage({ children }: { children: ReactNode }) {
   return (
-    <div className="hidden h-[100svh] flex-col overflow-hidden bg-background lg:flex">
+    <div className="hidden h-[100svh] min-h-[600px] flex-col overflow-hidden bg-background md:flex">
       {children}
     </div>
   );
@@ -38,7 +39,7 @@ export function DesktopPage({ children }: { children: ReactNode }) {
 export function DesktopStepHeader({ back, step }: { back: string; step: number }) {
   return (
     <header className="shrink-0">
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center px-10 py-4 xl:px-16">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center px-6 py-4 lg:px-10 xl:px-16">
         <Link
           to={back as never}
           className="label-caps inline-flex items-center gap-3 justify-self-start text-foreground/80 transition-opacity hover:opacity-60"
@@ -59,29 +60,15 @@ export function DesktopStepHeader({ back, step }: { back: string; step: number }
 }
 
 export function ProgressLine({ step, className }: { step: number; className?: string }) {
-  return (
-    <div
-      className={cn("h-0.5 w-full bg-hairline", className)}
-      role="progressbar"
-      aria-valuemin={1}
-      aria-valuemax={STEPS.length}
-      aria-valuenow={step}
-      aria-label={`Step ${step} of ${STEPS.length}`}
-    >
-      <div
-        className="h-full bg-bronze/70 transition-[width] duration-700"
-        style={{ width: `${(step / STEPS.length) * 100}%` }}
-      />
-    </div>
-  );
+  return <SnipLine step={step} total={STEPS.length} className={className} />;
 }
 
 /** Wordmark · numbered stepper · call button (services screen). */
 export function DesktopStepperHeader({ step }: { step: number }) {
   return (
-    <header className="flex shrink-0 items-center justify-between gap-8 hairline-b px-10 py-4 xl:px-16">
+    <header className="flex shrink-0 items-center justify-between gap-6 hairline-b px-6 py-4 lg:gap-8 lg:px-10 xl:px-16">
       <Link to="/" aria-label="Hair by Bhargav" className="inline-flex shrink-0">
-        <Wordmark className="h-14" />
+        <Wordmark className="h-11 lg:h-14" />
       </Link>
       <ol className="flex flex-1 items-start justify-center" aria-label="Booking progress">
         {STEPS.map((label, i) => {
@@ -91,7 +78,7 @@ export function DesktopStepperHeader({ step }: { step: number }) {
           return (
             <li
               key={label}
-              className="relative flex w-28 flex-col items-center xl:w-36"
+              className="relative flex w-[4.5rem] flex-col items-center lg:w-28 xl:w-36"
               aria-current={on ? "step" : undefined}
             >
               {i > 0 ? (
@@ -136,7 +123,7 @@ export function CallButton({ withNumber = true }: { withNumber?: boolean }) {
       className="group flex shrink-0 items-center gap-4"
       aria-label="Call the studio"
     >
-      <span className="flex h-14 w-14 items-center justify-center border border-foreground/15 transition-colors group-hover:border-foreground/40">
+      <span className="flex h-12 w-12 items-center justify-center border border-foreground/15 transition-colors lg:h-14 lg:w-14 group-hover:border-foreground/40">
         <Phone className="h-5 w-5" strokeWidth={1.25} />
       </span>
       {withNumber ? (
@@ -153,7 +140,7 @@ export function CallButton({ withNumber = true }: { withNumber?: boolean }) {
 export function DesktopBar({ children }: { children: ReactNode }) {
   return (
     <div className="shrink-0 border-t border-hairline bg-card shadow-[0_-12px_32px_-24px_color-mix(in_oklab,var(--ink)_35%,transparent)]">
-      <div className="flex items-center gap-8 px-10 py-4 xl:px-16">{children}</div>
+      <div className="flex items-center gap-5 px-6 py-4 lg:gap-8 lg:px-10 xl:px-16">{children}</div>
     </div>
   );
 }
@@ -175,7 +162,7 @@ export function DesktopCTA({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "group flex h-[4.25rem] min-w-[19rem] items-center justify-center gap-4 rounded-sm bg-foreground px-10 text-[1.05rem] tracking-[0.02em] text-background transition-colors duration-300 hover:bg-foreground/88 disabled:bg-foreground/30",
+        "press sheen group flex h-16 shrink-0 items-center justify-center gap-4 rounded-sm bg-foreground px-8 md:min-w-[13rem] lg:h-[4.25rem] lg:min-w-[19rem] lg:px-10 text-[1.05rem] tracking-[0.02em] text-background hover:bg-foreground/88 disabled:bg-foreground/30",
         className,
       )}
     >
@@ -198,10 +185,10 @@ export function ImagePanel({
   className,
 }: {
   src: string;
-  pos?: string;
-  eyebrow?: string;
+  pos?: string | undefined;
+  eyebrow?: string | undefined;
   title: ReactNode;
-  sub?: string;
+  sub?: string | undefined;
   className?: string;
 }) {
   return (
@@ -209,12 +196,12 @@ export function ImagePanel({
       <img
         src={src}
         alt=""
-        className="absolute inset-0 h-full w-full object-cover opacity-80"
+        className="absolute inset-0 h-full w-full object-cover opacity-80 cine-drift"
         style={{ objectPosition: pos }}
         decoding="async"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
-      <div className="absolute inset-x-0 bottom-0 p-10 xl:p-12">
+      <div className="stagger absolute inset-x-0 bottom-0 p-10 xl:p-12">
         {eyebrow ? (
           <div className="text-[0.7rem] uppercase tracking-[0.32em] text-ivory/80">{eyebrow}</div>
         ) : null}
@@ -267,5 +254,135 @@ export function Thumb({ src, pos, className }: { src: string; pos?: string; clas
       style={{ objectPosition: pos }}
       decoding="async"
     />
+  );
+}
+
+/** "Wed – Mon" from the weekly pattern (first open day after a closed day). */
+export function openDaysLabel() {
+  const short = (d: string) => d.slice(0, 3);
+  const closedAt = WEEK.findIndex((w) => w.closed);
+  if (closedAt === -1) return "Mon – Sun";
+  const open = WEEK.map((_, i) => WEEK[(closedAt + 1 + i) % WEEK.length]!).filter((w) => !w.closed);
+  if (open.length === 0) return "Closed";
+  return `${short(open[0]!.day)} – ${short(open[open.length - 1]!.day)}`;
+}
+
+/** Hours · studio · contact row used at the foot of the entry screens. */
+export function InfoStrip({ className }: { className?: string }) {
+  const phone = BUSINESS.phones[0] ?? "";
+  const [area, ...rest] = BUSINESS.locationShort.split(" · ");
+  const info = [
+    {
+      icon: Clock,
+      label: "Hours",
+      lines: [openDaysLabel(), `${minuteLabel(OPEN_MINUTE)} – ${minuteLabel(CLOSE_MINUTE)}`],
+      href: "/hours",
+    },
+    { icon: MapPin, label: "Studio", lines: [`${area},`, rest.join(", ")], href: "/studio" },
+    { icon: Phone, label: "Contact", lines: [prettyPhone(phone)], href: `tel:${phone}` },
+  ];
+  return (
+    <footer className={cn("grid shrink-0 grid-cols-3 hairline-t py-7", className)}>
+      {info.map(({ icon: Icon, label, lines, href }, i) => (
+        <a
+          key={label}
+          href={href}
+          className={cn("group flex items-start gap-4 px-5 first:pl-0 lg:gap-5 lg:px-8", i < 2 && "border-r border-hairline")}
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-bronze/25 lg:h-12 lg:w-12 text-bronze transition-colors duration-300 group-hover:bg-bronze group-hover:text-ivory">
+            <Icon className="h-5 w-5" strokeWidth={1.25} />
+          </span>
+          <span>
+            <span className="label-caps block text-foreground/85">{label}</span>
+            {lines.map((l) => (
+              <span
+                key={l}
+                className="mt-1 block whitespace-nowrap text-[0.9rem] text-muted-foreground transition-colors group-hover:text-foreground lg:text-[0.95rem]"
+              >
+                {l}
+              </span>
+            ))}
+          </span>
+        </a>
+      ))}
+    </footer>
+  );
+}
+
+/** Horizontal strip with edge fades and arrow buttons for mouse users. */
+export function ScrollStrip({
+  children,
+  label,
+  className,
+  scrollRef,
+}: {
+  children: ReactNode;
+  label: string;
+  className?: string;
+  scrollRef?: RefObject<HTMLDivElement | null>;
+}) {
+  const own = useRef<HTMLDivElement>(null);
+  const ref = scrollRef ?? own;
+  const [edge, setEdge] = useState({ start: true, end: false });
+  const update = () => {
+    const el = ref.current;
+    if (!el) return;
+    setEdge({ start: el.scrollLeft < 4, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 4 });
+  };
+  useEffect(() => {
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const by = (dir: number) => {
+    const el = ref.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.75, behavior: "smooth" });
+  };
+  const arrow =
+    "press absolute top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-foreground/12 bg-card text-foreground/75 shadow-[0_8px_20px_-12px_color-mix(in_oklab,var(--ink)_50%,transparent)] transition-opacity duration-300 hover:text-foreground";
+  return (
+    <div className={cn("relative", className)}>
+      <div
+        ref={ref}
+        onScroll={update}
+        aria-label={label}
+        className="overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {children}
+      </div>
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-background to-transparent transition-opacity",
+          edge.start && "opacity-0",
+        )}
+      />
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-background to-transparent transition-opacity",
+          edge.end && "opacity-0",
+        )}
+      />
+      <button
+        type="button"
+        aria-label="Earlier dates"
+        onClick={() => by(-1)}
+        className={cn(arrow, "-left-3", edge.start && "pointer-events-none opacity-0")}
+        tabIndex={edge.start ? -1 : 0}
+      >
+        <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
+      </button>
+      <button
+        type="button"
+        aria-label="Later dates"
+        onClick={() => by(1)}
+        className={cn(arrow, "-right-3", edge.end && "pointer-events-none opacity-0")}
+        tabIndex={edge.end ? -1 : 0}
+      >
+        <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
+      </button>
+    </div>
   );
 }
