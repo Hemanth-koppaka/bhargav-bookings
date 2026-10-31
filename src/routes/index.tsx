@@ -78,6 +78,26 @@ function StatusPill({ className }: { className?: string }) {
   );
 }
 
+/** Mobile: today's status as a quiet editorial line under the portrait (no badge over the photo). */
+function StatusLine() {
+  const status = useTodayStatus();
+  // reserve the line's height so nothing shifts when it appears after hydration
+  if (!status) return <div className="-mt-1.5 h-4 md:hidden" aria-hidden />;
+  const [lead, ...rest] = status.text.split(" · ");
+  return (
+    <div className="-mt-1.5 flex h-4 items-center md:hidden gap-2 text-[0.64rem] font-medium uppercase tracking-[0.2em] text-foreground/80">
+      <span className={"h-1.5 w-1.5 shrink-0 rounded-full " + (status.open ? "bg-emerald-600" : "bg-foreground/35")} aria-hidden />
+      <span>{lead}</span>
+      {rest.length ? (
+        <>
+          <span className="text-foreground/30" aria-hidden>·</span>
+          <span className="text-foreground/60">{rest.join(" · ")}</span>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 function Home() {
   return (
     <>
@@ -110,7 +130,8 @@ function Intro() {
       (el) => el.getClientRects().length > 0,
     );
     const finish = () => {
-      root.classList.add("intro-seen");
+      // the logo has landed: it stays still from here (no second reveal or sheen)
+      root.classList.add("intro-seen", "intro-done");
       root.classList.remove("intro-run");
       setGone(true);
     };
@@ -259,7 +280,8 @@ function MobileHome() {
             fetchPriority="high"
           />
           <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-          <StatusPill className="absolute top-3.5 left-3.5" />
+          {/* tablet keeps the status on the photo; phones show it as a line below (StatusLine) */}
+          <StatusPill className="absolute top-3.5 left-3.5 max-md:hidden" />
           <span className="absolute inset-x-0 bottom-0 flex items-end justify-between p-4 text-ivory">
             <span>
               <span className="block text-[0.6rem] uppercase tracking-[0.28em] text-ivory/75">Founder · Chief Stylist</span>
@@ -272,7 +294,8 @@ function MobileHome() {
         </Link>
 
         <div className="stagger after-intro shrink-0 pt-[clamp(1rem,3svh,1.75rem)] pb-[clamp(0.75rem,2svh,1.25rem)]">
-          <div className="text-[0.6rem] uppercase tracking-[0.28em] text-muted-foreground">{BUSINESS.locationShort}</div>
+          <StatusLine />
+          <div className="mt-4 text-[0.6rem] uppercase tracking-[0.28em] text-muted-foreground md:mt-0">{BUSINESS.locationShort}</div>
           <h1 className="mt-2 font-display text-[clamp(2.6rem,12vw,3.4rem)] leading-[0.95] tracking-[-0.015em]">
             Reserve <span className="italic text-bronze">your chair.</span>
           </h1>
