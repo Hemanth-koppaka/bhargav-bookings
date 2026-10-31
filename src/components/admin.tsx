@@ -29,7 +29,7 @@ export function AdminShell({ title, subtitle, right, children }: {
   children: ReactNode;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { signOut, settings } = useAdmin();
+  const { signOut, settings, weakCode } = useAdmin();
 
   const isActive = (to: string, exact?: boolean) =>
     exact ? pathname === to || pathname === to + "/" : pathname.startsWith(to);
@@ -60,7 +60,7 @@ export function AdminShell({ title, subtitle, right, children }: {
           ))}
         </nav>
         <button
-          onClick={signOut}
+          onClick={() => signOut()}
           className="label-caps mt-auto flex items-center gap-3 px-3 py-3 text-foreground/50 transition-colors hover:text-foreground"
         >
           <LogOut className="h-4 w-4" strokeWidth={1.25} /> Sign out
@@ -77,6 +77,17 @@ export function AdminShell({ title, subtitle, right, children }: {
             {right}
           </div>
         </header>
+        {weakCode ? (
+          <div role="status" className="flex flex-wrap items-center justify-between gap-3 border-b border-destructive/20 bg-destructive/[0.05] px-6 py-3 text-sm">
+            <span>
+              This console is protected by a short or default access code. Anyone who guesses it can see every
+              client's details.
+            </span>
+            <Link to="/admin/settings" hash="access" className="label-caps text-destructive underline underline-offset-4">
+              Set a stronger code
+            </Link>
+          </div>
+        ) : null}
 
         <main className="flex-1 px-6 pb-28 pt-6 lg:pb-12">
           <div className="fade-rise mx-auto w-full max-w-5xl">{children}</div>
@@ -155,18 +166,23 @@ export function TinyButton({
   onClick,
   active,
   tone = "default",
+  type = "button",
+  disabled,
 }: {
   children: ReactNode;
   onClick?: () => void;
   active?: boolean;
   tone?: "default" | "danger";
+  type?: "button" | "submit";
+  disabled?: boolean;
 }) {
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
+      disabled={disabled}
       className={cn(
-        "label-caps border px-3 py-2 text-[0.55rem] transition-colors",
+        "label-caps press min-h-9 border px-3 py-2 text-[0.6rem] transition-colors disabled:opacity-40",
         active
           ? "border-foreground bg-foreground text-background"
           : tone === "danger"

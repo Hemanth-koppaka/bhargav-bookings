@@ -67,14 +67,17 @@ export type DateException = {
 /** Specific dates that override the weekly pattern (holidays, special hours). */
 export const EXCEPTIONS: Record<string, DateException> = {};
 
+/** Lunch, every open day, unless the salon sets its own breaks in the admin console. */
+export const DEFAULT_LUNCH: TimeRange = { start: 13 * 60, end: 14 * 60 };
+
 export const WEEK: WeekDay[] = [
-  { day: "Monday", closed: false },
+  { day: "Monday", closed: false, breaks: [DEFAULT_LUNCH] },
   { day: "Tuesday", closed: true },
-  { day: "Wednesday", closed: false },
-  { day: "Thursday", closed: false },
-  { day: "Friday", closed: false },
-  { day: "Saturday", closed: false },
-  { day: "Sunday", closed: false },
+  { day: "Wednesday", closed: false, breaks: [DEFAULT_LUNCH] },
+  { day: "Thursday", closed: false, breaks: [DEFAULT_LUNCH] },
+  { day: "Friday", closed: false, breaks: [DEFAULT_LUNCH] },
+  { day: "Saturday", closed: false, breaks: [DEFAULT_LUNCH] },
+  { day: "Sunday", closed: false, breaks: [DEFAULT_LUNCH] },
 ];
 
 const s = (id: string, name: string, price: number, slots: number, extra?: Partial<Service>): Service => ({

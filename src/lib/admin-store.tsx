@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { findService, toISO, type Audience, type Service } from "./salon";
 import { type Booking, type Customer } from "./booking-store";
-import { adminCheckPin, adminListBookings, adminUpsertBooking, adminChangePin,
+import { toast } from "sonner";
+import { adminSignIn, adminListBookings, adminUpsertBooking, adminChangePin,
   adminSaveConfig, type BookingRow } from "./salon.functions";
 
 /* ── Types ───────────────────────────────────────────────────── */
@@ -42,10 +43,11 @@ export type Staff = {
 };
 
 export type AdminSettings = {
-  pin: string;
   salonName: string;
   acceptingBookings: boolean;
 };
+
+export type SignInOutcome = { ok: true } | { ok: false; message: string };
 
 export type Appointment = {
   reference: string;
@@ -77,7 +79,6 @@ const DEFAULT_STAFF: Staff[] = [
 ];
 
 const DEFAULT_SETTINGS: AdminSettings = {
-  pin: "1143",
   salonName: "Hair by Bhargav",
   acceptingBookings: true,
 };
@@ -112,10 +113,15 @@ function makeRef() {
 type Ctx = {
   hydrated: boolean;
   authed: boolean;
+  /** Session token sent with every admin call (the server field is still called `pin`). */
   pin: string;
-  signIn: (pin: string) => Promise<boolean>;
+  /** True while the console is still protected by a short or default code. */
+  weakCode: boolean;
+  signIn: (code: string) => Promise<SignInOutcome>;
+  changeCode: (current: string, next: string) => Promise<SignInOutcome>;
   refresh: () => void;
-  signOut: () => void;
+  signOut: (reason?: string) => void;
+  signOutReason: string;
 
   appointments: Appointment[];
   byDate: (iso: string) => Appointment[];
@@ -138,9 +144,24 @@ type Ctx = {
 
 const AdminContext = createContext<Ctx | null>(null);
 
+type StoredSession = { token: string; expiresAt: number; weak: boolean };
+
+function readSession(): StoredSession | null {
+  try {
+    const s = JSON.parse(window.sessionStorage.getItem(SESSION_KEY) ?? "null") as StoredSession | null;
+    return s && s.token && s.expiresAt > Date.now() ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+const fmtWait = (sec: number) => (sec >= 90 ? `${Math.ceil(sec / 60)} minutes` : `${sec} seconds`);
+
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [rows, setRows] = useState<BookingRow[]>([]);
   const [pinCode, setPinCode] = useState("");
+  const [weakCode, setWeakCode] = useState(false);
+  const [signOutReason, setSignOutReason] = useState("");
 
   const [hydrated, setHydrated] = useState(false);
   const [authed, setAuthed] = useState(false);
@@ -154,21 +175,33 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setWalkIns(read<WalkIn[]>(WALKIN_KEY, []));
     setStaff(read<Staff[]>(STAFF_KEY, DEFAULT_STAFF));
     setSettings({ ...DEFAULT_SETTINGS, ...read<Partial<AdminSettings>>(SETTINGS_KEY, {}) });
-    const saved = window.sessionStorage.getItem(SESSION_KEY) ?? "";
-    if (saved.length >= 4) {
-      setPinCode(saved);
+    const session = readSession();
+    if (session) {
+      setPinCode(session.token);
+      setWeakCode(session.weak);
       setAuthed(true);
+    } else {
+      window.sessionStorage.removeItem(SESSION_KEY);
     }
     setHydrated(true);
   }, []);
 
-  const load = (pin: string) =>
-    adminListBookings({ data: { pin } })
-      .then((r) => setRows(r.bookings))
-      .catch(() => {
-        setAuthed(false);
-        window.sessionStorage.removeItem(SESSION_KEY);
-      });
+  const endSession = (reason = "") => {
+    setAuthed(false);
+    setPinCode("");
+    setRows([]);
+    setSignOutReason(reason);
+    window.sessionStorage.removeItem(SESSION_KEY);
+  };
+
+  const load = (token: string) =>
+    adminListBookings({ data: { pin: token } })
+      .then((r) => {
+        setRows(r.bookings);
+        if (r.staffJson) setStaff(JSON.parse(r.staffJson) as Staff[]);
+        setSettings((s) => ({ ...s, acceptingBookings: r.accepting }));
+      })
+      .catch(() => endSession("Your session ended. Please sign in again."));
 
   useEffect(() => {
     if (!authed || !pinCode) return;
@@ -189,6 +222,25 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return;
     window.localStorage.setItem(STAFF_KEY, JSON.stringify(staff));
   }, [staff, hydrated]);
+
+  /** Saves the team list for every device; rolls back with a message on failure. */
+  const saveStaff = (next: Staff[]) => {
+    const prev = staff;
+    setStaff(next);
+    adminSaveConfig({ data: { pin: pinCode, config: { staff: next } } }).catch(() => {
+      setStaff(prev);
+      toast.error("Couldn't save the team list. Check your connection and try again.");
+    });
+  };
+
+  /** Runs a server write; on failure tells the operator and reloads the true state. */
+  const guard = (p: Promise<unknown>, message: string) =>
+    p.catch((e: unknown) => {
+      const text = e instanceof Error ? e.message : "";
+      if (/session/i.test(text)) return endSession("Your session ended. Please sign in again.");
+      toast.error(message);
+      void load(pinCode);
+    });
   useEffect(() => {
     if (!hydrated) return;
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
@@ -232,33 +284,56 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       const next = { ...DEFAULT_META, ...metas[reference], ...(row?.meta as Partial<ApptMeta>), ...patch };
       setMetas((m) => ({ ...m, [reference]: next }));
       setRows((rs) => rs.map((r) => (r.reference === reference ? { ...r, meta: next, status: patch.status === "cancelled" ? "cancelled" : patch.status ? "confirmed" : r.status } : r)));
-      void adminUpsertBooking({
-        data: {
-          pin: pinCode,
-          reference,
-          patch: { meta: next, ...(patch.status ? { status: patch.status === "cancelled" ? "cancelled" : "confirmed" } : {}) },
-        },
-      }).catch(() => {});
+      void guard(
+        adminUpsertBooking({
+          data: {
+            pin: pinCode,
+            reference,
+            patch: { meta: next, ...(patch.status ? { status: patch.status === "cancelled" ? "cancelled" : "confirmed" } : {}) },
+          },
+        }),
+        "Couldn't save that change. The appointment has been reloaded.",
+      );
+    };
+
+    const startSession = (s: StoredSession) => {
+      setPinCode(s.token);
+      setWeakCode(s.weak);
+      setAuthed(true);
+      setSignOutReason("");
+      window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
     };
 
     return {
       hydrated,
       authed,
-      signIn: async (pin) => {
-        const p = pin.trim();
-        const { ok } = await adminCheckPin({ data: { pin: p } }).catch(() => ({ ok: false }));
-        if (ok) {
-          setPinCode(p);
-          setAuthed(true);
-          window.sessionStorage.setItem(SESSION_KEY, p);
+      weakCode,
+      signOutReason,
+      signIn: async (code) => {
+        const r = await adminSignIn({ data: { code: code.trim() } }).catch(() => null);
+        if (!r) return { ok: false, message: "Couldn't reach the server. Check your connection." };
+        if (r.ok) {
+          startSession({ token: r.token, expiresAt: r.expiresAt, weak: r.weak });
+          return { ok: true };
         }
-        return ok;
+        if (r.lockedFor) return { ok: false, message: `Too many attempts. Try again in ${fmtWait(r.lockedFor)}.` };
+        return {
+          ok: false,
+          message:
+            r.attemptsLeft && r.attemptsLeft <= 2
+              ? `That code doesn't match. ${r.attemptsLeft} ${r.attemptsLeft === 1 ? "try" : "tries"} left before a short lock.`
+              : "That code doesn't match.",
+        };
+      },
+      changeCode: async (current, next) => {
+        const r = await adminChangePin({ data: { pin: pinCode, current, next } }).catch(() => null);
+        if (!r) return { ok: false, message: "Couldn't reach the server. Check your connection." };
+        if (!r.ok) return { ok: false, message: r.error };
+        startSession({ token: r.token, expiresAt: r.expiresAt, weak: false });
+        return { ok: true };
       },
       refresh: () => void load(pinCode),
-      signOut: () => {
-        setAuthed(false);
-        window.sessionStorage.removeItem(SESSION_KEY);
-      },
+      signOut: (reason) => endSession(reason ?? ""),
 
       appointments,
       byDate: (iso) => appointments.filter((a) => a.date === iso),
@@ -268,7 +343,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setNote: (reference, note) => patchMeta(reference, { note }),
       reschedule: (reference, date, time) => {
         setRows((rs) => rs.map((r) => (r.reference === reference ? { ...r, date, time } : r)));
-        void adminUpsertBooking({ data: { pin: pinCode, reference, patch: { date, time } } }).catch(() => {});
+        void guard(
+          adminUpsertBooking({ data: { pin: pinCode, reference, patch: { date, time } } }),
+          "Couldn't move that appointment. It has been reloaded.",
+        );
       },
 
       addWalkIn: (input) => {
@@ -282,7 +360,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           { ...entry, slots: appt.slots, status: "confirmed", source: "walk-in", meta: {} },
           ...rs,
         ]);
-        void adminUpsertBooking({
+        void guard(adminUpsertBooking({
           data: {
             pin: pinCode,
             reference: entry.reference,
@@ -296,37 +374,30 @@ export function AdminProvider({ children }: { children: ReactNode }) {
               source: "walk-in",
             },
           },
-        }).catch(() => {});
+        }), "Couldn't save the walk-in. Please add it again.");
         return appt;
       },
 
       staff,
       addStaff: (name, role) =>
-        setStaff((s) => [
-          ...s,
-          { id: "st-" + Math.random().toString(36).slice(2, 8), name, role, active: true },
-        ]),
-      toggleStaff: (id) =>
-        setStaff((s) => s.map((x) => (x.id === id ? { ...x, active: !x.active } : x))),
-      removeStaff: (id) => setStaff((s) => s.filter((x) => x.id !== id)),
+        saveStaff([...staff, { id: "st-" + Math.random().toString(36).slice(2, 8), name, role, active: true }]),
+      toggleStaff: (id) => saveStaff(staff.map((x) => (x.id === id ? { ...x, active: !x.active } : x))),
+      removeStaff: (id) => saveStaff(staff.filter((x) => x.id !== id)),
 
       pin: pinCode,
       settings,
       updateSettings: (patch) => {
-        if (patch.pin && /^\d{4,8}$/.test(patch.pin)) {
-          const next = patch.pin;
-          void adminChangePin({ data: { pin: pinCode, next } }).then(() => {
-            setPinCode(next);
-            window.sessionStorage.setItem(SESSION_KEY, next);
-          });
-        }
         if (patch.acceptingBookings !== undefined) {
-          void adminSaveConfig({ data: { pin: pinCode, config: { accepting: patch.acceptingBookings } } });
+          void guard(
+            adminSaveConfig({ data: { pin: pinCode, config: { accepting: patch.acceptingBookings } } }),
+            "Couldn't change online booking. Please try again.",
+          );
         }
         setSettings((s) => ({ ...s, ...patch }));
       },
     };
-  }, [rows, walkIns, metas, staff, settings, hydrated, authed, pinCode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, walkIns, metas, staff, settings, hydrated, authed, pinCode, weakCode, signOutReason]);
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;
 }

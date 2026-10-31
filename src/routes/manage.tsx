@@ -4,7 +4,7 @@ import { CalendarDays, ChevronRight, Clock, Search } from "lucide-react";
 import { GhostAction, PrimaryAction } from "@/components/screen";
 import { InfoPage, InfoTitle, SectionLabel } from "@/components/info-page";
 import { ScrollStrip, prettyPhone } from "@/components/desktop";
-import { useBooking, servicesOf, type Booking } from "@/lib/booking-store";
+import { useBooking, servicesOf, type Booking, type ChangeResult } from "@/lib/booking-store";
 import { getBusySlots } from "@/lib/salon.functions";
 import { availableSlots, calendarDays, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
 import { haptic } from "@/lib/utils";
@@ -187,8 +187,8 @@ function BookingPanel({
   onBack,
 }: {
   booking: Booking;
-  onCancel: () => void;
-  onReschedule: (date: string, time: number) => void;
+  onCancel: () => Promise<ChangeResult>;
+  onReschedule: (date: string, time: number) => Promise<ChangeResult>;
   onBack: () => void;
 }) {
   const services = servicesOf(booking);
@@ -200,6 +200,24 @@ function BookingPanel({
   const [date, setDate] = useState(booking.date);
   const [time, setTime] = useState<number | null>(null);
   const [busy, setBusy] = useState<{ time: number; slots: number }[]>([]);
+  const [working, setWorking] = useState(false);
+  const [problem, setProblem] = useState("");
+  const [notice, setNotice] = useState("");
+  const run = async (action: () => Promise<ChangeResult>, done: string) => {
+    if (working) return;
+    setWorking(true);
+    setProblem("");
+    const r = await action();
+    setWorking(false);
+    if (r.ok) {
+      haptic(15);
+      setNotice(done);
+      setMode("view");
+    } else {
+      haptic(30);
+      setProblem(r.error);
+    }
+  };
   const now = useMemo(() => new Date(), []);
   const days = useMemo(() => calendarDays(56, now), [now]);
 
@@ -237,6 +255,17 @@ function BookingPanel({
           Search again
         </button>
       </div>
+
+      {notice ? (
+        <p role="status" className="pop-in mt-5 rounded-md bg-emerald-600/10 px-4 py-3 text-[0.9rem] text-emerald-900">
+          {notice}
+        </p>
+      ) : null}
+      {problem ? (
+        <p key={problem} role="alert" className="shake mt-5 rounded-md bg-destructive/[0.06] px-4 py-3 text-[0.9rem] text-destructive">
+          {problem}
+        </p>
+      ) : null}
 
       <div className="mt-6 text-[0.62rem] uppercase tracking-[0.3em] text-muted-foreground">
         Reservation · {booking.reference}
@@ -294,14 +323,10 @@ function BookingPanel({
           <p className="text-[0.95rem] leading-relaxed">Cancel this appointment? Your slot will be released immediately.</p>
           <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
             <GhostAction
-              onClick={() => {
-                haptic(20);
-                onCancel();
-                setMode("view");
-              }}
+              onClick={() => void run(onCancel, "Your booking has been cancelled.")}
               className="border-destructive/40 text-destructive hover:border-destructive"
             >
-              Yes, cancel it
+              {working ? "Cancelling…" : "Yes, cancel it"}
             </GhostAction>
             <GhostAction onClick={() => setMode("view")}>Keep my booking</GhostAction>
           </div>
@@ -381,15 +406,13 @@ function BookingPanel({
 
           <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
             <PrimaryAction
-              disabled={time == null}
+              disabled={time == null || working}
               onClick={() => {
                 if (time == null) return;
-                haptic(15);
-                onReschedule(date, time);
-                setMode("view");
+                void run(() => onReschedule(date, time), "Your appointment has been moved.");
               }}
             >
-              Move appointment
+              {working ? "Moving…" : "Move appointment"}
             </PrimaryAction>
             <GhostAction onClick={() => setMode("view")}>Never mind</GhostAction>
           </div>

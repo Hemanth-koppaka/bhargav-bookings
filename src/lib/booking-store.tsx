@@ -55,10 +55,14 @@ type Ctx = {
   bookings: Booking[];
   commitBooking: () => Promise<{ booking: Booking } | { error: string }>;
   findBooking: (reference: string, phone: string) => Promise<Booking | undefined>;
-  cancelBooking: (reference: string) => void;
-  rescheduleBooking: (reference: string, date: string, time: number) => void;
+  cancelBooking: (reference: string) => Promise<ChangeResult>;
+  rescheduleBooking: (reference: string, date: string, time: number) => Promise<ChangeResult>;
   hydrated: boolean;
 };
+
+export type ChangeResult = { ok: true } | { ok: false; error: string };
+
+const OFFLINE = "We couldn't reach the salon. Check your connection and try again.";
 
 const BookingContext = createContext<Ctx | null>(null);
 
@@ -181,20 +185,30 @@ export function BookingProvider({ children }: { children: ReactNode }) {
           return undefined;
         }
       },
-      cancelBooking: (reference) => {
+      // Both changes are confirmed by the salon's server before the screen updates.
+      cancelBooking: async (reference) => {
         const bk = bookings.find((x) => x.reference === reference);
-        if (bk) void updateMyBooking({ data: { reference, phone: bk.customer.phone, action: "cancel" } });
+        if (!bk) return { ok: false, error: "Booking not found on this device." };
+        const r = await updateMyBooking({
+          data: { reference, phone: bk.customer.phone, action: "cancel" },
+        }).catch(() => null);
+        if (!r) return { ok: false, error: OFFLINE };
+        if (!r.ok) return { ok: false, error: ("error" in r && r.error) || "Couldn't cancel this booking." };
         setBookings((b) =>
           b.map((x) => (x.reference === reference ? { ...x, status: "cancelled" as const } : x)),
         );
+        return { ok: true };
       },
-      rescheduleBooking: (reference, date, time) => {
+      rescheduleBooking: async (reference, date, time) => {
         const bk = bookings.find((x) => x.reference === reference);
-        if (bk)
-          void updateMyBooking({
-            data: { reference, phone: bk.customer.phone, action: "reschedule", date, time },
-          });
+        if (!bk) return { ok: false, error: "Booking not found on this device." };
+        const r = await updateMyBooking({
+          data: { reference, phone: bk.customer.phone, action: "reschedule", date, time },
+        }).catch(() => null);
+        if (!r) return { ok: false, error: OFFLINE };
+        if (!r.ok) return { ok: false, error: ("error" in r && r.error) || "Couldn't move this booking." };
         setBookings((b) => b.map((x) => (x.reference === reference ? { ...x, date, time } : x)));
+        return { ok: true };
       },
     };
   }, [draft, bookings, hydrated]);

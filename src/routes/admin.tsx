@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useAdmin } from "@/lib/admin-store";
 import { Wordmark } from "@/components/screen";
 import { inputClass } from "@/components/admin";
+import { Toaster } from "@/components/ui/sonner";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -21,9 +22,10 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminLayout() {
-  const { authed, hydrated, signIn } = useAdmin();
-  const [pin, setPin] = useState("");
+  const { authed, hydrated, signIn, signOutReason } = useAdmin();
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   if (!hydrated) {
     return (
@@ -40,41 +42,64 @@ function AdminLayout() {
           <Wordmark className="mx-auto h-10" />
           <div className="eyebrow mt-8">Operations</div>
           <h1 className="mt-3 font-display text-4xl leading-tight">Enter your access code</h1>
+          {signOutReason ? <p className="mt-4 text-xs text-muted-foreground">{signOutReason}</p> : null}
           <form
             className="mt-10"
             onSubmit={async (e) => {
               e.preventDefault();
-              if (!(await signIn(pin))) setError("That code doesn't match.");
-              else setError("");
+              if (!code.trim() || busy) return;
+              setBusy(true);
+              const r = await signIn(code);
+              setBusy(false);
+              if (r.ok) {
+                setError("");
+                setCode("");
+              } else {
+                setError(r.message);
+              }
             }}
           >
             <input
-              className={inputClass + " text-center tracking-[0.6em]"}
-              value={pin}
+              key={error}
+              className={inputClass + " text-center tracking-[0.6em]" + (error ? " shake" : "")}
+              value={code}
               onChange={(e) => {
-                setPin(e.target.value);
+                setCode(e.target.value);
                 setError("");
               }}
+              type="password"
               inputMode="numeric"
-              autoComplete="off"
-              placeholder="••••"
+              autoComplete="current-password"
+              autoFocus
+              placeholder="••••••"
               aria-label="Access code"
+              aria-invalid={Boolean(error)}
             />
-            {error ? <p className="mt-3 text-xs text-destructive">{error}</p> : null}
+            {error ? (
+              <p role="alert" className="mt-3 text-xs text-destructive">
+                {error}
+              </p>
+            ) : null}
             <button
               type="submit"
-              className="label-caps mt-8 w-full bg-foreground px-6 py-4 text-background transition-opacity hover:opacity-88"
+              disabled={busy || !code.trim()}
+              className="label-caps press mt-8 w-full bg-foreground px-6 py-4 text-background hover:opacity-88 disabled:opacity-40"
             >
-              Unlock
+              {busy ? "Checking…" : "Unlock"}
             </button>
           </form>
           <p className="mt-6 text-[0.7rem] leading-relaxed text-muted-foreground">
-            Bookings from every device appear here.
+            Bookings from every device appear here. Sessions end after 12 hours.
           </p>
         </div>
       </div>
     );
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      <Toaster position="top-center" />
+    </>
+  );
 }
