@@ -28,10 +28,13 @@ import { Route as AdminAppointmentsRouteImport } from './routes/admin.appointmen
 import { Route as AdminCalendarRouteImport } from './routes/admin.calendar'
 import { Route as AdminContentRouteImport } from './routes/admin.content'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
+import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
 import { Route as AdminRulesRouteImport } from './routes/admin.rules'
 import { Route as AdminServicesRouteImport } from './routes/admin.services'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as ApiPhotoSweepRouteImport } from './routes/api/photo-sweep'
+import { Route as ApiNotificationsDispatchRouteImport } from './routes/api/notifications/dispatch'
+import { Route as ApiNotificationsWebhookRouteImport } from './routes/api/notifications/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -128,6 +131,11 @@ const AdminCustomersRoute = AdminCustomersRouteImport.update({
   path: '/customers',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminRulesRoute = AdminRulesRouteImport.update({
   id: '/rules',
   path: '/rules',
@@ -146,6 +154,17 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
 const ApiPhotoSweepRoute = ApiPhotoSweepRouteImport.update({
   id: '/api/photo-sweep',
   path: '/api/photo-sweep',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNotificationsDispatchRoute =
+  ApiNotificationsDispatchRouteImport.update({
+    id: '/api/notifications/dispatch',
+    path: '/api/notifications/dispatch',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiNotificationsWebhookRoute = ApiNotificationsWebhookRouteImport.update({
+  id: '/api/notifications/webhook',
+  path: '/api/notifications/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -168,11 +187,14 @@ export interface FileRoutesByFullPath {
   '/admin/calendar': typeof AdminCalendarRoute
   '/admin/content': typeof AdminContentRoute
   '/admin/customers': typeof AdminCustomersRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/rules': typeof AdminRulesRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/api/photo-sweep': typeof ApiPhotoSweepRoute
   '/admin/': typeof AdminIndexRoute
+  '/api/notifications/dispatch': typeof ApiNotificationsDispatchRoute
+  '/api/notifications/webhook': typeof ApiNotificationsWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -192,11 +214,14 @@ export interface FileRoutesByTo {
   '/admin/calendar': typeof AdminCalendarRoute
   '/admin/content': typeof AdminContentRoute
   '/admin/customers': typeof AdminCustomersRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/rules': typeof AdminRulesRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/api/photo-sweep': typeof ApiPhotoSweepRoute
   '/admin': typeof AdminIndexRoute
+  '/api/notifications/dispatch': typeof ApiNotificationsDispatchRoute
+  '/api/notifications/webhook': typeof ApiNotificationsWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -218,11 +243,14 @@ export interface FileRoutesById {
   '/admin/calendar': typeof AdminCalendarRoute
   '/admin/content': typeof AdminContentRoute
   '/admin/customers': typeof AdminCustomersRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/rules': typeof AdminRulesRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/api/photo-sweep': typeof ApiPhotoSweepRoute
   '/admin/': typeof AdminIndexRoute
+  '/api/notifications/dispatch': typeof ApiNotificationsDispatchRoute
+  '/api/notifications/webhook': typeof ApiNotificationsWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -245,11 +273,14 @@ export interface FileRouteTypes {
     | '/admin/calendar'
     | '/admin/content'
     | '/admin/customers'
+    | '/admin/notifications'
     | '/admin/rules'
     | '/admin/services'
     | '/admin/settings'
     | '/api/photo-sweep'
     | '/admin/'
+    | '/api/notifications/dispatch'
+    | '/api/notifications/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -269,11 +300,14 @@ export interface FileRouteTypes {
     | '/admin/calendar'
     | '/admin/content'
     | '/admin/customers'
+    | '/admin/notifications'
     | '/admin/rules'
     | '/admin/services'
     | '/admin/settings'
     | '/api/photo-sweep'
     | '/admin'
+    | '/api/notifications/dispatch'
+    | '/api/notifications/webhook'
   id:
     | '__root__'
     | '/'
@@ -294,11 +328,14 @@ export interface FileRouteTypes {
     | '/admin/calendar'
     | '/admin/content'
     | '/admin/customers'
+    | '/admin/notifications'
     | '/admin/rules'
     | '/admin/services'
     | '/admin/settings'
     | '/api/photo-sweep'
     | '/admin/'
+    | '/api/notifications/dispatch'
+    | '/api/notifications/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -317,6 +354,8 @@ export interface RootRouteChildren {
   StudioRoute: typeof StudioRoute
   TimeRoute: typeof TimeRoute
   ApiPhotoSweepRoute: typeof ApiPhotoSweepRoute
+  ApiNotificationsDispatchRoute: typeof ApiNotificationsDispatchRoute
+  ApiNotificationsWebhookRoute: typeof ApiNotificationsWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -454,6 +493,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCustomersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/notifications': {
+      id: '/admin/notifications'
+      path: '/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AdminNotificationsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/rules': {
       id: '/admin/rules'
       path: '/rules'
@@ -482,6 +528,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPhotoSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/notifications/dispatch': {
+      id: '/api/notifications/dispatch'
+      path: '/api/notifications/dispatch'
+      fullPath: '/api/notifications/dispatch'
+      preLoaderRoute: typeof ApiNotificationsDispatchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/notifications/webhook': {
+      id: '/api/notifications/webhook'
+      path: '/api/notifications/webhook'
+      fullPath: '/api/notifications/webhook'
+      preLoaderRoute: typeof ApiNotificationsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -490,6 +550,7 @@ interface AdminRouteChildren {
   AdminCalendarRoute: typeof AdminCalendarRoute
   AdminContentRoute: typeof AdminContentRoute
   AdminCustomersRoute: typeof AdminCustomersRoute
+  AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminRulesRoute: typeof AdminRulesRoute
   AdminServicesRoute: typeof AdminServicesRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
@@ -501,6 +562,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCalendarRoute: AdminCalendarRoute,
   AdminContentRoute: AdminContentRoute,
   AdminCustomersRoute: AdminCustomersRoute,
+  AdminNotificationsRoute: AdminNotificationsRoute,
   AdminRulesRoute: AdminRulesRoute,
   AdminServicesRoute: AdminServicesRoute,
   AdminSettingsRoute: AdminSettingsRoute,
@@ -525,6 +587,8 @@ const rootRouteChildren: RootRouteChildren = {
   StudioRoute: StudioRoute,
   TimeRoute: TimeRoute,
   ApiPhotoSweepRoute: ApiPhotoSweepRoute,
+  ApiNotificationsDispatchRoute: ApiNotificationsDispatchRoute,
+  ApiNotificationsWebhookRoute: ApiNotificationsWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

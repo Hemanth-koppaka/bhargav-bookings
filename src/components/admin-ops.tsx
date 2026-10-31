@@ -36,6 +36,7 @@ import { adminSaveBlock } from "@/lib/admin-ops.functions";
 import { adminSaveException } from "@/lib/admin-content.functions";
 import type { Slot } from "@/lib/availability";
 import { adminReferencePhotos } from "@/lib/photos.functions";
+import { adminNotificationLogs, type NotifyLog } from "@/lib/admin-notify.functions";
 
 /* ── small shared bits ─────────────────────────────────────── */
 
@@ -426,6 +427,8 @@ export function BookingDrawer({
             <InternalNote booking={b} busy={busy} onSave={(note) => void patch({ meta: { note } }, "Note saved.")} />
             <PaymentRow booking={b} busy={busy} onSave={(payment, amount) => void patch({ meta: { payment, amount } }, "Payment recorded.")} />
 
+            <BookingMessages reference={b.reference} version={data?.booking ? b.history.length + b.status : ""} />
+
             {/* history */}
             <section>
               <Label>History</Label>
@@ -483,6 +486,55 @@ function RefPhotos({ reference, count }: { reference: string; count: number }) {
     </div>
   );
 }
+
+/** What was sent about this booking, and whether it arrived. */
+function BookingMessages({ reference, version }: { reference: string; version: string }) {
+  const { pin } = useAdmin();
+  const [logs, setLogs] = useState<NotifyLog[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    adminNotificationLogs({ data: { pin, bookingId: reference, page: 0 } })
+      .then((r) => live && setLogs(r.available ? r.logs : []))
+      .catch(() => live && setLogs([]));
+    return () => {
+      live = false;
+    };
+  }, [pin, reference, version]);
+  if (!logs?.length) return null;
+  const who = (r: string) => (r === "admin" ? "Salon" : "Guest");
+  const icon = (st: string) => (st === "delivered" || st === "sent" ? "✓" : st === "failed" || st === "skipped" ? "⚠" : "•");
+  return (
+    <section>
+      <Label>Messages</Label>
+      <ul className="mt-2 space-y-1.5 text-[0.82rem]">
+        {logs.map((l) => (
+          <li key={l.id} className="flex items-start gap-2">
+            <span className={cn("w-3 shrink-0", MSG_TONE[l.status])}>{icon(l.status)}</span>
+            <span className="min-w-0 flex-1">
+              {who(l.recipient)} {l.eventLabel.toLowerCase()} — {l.channel === "whatsapp" ? "WhatsApp" : "SMS"}
+              {l.fallback ? " (fallback)" : ""}
+              {l.errorMessage && ["failed", "skipped"].includes(l.status) ? <span className="block text-[0.74rem] text-muted-foreground">{l.errorMessage}</span> : null}
+            </span>
+            <span className={cn("shrink-0 text-[0.72rem] font-medium uppercase tracking-[0.06em]", MSG_TONE[l.status])}>
+              {l.status === "scheduled" && l.scheduledFor
+                ? `Scheduled ${new Date(l.scheduledFor).toLocaleString("en-GB", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`
+                : l.status}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+const MSG_TONE: Record<string, string> = {
+  delivered: "text-emerald-700",
+  sent: "text-emerald-700",
+  failed: "text-destructive",
+  skipped: "text-amber-700",
+  scheduled: "text-muted-foreground",
+  cancelled: "text-muted-foreground line-through",
+};
 
 const ACTION =
   "press inline-flex min-h-9 items-center gap-1.5 rounded-md border border-foreground/15 px-3 py-1.5 text-[0.82rem] hover:border-foreground/45";

@@ -40,6 +40,8 @@ function DetailsScreen() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
+  // booking messages on WhatsApp/SMS: on unless the guest unticks it
+  const [consent, setConsent] = useState(true);
   const [touched, setTouched] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
@@ -54,6 +56,7 @@ function DetailsScreen() {
       setPhone(draft.customer.phone);
       setEmail(draft.customer.email);
       setNotes(draft.customer.notes ?? "");
+      setConsent(draft.customer.consent !== false);
     }
   }, [hydrated]);
 
@@ -76,6 +79,7 @@ function DetailsScreen() {
       phone: phone.trim(),
       email: email.trim(),
       ...(notes.trim() ? { notes: notes.trim() } : {}),
+      consent,
     };
     update({ customer });
     navigate({ to: "/review" });
@@ -86,6 +90,7 @@ function DetailsScreen() {
     phone: { value: phone, set: setPhone, error: touched && !validPhone ? "Enter a valid 10-digit number." : "" },
     email: { value: email, set: setEmail, error: touched && !validEmail ? "That email doesn't look right." : "" },
     notes: { value: notes, set: setNotes, error: "" },
+    consent: { value: consent, set: setConsent },
   };
 
   return (
@@ -152,7 +157,9 @@ function MobileSummary() {
 }
 
 type Field = { value: string; set: (v: string) => void; error: string };
-type Fields = Record<"name" | "phone" | "email" | "notes", Field>;
+type Fields = Record<"name" | "phone" | "email" | "notes", Field> & {
+  consent: { value: boolean; set: (v: boolean) => void };
+};
 
 const box =
   "w-full rounded-sm border border-foreground/18 bg-card px-5 py-4 text-[1.05rem] outline-none transition-colors placeholder:text-foreground/35 focus:border-foreground/60 aria-[invalid=true]:border-destructive";
@@ -182,7 +189,7 @@ function DetailsFields({
   idPrefix: string;
   attempt: number;
 }) {
-  const { name, phone, email, notes } = fields;
+  const { name, phone, email, notes, consent } = fields;
   return (
     <>
     <div>
@@ -254,6 +261,20 @@ function DetailsFields({
     <div className="mt-6">
       <ReferencePhotos />
     </div>
+
+    <label htmlFor={`${idPrefix}consent`} className="mt-6 flex cursor-pointer items-start gap-3 rounded-md border border-hairline bg-card px-4 py-3.5">
+      <input
+        id={`${idPrefix}consent`}
+        type="checkbox"
+        checked={consent.value}
+        onChange={(e) => consent.set(e.target.checked)}
+        className="mt-0.5 h-[1.125rem] w-[1.125rem] shrink-0 accent-[var(--bronze)]"
+      />
+      <span className="text-[0.88rem] leading-relaxed">
+        Send my booking confirmation, changes and reminders on WhatsApp/SMS.
+        <span className="mt-0.5 block text-[0.76rem] text-muted-foreground">Booking messages only — never promotions. You can still book if you untick this.</span>
+      </span>
+    </label>
     </>
   );
 }

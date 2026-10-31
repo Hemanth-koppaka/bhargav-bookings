@@ -136,7 +136,18 @@ export const adminDashboard = createServerFn({ method: "POST" })
     if (overlapping) alerts.push({ level: "warn", text: "Two of today's appointments overlap.", to: "/admin/calendar" });
     const tomorrow = all.filter((b) => b.date === addDays(today, 1) && active(b)).length;
     if (tomorrow) alerts.push({ level: "info", text: `Tomorrow has ${tomorrow} booking${tomorrow > 1 ? "s" : ""}.`, to: "/admin/calendar" });
-    alerts.push({ level: "info", text: "No message provider connected; guests aren't notified automatically yet." });
+    // messaging health: provider connected? any messages that didn't go out today?
+    const N = await import("./notify/service.server");
+    const ns = await N.loadSettings();
+    if (ns) {
+      const { getProvider } = await import("./notify/provider.server");
+      const st = (await getProvider(ns.provider)).status(ns.providerConfig);
+      if (!st.connected) alerts.push({ level: "info", text: "WhatsApp/SMS not connected yet — booking messages are recorded but not sent.", to: "/admin/notifications" });
+      const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
+      const { data: bad } = await sb.from("notification_logs" as never).select("id").eq("status", "failed").gte("created_at", since).neq("recipient_type", "test");
+      const failedCount = (bad ?? []).length;
+      if (st.connected && failedCount) alerts.push({ level: "warn", text: `${failedCount} booking message${failedCount > 1 ? "s" : ""} failed in the last 24 hours.`, to: "/admin/notifications" });
+    }
 
     const live = todays.filter((b) => ["pending", "upcoming", "arrived", "in-chair"].includes(b.status));
     return {

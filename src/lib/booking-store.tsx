@@ -13,6 +13,8 @@ export type Customer = {
   phone: string;
   email: string;
   notes?: string;
+  /** Agreed to booking messages (confirmation, changes, reminders) on WhatsApp/SMS. */
+  consent?: boolean;
   /** Storage paths of reference photos (server-set; removed after the visit). */
   photos?: string[];
 };
@@ -172,7 +174,13 @@ export function BookingProvider({ children }: { children: ReactNode }) {
           const res = await createBooking({
             data: {
               ...payload,
-              customer: { ...booking.customer, email: booking.customer.email ?? "" },
+              customer: {
+                name: booking.customer.name,
+                phone: booking.customer.phone,
+                email: booking.customer.email ?? "",
+                ...(booking.customer.notes ? { notes: booking.customer.notes } : {}),
+              },
+              consent: booking.customer.consent !== false,
               ...(draft.photos?.length ? { photos: draft.photos.map((x) => x.path) } : {}),
             },
           });

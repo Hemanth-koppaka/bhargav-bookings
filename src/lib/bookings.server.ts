@@ -63,6 +63,10 @@ export type NewBooking = {
   source: "online" | "walk-in" | "phone" | "whatsapp" | "admin";
   status?: "confirmed" | "pending";
   meta?: Record<string, unknown>;
+  /** Guest agreed to booking messages on WhatsApp/SMS (transactional only). */
+  notifyConsent?: boolean;
+  /** Site the guest booked on, for the "Manage your booking" link. */
+  siteOrigin?: string;
 };
 
 /**
@@ -122,7 +126,16 @@ export async function insertBooking(
     buffer_minutes: q.buffer,
     price_total: q.price,
   };
-  let { error } = await sb.from("bookings").insert(extended as never);
+  // columns added by the notifications migration (dropped below if it isn't applied)
+  const notifyCols = {
+    notify_consent: Boolean(b.notifyConsent),
+    notify_consent_at: b.notifyConsent ? new Date().toISOString() : null,
+    site_origin: b.siteOrigin ?? "",
+  };
+  let { error } = await sb.from("bookings").insert({ ...extended, ...notifyCols } as never);
+  if (error && !E.isSlotTaken(error) && /column/i.test(error.message)) {
+    ({ error } = await sb.from("bookings").insert(extended as never)); // notifications migration not applied yet
+  }
   if (error && !E.isSlotTaken(error) && /column/i.test(error.message)) {
     ({ error } = await sb.from("bookings").insert(row as never)); // migration not applied yet
   }
@@ -132,6 +145,17 @@ export async function insertBooking(
       return { ok: false, error: "That time was just booked. Please choose another time." };
     console.error("booking insert failed", error.message);
     return { ok: false, error: "We couldn't save your booking. Please try again." };
+  }
+  if (b.notifyConsent && customerId) {
+    // remember the guest's choice (booking messages only, never marketing)
+    await sb
+      .from("customers" as never)
+      .update({ notify_consent: true, notify_consent_at: new Date().toISOString() } as never)
+      .eq("id", customerId)
+      .then(
+        () => undefined,
+        () => undefined,
+      );
   }
   return { ok: true, reference, price: q.price, minutes: q.minutes };
 }

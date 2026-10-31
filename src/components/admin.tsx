@@ -4,6 +4,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  BellRing,
   CalendarDays,
   Ellipsis,
   FileText,
@@ -46,6 +47,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "System",
     items: [
       { to: "/admin/rules", label: "Booking rules", icon: SlidersHorizontal },
+      { to: "/admin/notifications", label: "Notifications", icon: BellRing },
       { to: "/admin/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -225,6 +227,7 @@ export function AdminShell({
                   { to: "/admin/services", label: "Services", icon: Scissors },
                   { to: "/admin/content", label: "Site content", icon: FileText },
                   { to: "/admin/rules", label: "Booking rules", icon: SlidersHorizontal },
+                  { to: "/admin/notifications", label: "Messages", icon: BellRing },
                   { to: "/admin/settings", label: "Settings", icon: Settings },
                 ].map((n) => (
                   <Link
