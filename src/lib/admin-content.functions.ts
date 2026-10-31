@@ -1,16 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-// Admin-only editing of salon content. Every call re-checks the access code.
+// Admin-only editing of salon content. Every call re-checks the admin session.
 
-async function assertPin(pin: string) {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin.from("admin_secret").select("pin").eq("id", 1).maybeSingle();
-  if (!data || data.pin !== pin) throw new Error("Access code not accepted");
-  return supabaseAdmin;
+// `pin` carries the admin session token issued by adminSignIn.
+async function assertPin(token: string) {
+  const { assertAdmin } = await import("./admin-auth.server");
+  return assertAdmin(token);
 }
 
-const pin = z.string().max(32);
+const pin = z.string().max(512);
 const gender = z.enum(["men", "women"]);
 const time = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/);
 const slug = (s: string) =>

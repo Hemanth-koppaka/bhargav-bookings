@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Clock, Plus, ShoppingBag } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Clock, Plus, Search, ShoppingBag, X } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
 import { ServiceGlyph, ServiceIconTile, categoryKind, serviceKind } from "@/components/service-icons";
@@ -45,6 +45,8 @@ function ServicesScreen() {
   const menu = draft.audience ? menuFor(draft.audience) : [];
   const activeId = active ?? menu[0]?.id ?? null;
   const category = menu.find((c) => c.id === activeId) ?? menu[0];
+  const [query, setQuery] = useState("");
+  const search = useServiceSearch(menu, query);
 
   useEffect(() => {
     const el = chipRow.current?.querySelector<HTMLElement>('[aria-selected="true"]');
@@ -57,7 +59,17 @@ function ServicesScreen() {
 
   return (
     <>
-      <DesktopServices menu={menu} category={category} onCategory={setActive} />
+      <DesktopServices
+        menu={menu}
+        category={category}
+        onCategory={(id) => {
+          setActive(id);
+          setQuery("");
+        }}
+        query={query}
+        onQuery={setQuery}
+        search={search}
+      />
       <div className="md:hidden">
         <Page>
           <StepHeader back="/book" step={2} />
@@ -65,6 +77,8 @@ function ServicesScreen() {
             <StepIntro eyebrow={men ? "Men's services" : "Women's services"}>
               Select your <span className="italic text-bronze">services.</span>
             </StepIntro>
+
+            <SearchBox value={query} onChange={setQuery} className="mt-5" />
 
             <div
               ref={chipRow}
@@ -74,14 +88,17 @@ function ServicesScreen() {
             >
               <div className="flex w-max gap-2 py-1 md:w-auto md:flex-wrap">
                 {menu.map((c) => {
-                  const on = c.id === category.id;
+                  const on = !search && c.id === category.id;
                   const count = c.services.filter((x) => draft.serviceIds.includes(x.id)).length;
                   return (
                     <button
                       key={c.id}
                       role="tab"
                       aria-selected={on}
-                      onClick={() => setActive(c.id)}
+                      onClick={() => {
+                        setActive(c.id);
+                        setQuery("");
+                      }}
                       className={
                         "press inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-[0.82rem] tracking-[0.02em] " +
                         (on
@@ -108,16 +125,19 @@ function ServicesScreen() {
               </div>
             </div>
 
-            <div key={category.id} className="slide-in mt-6">
+            <div key={search ? "search" : category.id} className="slide-in mt-6">
               <div className="flex items-baseline justify-between gap-4">
-                <h2 className="font-display text-[1.9rem] leading-tight">{category.title}</h2>
-                <span className="text-[0.75rem] text-muted-foreground">{category.services.length} services</span>
+                <h2 className="font-display text-[1.9rem] leading-tight">{search ? "Results" : category.title}</h2>
+                <span className="text-[0.75rem] text-muted-foreground">
+                  {search ? `${search.length} found` : `${category.services.length} services`}
+                </span>
               </div>
-              {category.blurb ? (
+              {!search && category.blurb ? (
                 <p className="mt-1 text-[0.85rem] leading-relaxed text-muted-foreground">{category.blurb}</p>
               ) : null}
+              {search && search.length === 0 ? <NoResults query={query} onClear={() => setQuery("")} /> : null}
               <ul className="stagger mt-4 space-y-2.5">
-                {category.services.map((x) => {
+                {(search ?? category.services.map((x) => ({ ...x, category: "" }))).map((x) => {
                   const on = draft.serviceIds.includes(x.id);
                   return (
                     <li key={x.id}>
@@ -137,6 +157,9 @@ function ServicesScreen() {
                         <ServiceIconTile kind={serviceKind(x)} active={on} size="sm" />
                         <span className="min-w-0 flex-1">
                           <span className="block text-[1rem] leading-snug [overflow-wrap:anywhere]">{x.name}</span>
+                          {x.category ? (
+                            <span className="mt-0.5 block text-[0.66rem] uppercase tracking-[0.2em] text-bronze">{x.category}</span>
+                          ) : null}
                           {x.note ? (
                             <span className="mt-1 block text-[0.78rem] leading-relaxed text-muted-foreground">{x.note}</span>
                           ) : null}
@@ -213,10 +236,16 @@ function DesktopServices({
   menu,
   category,
   onCategory,
+  query,
+  onQuery,
+  search,
 }: {
   menu: Category[];
   category: Category;
   onCategory: (id: string) => void;
+  query: string;
+  onQuery: (q: string) => void;
+  search: SearchHit[] | null;
 }) {
   const { draft, toggleService, selected, totalSlots, totalPrice, hasFromPricing } = useBooking();
   const navigate = useNavigate();
@@ -247,7 +276,7 @@ function DesktopServices({
           </p>
           <ul role="tablist" className="mt-7 space-y-2.5">
             {menu.map((c) => {
-              const on = c.id === category.id;
+              const on = !search && c.id === category.id;
               const count = c.services.filter((x) => draft.serviceIds.includes(x.id)).length;
               return (
                 <li key={c.id}>
@@ -295,7 +324,7 @@ function DesktopServices({
             </h1>
             <div role="tablist" aria-label="Service categories" className="mt-6 flex flex-wrap gap-2">
               {menu.map((c) => {
-                const on = c.id === category.id;
+                const on = !search && c.id === category.id;
                 const count = c.services.filter((x) => draft.serviceIds.includes(x.id)).length;
                 return (
                   <button
@@ -328,16 +357,22 @@ function DesktopServices({
               })}
             </div>
           </div>
-        <section key={category.id} className="slide-in px-8 py-7 lg:px-10 xl:px-12 xl:py-8">
-          <div className="flex items-baseline justify-between gap-6">
-            <h2 className="font-display text-[2.5rem] leading-tight">{category.title}</h2>
-            <span className="label-caps shrink-0 text-foreground/55">{category.services.length} services</span>
+          <div className="px-8 pt-6 lg:px-10 xl:px-12 xl:pt-8">
+            <SearchBox value={query} onChange={onQuery} />
           </div>
-          {category.blurb ? (
+        <section key={search ? "search" : category.id} className="slide-in px-8 py-7 lg:px-10 xl:px-12 xl:py-8">
+          <div className="flex items-baseline justify-between gap-6">
+            <h2 className="font-display text-[2.5rem] leading-tight">{search ? "Results" : category.title}</h2>
+            <span className="label-caps shrink-0 text-foreground/55">
+              {search ? `${search.length} found` : `${category.services.length} services`}
+            </span>
+          </div>
+          {!search && category.blurb ? (
             <p className="mt-1 max-w-lg text-[0.9rem] leading-relaxed text-muted-foreground">{category.blurb}</p>
           ) : null}
+          {search && search.length === 0 ? <NoResults query={query} onClear={() => onQuery("")} /> : null}
           <ul className="stagger mt-6 hairline-t">
-            {category.services.map((x) => {
+            {(search ?? category.services.map((x) => ({ ...x, category: "" }))).map((x) => {
               const on = draft.serviceIds.includes(x.id);
               return (
                 <li key={x.id} className="hairline-b">
@@ -349,6 +384,9 @@ function DesktopServices({
                     <ServiceIconTile kind={serviceKind(x)} active={on} />
                     <span className="min-w-0 flex-1">
                       <span className="block text-[1.05rem] leading-snug">{x.name}</span>
+                      {x.category ? (
+                        <span className="mt-0.5 block text-[0.68rem] uppercase tracking-[0.22em] text-bronze">{x.category}</span>
+                      ) : null}
                       {x.note ? (
                         <span className="mt-1 block text-[0.85rem] leading-relaxed text-muted-foreground">{x.note}</span>
                       ) : null}
@@ -426,5 +464,77 @@ function DesktopServices({
         </DesktopCTA>
       </DesktopBar>
     </DesktopPage>
+  );
+}
+
+type SearchHit = Category["services"][number] & { category: string };
+
+const norm = (t: string) =>
+  t
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/** Every service of this menu matching all the typed words (name, note or category). */
+function useServiceSearch(menu: Category[], query: string): SearchHit[] | null {
+  return useMemo(() => {
+    const words = norm(query).split(" ").filter(Boolean);
+    if (!words.length) return null;
+    return menu.flatMap((c) =>
+      c.services
+        .filter((x) => {
+          const hay = norm(`${x.name} ${x.note ?? ""} ${c.title}`);
+          return words.every((w) => hay.includes(w));
+        })
+        .map((x) => ({ ...x, category: c.title })),
+    );
+  }, [menu, query]);
+}
+
+function SearchBox({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+  return (
+    <label className={"group relative block " + (className ?? "")}>
+      <span className="sr-only">Search services</span>
+      <Search
+        className="pointer-events-none absolute top-1/2 left-4 h-[18px] w-[18px] -translate-y-1/2 text-foreground/45 transition-colors group-focus-within:text-bronze"
+        strokeWidth={1.25}
+      />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onChange("");
+        }}
+        placeholder="Search services — haircut, facial, colour…"
+        enterKeyHint="search"
+        autoComplete="off"
+        className="h-12 w-full rounded-full border border-foreground/12 bg-card pr-11 pl-11 text-[0.95rem] outline-none transition-colors placeholder:text-foreground/35 focus:border-foreground/45 [&::-webkit-search-cancel-button]:hidden"
+      />
+      {value ? (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label="Clear search"
+          className="press pop-in absolute top-1/2 right-2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-foreground/55 hover:bg-foreground/5 hover:text-foreground"
+        >
+          <X className="h-4 w-4" strokeWidth={1.5} />
+        </button>
+      ) : null}
+    </label>
+  );
+}
+
+function NoResults({ query, onClear }: { query: string; onClear: () => void }) {
+  return (
+    <div className="mt-6 flex flex-col items-center gap-3 rounded-md border border-dashed border-foreground/15 px-6 py-10 text-center">
+      <Search className="h-6 w-6 text-bronze/70" strokeWidth={1.1} />
+      <p className="text-[0.95rem]">Nothing matches “{query.trim()}”.</p>
+      <button type="button" onClick={onClear} className="press text-[0.85rem] text-bronze underline underline-offset-4">
+        Clear search
+      </button>
+    </div>
   );
 }

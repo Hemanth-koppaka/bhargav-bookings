@@ -1,20 +1,32 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import {
+  ACCEPTING_BOOKINGS,
+  MAX_ADVANCE_DAYS,
+  SLOT_MINUTES,
+  applyConfig,
+  breaksFor,
+  findService,
+  hoursFor,
+  isClosed,
+  type SalonConfig,
+} from "./salon";
 
 // All salon data lives in tables with no public access; every read/write goes
 // through these handlers. Customer calls expose only free slots or a booking
-// matched by reference + phone. Admin calls require the shared access code.
+// matched by reference + phone, and every booking change is re-validated here
+// against the live schedule. Admin calls require a signed session token
+// (obtained by exchanging the access code in adminSignIn); the `pin` field on
+// admin inputs carries that token.
 
 async function db() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin;
 }
 
-async function assertPin(pin: string) {
-  const sb = await db();
-  const { data } = await sb.from("admin_secret").select("pin").eq("id", 1).maybeSingle();
-  if (!data || data.pin !== pin) throw new Error("Access code not accepted");
-  return sb;
+async function assertPin(token: string) {
+  const { assertAdmin } = await import("./admin-auth.server");
+  return assertAdmin(token);
 }
 
 const last10 = (p: string) => p.replace(/\D/g, "").slice(-10);
@@ -81,7 +93,10 @@ async function loadConfig() {
     Record<string, unknown>
   >;
   const hoursSetting = (set["business_hours"] ?? {}) as { breaksByDay?: PersistedBreaks };
-  const breaksByDay = hoursSetting.breaksByDay ?? {};
+  // Until the salon saves its own break periods, every open day has lunch 1–2 PM.
+  const breaksByDay: PersistedBreaks =
+    hoursSetting.breaksByDay ??
+    Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [String(d), [{ start: "13:00", end: "14:00" }]]));
   const menu = (g: string) =>
     (cats.data ?? [])
       .filter((c) => c.gender === g)
@@ -101,7 +116,8 @@ async function loadConfig() {
           })),
       }))
       .filter((c) => c.services.length > 0);
-  const legacyData = (legacy.data?.data ?? {}) as Record<string, unknown>;
+  // Staff lives alongside the config but is for the console only.
+  const { staff: _staff, ...legacyData } = (legacy.data?.data ?? {}) as Record<string, unknown>;
   const booking = set["booking"] ?? {};
   const config: Record<string, unknown> = {
     ...legacyData,
@@ -158,6 +174,66 @@ export const getBusySlots = createServerFn({ method: "GET" })
     };
   });
 
+/** India time, as the salon sees it. */
+function salonNow() {
+  const t = new Date(Date.now() + 330 * 60_000);
+  return { iso: t.toISOString().slice(0, 10), minute: t.getUTCHours() * 60 + t.getUTCMinutes() };
+}
+
+const dayDiff = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+
+/**
+ * Checks a requested appointment against the live schedule: services exist,
+ * the day is open and within the booking window, the time is in opening hours,
+ * not in a break, not in the past, and not overlapping another booking.
+ * Returns the authoritative number of 30-minute slots.
+ */
+async function checkSlot(
+  input: { audience: "men" | "women"; serviceIds: string[]; date: string; time: number },
+  ignoreReference?: string,
+): Promise<{ ok: true; slots: number } | { ok: false; error: string }> {
+  const sb = await db();
+  applyConfig((await loadConfig()) as SalonConfig);
+  if (!ACCEPTING_BOOKINGS) return { ok: false, error: "Online booking is paused right now." };
+
+  const services = input.serviceIds.map((id) => findService(input.audience, id));
+  if (!services.length || services.some((x) => !x)) {
+    return { ok: false, error: "One of the selected services is no longer offered. Please choose again." };
+  }
+  const slots = Math.max(1, services.reduce((n, x) => n + (x?.slots ?? 0), 0));
+  const end = input.time + slots * SLOT_MINUTES;
+
+  const now = salonNow();
+  if (input.date < now.iso || (input.date === now.iso && input.time < now.minute + 30)) {
+    return { ok: false, error: "That time has already passed. Please pick another." };
+  }
+  if (dayDiff(now.iso, input.date) > MAX_ADVANCE_DAYS) {
+    return { ok: false, error: "That date is too far ahead to book online." };
+  }
+  if (isClosed(input.date)) return { ok: false, error: "The salon is closed that day." };
+  const h = hoursFor(input.date);
+  if (input.time < h.open || end > h.close || (input.time - h.open) % SLOT_MINUTES !== 0) {
+    return { ok: false, error: "That time is outside opening hours." };
+  }
+  if (breaksFor(input.date).some((b) => input.time < b.end && b.start < end)) {
+    return { ok: false, error: "That time overlaps the salon's break. Please pick another." };
+  }
+  const { data: rows } = await sb
+    .from("bookings")
+    .select("reference, time, slots, meta")
+    .eq("date", input.date)
+    .neq("status", "cancelled");
+  const clash = (rows ?? []).some(
+    (r) =>
+      r.reference !== ignoreReference &&
+      (r.meta as { status?: string })?.status !== "cancelled" &&
+      input.time < r.time + r.slots * SLOT_MINUTES &&
+      r.time < end,
+  );
+  if (clash) return { ok: false, error: "That time was just taken. Please pick another." };
+  return { ok: true, slots };
+}
+
 const bookingInput = z.object({
   reference: z.string().regex(/^HB-[A-Z0-9]{6}$/),
   audience: z.enum(["men", "women"]),
@@ -177,25 +253,15 @@ export const createBooking = createServerFn({ method: "POST" })
   .inputValidator((d) => bookingInput.parse(d))
   .handler(async ({ data }) => {
     const sb = await db();
-    const cfg = await loadConfig();
-    if (cfg["accepting"] === false) {
-      return { ok: false as const, error: "Online booking is paused right now." };
-    }
-    const { data: rows } = await sb
-      .from("bookings")
-      .select("time, slots")
-      .eq("date", data.date)
-      .neq("status", "cancelled");
-    const end = data.time + data.slots * 30;
-    const clash = (rows ?? []).some((r) => data.time < r.time + r.slots * 30 && r.time < end);
-    if (clash) return { ok: false as const, error: "That time was just taken. Please pick another." };
+    const check = await checkSlot(data);
+    if (!check.ok) return { ok: false as const, error: check.error };
     const { error } = await sb.from("bookings").insert({
       reference: data.reference,
       audience: data.audience,
       service_ids: data.serviceIds,
       date: data.date,
       time: data.time,
-      slots: data.slots,
+      slots: check.slots,
       customer: data.customer,
       source: "online",
     });
@@ -220,7 +286,8 @@ export const findMyBooking = createServerFn({ method: "POST" })
     if (!r || last10((r.customer as { phone: string }).phone) !== last10(data.phone)) {
       return { booking: null };
     }
-    return { booking: toRow(r) };
+    // Staff notes, payment and chair assignments stay internal.
+    return { booking: { ...toRow(r), meta: {} } };
   });
 
 export const updateMyBooking = createServerFn({ method: "POST" })
@@ -241,42 +308,55 @@ export const updateMyBooking = createServerFn({ method: "POST" })
       .eq("reference", data.reference.trim().toUpperCase())
       .maybeSingle();
     if (!r || last10((r.customer as { phone: string }).phone) !== last10(data.phone)) {
-      return { ok: false };
+      return { ok: false, error: "Booking not found." };
     }
-    const patch =
-      data.action === "cancel"
-        ? { status: "cancelled" }
-        : { date: data.date ?? r.date, time: data.time ?? r.time };
-    await sb.from("bookings").update(patch).eq("reference", r.reference);
+    if (r.status === "cancelled") return { ok: false, error: "This booking was cancelled." };
+    if (data.action === "cancel") {
+      await sb.from("bookings").update({ status: "cancelled" }).eq("reference", r.reference);
+      return { ok: true };
+    }
+    if (!data.date || data.time == null) return { ok: false, error: "Pick a new date and time." };
+    const check = await checkSlot(
+      { audience: r.audience as "men" | "women", serviceIds: r.service_ids ?? [], date: data.date, time: data.time },
+      r.reference,
+    );
+    if (!check.ok) return { ok: false, error: check.error };
+    await sb
+      .from("bookings")
+      .update({ date: data.date, time: data.time, slots: check.slots })
+      .eq("reference", r.reference);
     return { ok: true };
   });
 
 /* ── Admin (access code) ────────────────────────────────────── */
 
-const pinOnly = z.object({ pin: z.string().max(32) });
+// `pin` carries the admin session token.
+const pinOnly = z.object({ pin: z.string().max(512) });
 const hhmmTime = z.string().regex(/^\d{2}:\d{2}$/);
 
-export const adminCheckPin = createServerFn({ method: "POST" })
-  .inputValidator((d) => pinOnly.parse(d))
+/** Exchanges the access code for a session token (throttled after repeated misses). */
+export const adminSignIn = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ code: z.string().trim().min(1).max(32) }).parse(d))
   .handler(async ({ data }) => {
-    try {
-      await assertPin(data.pin);
-      return { ok: true };
-    } catch {
-      return { ok: false };
-    }
+    const { signIn } = await import("./admin-auth.server");
+    return signIn(data.code);
   });
 
 export const adminListBookings = createServerFn({ method: "POST" })
   .inputValidator((d) => pinOnly.parse(d))
   .handler(async ({ data }) => {
     const sb = await assertPin(data.pin);
-    const { data: rows } = await sb
-      .from("bookings")
-      .select("*")
-      .order("date", { ascending: false })
-      .limit(2000);
-    return { bookings: (rows ?? []).map(toRow) };
+    const [{ data: rows }, { data: cfg }, { data: booking }] = await Promise.all([
+      sb.from("bookings").select("*").order("date", { ascending: false }).limit(2000),
+      sb.from("salon_config").select("data").eq("id", 1).maybeSingle(),
+      sb.from("site_settings").select("value").eq("key", "booking").maybeSingle(),
+    ]);
+    const shared = (cfg?.data ?? {}) as { staff?: unknown };
+    return {
+      bookings: (rows ?? []).map(toRow),
+      staffJson: Array.isArray(shared.staff) ? JSON.stringify(shared.staff) : null,
+      accepting: ((booking?.value ?? {}) as { accepting?: boolean }).accepting ?? true,
+    };
   });
 
 export const adminUpsertBooking = createServerFn({ method: "POST" })
@@ -300,7 +380,7 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
     const sb = await assertPin(data.pin);
     if (data.insert) {
       const i = data.insert;
-      await sb.from("bookings").insert({
+      const { error } = await sb.from("bookings").insert({
         reference: data.reference,
         audience: i.audience,
         service_ids: i.serviceIds,
@@ -310,9 +390,11 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
         customer: i.customer,
         source: i.source,
       });
+      if (error) throw new Error("Couldn't add the walk-in");
     } else if (data.patch) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await sb.from("bookings").update(data.patch as any).eq("reference", data.reference);
+      const { error } = await sb.from("bookings").update(data.patch as any).eq("reference", data.reference);
+      if (error) throw new Error("Couldn't update the appointment");
     }
     return { ok: true };
   });
@@ -324,8 +406,12 @@ export const adminSaveConfig = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (JSON.stringify(data.config).length > 500_000) throw new Error("Too large");
     const sb = await assertPin(data.pin);
+    // Merge, so saving one setting never wipes the others.
+    const { data: existing } = await sb.from("salon_config").select("data").eq("id", 1).maybeSingle();
+    const merged = { ...((existing?.data as Record<string, unknown>) ?? {}), ...data.config };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await sb.from("salon_config").update({ data: data.config as any }).eq("id", 1);
+    const { error } = await sb.from("salon_config").update({ data: merged as any }).eq("id", 1);
+    if (error) throw new Error("Couldn't save settings");
     const c = data.config as { accepting?: boolean; maxAdvanceDays?: number };
     if (c.accepting !== undefined || c.maxAdvanceDays !== undefined) {
       const { data: cur } = await sb.from("site_settings").select("value").eq("key", "booking").maybeSingle();
@@ -406,10 +492,12 @@ export const adminSaveBusinessHours = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Changes the access code; needs the current code again. Returns a fresh session. */
 export const adminChangePin = createServerFn({ method: "POST" })
-  .inputValidator((d) => pinOnly.extend({ next: z.string().regex(/^\d{4,8}$/) }).parse(d))
+  .inputValidator((d) =>
+    pinOnly.extend({ current: z.string().max(32), next: z.string().regex(/^\d{6,12}$/) }).parse(d),
+  )
   .handler(async ({ data }) => {
-    const sb = await assertPin(data.pin);
-    await sb.from("admin_secret").update({ pin: data.next }).eq("id", 1);
-    return { ok: true };
+    const { changeCode } = await import("./admin-auth.server");
+    return changeCode(data.pin, data.current, data.next);
   });

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Coffee } from "lucide-react";
 import { BookCTA, InfoPage, InfoTitle } from "@/components/info-page";
 import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel } from "@/lib/salon";
 import womenImg from "@/assets/women.jpg.asset.json";
@@ -24,6 +25,14 @@ function HoursScreen() {
   // Highlight today on the client only (the server may be in another timezone).
   const [today, setToday] = useState<string | null>(null);
   useEffect(() => setToday(new Date().toLocaleDateString("en-GB", { weekday: "long" })), []);
+
+  // One shared break across every open day is shown as a single note.
+  const open = WEEK.filter((d) => !d.closed);
+  const first = open[0]?.breaks?.[0];
+  const lunch =
+    first && open.every((d) => d.breaks?.length === 1 && d.breaks[0]!.start === first.start && d.breaks[0]!.end === first.end)
+      ? first
+      : null;
 
   return (
     <InfoPage
@@ -73,7 +82,13 @@ function HoursScreen() {
         })}
       </ul>
 
-      <p className="mt-6 text-[0.9rem] leading-relaxed text-muted-foreground">
+      {lunch ? (
+        <p className="mt-6 flex items-center gap-3 rounded-md bg-champagne/14 px-4 py-3 text-[0.9rem]">
+          <Coffee className="h-4 w-4 shrink-0 text-bronze" strokeWidth={1.25} aria-hidden />
+          Lunch break every open day, {minuteLabel(lunch.start)} – {minuteLabel(lunch.end)}.
+        </p>
+      ) : null}
+      <p className="mt-4 text-[0.9rem] leading-relaxed text-muted-foreground">
         Last appointment starts at {BUSINESS.lastSlot}.
       </p>
 

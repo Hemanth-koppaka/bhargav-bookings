@@ -19,12 +19,15 @@ export const Route = createFileRoute("/admin/settings")({
 });
 
 function SettingsScreen() {
-  const { staff, addStaff, toggleStaff, removeStaff, settings, updateSettings, signOut, pin: adminPin } =
+  const { staff, addStaff, toggleStaff, removeStaff, settings, updateSettings, signOut, changeCode, pin: adminPin } =
     useAdmin();
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
-  const [pin, setPin] = useState("");
-  const [saved, setSaved] = useState("");
+  const [currentCode, setCurrentCode] = useState("");
+  const [nextCode, setNextCode] = useState("");
+  const [confirmCode, setConfirmCode] = useState("");
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeMsg, setCodeMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [hoursSaved, setHoursSaved] = useState("");
   const [hoursBusy, setHoursBusy] = useState(false);
   const [hoursError, setHoursError] = useState("");
@@ -323,27 +326,69 @@ function SettingsScreen() {
       </Panel>
 
       <Panel className="mt-4">
-        <div className="eyebrow">Access code</div>
-        <input
-          className={inputClass + " mt-4 tracking-[0.4em]"}
-          placeholder="New code"
-          inputMode="numeric"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-        />
-        <div className="mt-5 flex items-center gap-4">
-          <TinyButton
-            onClick={() => {
-              if (pin.trim().length < 4) return;
-              updateSettings({ pin: pin.trim() });
-              setPin("");
-              setSaved("Access code updated.");
-            }}
-          >
-            Save code
-          </TinyButton>
-          {saved ? <span className="text-xs text-muted-foreground">{saved}</span> : null}
-        </div>
+        <div id="access" className="eyebrow scroll-mt-28">Access code</div>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Use 6–12 digits that aren't on any sign or receipt. Changing it signs out every other device.
+        </p>
+        <form
+          className="mt-4 grid gap-3 sm:grid-cols-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setCodeMsg(null);
+            if (!/^\d{6,12}$/.test(nextCode)) return setCodeMsg({ ok: false, text: "The new code must be 6–12 digits." });
+            if (nextCode !== confirmCode) return setCodeMsg({ ok: false, text: "The two new codes don't match." });
+            setCodeBusy(true);
+            const r = await changeCode(currentCode, nextCode);
+            setCodeBusy(false);
+            if (r.ok) {
+              setCurrentCode("");
+              setNextCode("");
+              setConfirmCode("");
+              setCodeMsg({ ok: true, text: "Access code updated. Other devices have been signed out." });
+            } else setCodeMsg({ ok: false, text: r.message });
+          }}
+        >
+          <input
+            className={inputClass + " tracking-[0.3em]"}
+            placeholder="Current code"
+            inputMode="numeric"
+            type="password"
+            autoComplete="current-password"
+            aria-label="Current code"
+            value={currentCode}
+            onChange={(e) => setCurrentCode(e.target.value)}
+          />
+          <input
+            className={inputClass + " tracking-[0.3em]"}
+            placeholder="New code"
+            inputMode="numeric"
+            type="password"
+            autoComplete="new-password"
+            aria-label="New code"
+            value={nextCode}
+            onChange={(e) => setNextCode(e.target.value.replace(/\D/g, "").slice(0, 12))}
+          />
+          <input
+            className={inputClass + " tracking-[0.3em]"}
+            placeholder="Repeat new code"
+            inputMode="numeric"
+            type="password"
+            autoComplete="new-password"
+            aria-label="Repeat new code"
+            value={confirmCode}
+            onChange={(e) => setConfirmCode(e.target.value.replace(/\D/g, "").slice(0, 12))}
+          />
+          <div className="flex items-center gap-4 sm:col-span-3">
+            <TinyButton type="submit" disabled={codeBusy || !currentCode || !nextCode}>
+              {codeBusy ? "Saving…" : "Save code"}
+            </TinyButton>
+            {codeMsg ? (
+              <span role="status" className={"text-xs " + (codeMsg.ok ? "text-muted-foreground" : "text-destructive")}>
+                {codeMsg.text}
+              </span>
+            ) : null}
+          </div>
+        </form>
       </Panel>
 
       <Panel className="mt-4">
@@ -359,7 +404,7 @@ function SettingsScreen() {
       </Panel>
 
       <div className="mt-6">
-        <TinyButton tone="danger" onClick={signOut}>
+        <TinyButton tone="danger" onClick={() => signOut()}>
           Sign out of console
         </TinyButton>
       </div>

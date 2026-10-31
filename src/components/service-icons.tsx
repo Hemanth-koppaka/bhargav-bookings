@@ -87,9 +87,18 @@ const GLYPHS: Record<IconKind, ReactNode> = {
   ),
   beard: (
     <>
-      <path d="M5 8.5c0 6.5 3 12 7 12s7-5.5 7-12" data-p="draw" pathLength={1} />
-      <path d="M8.2 13.2c1.4-1.1 2.6-1.1 3.8 0 1.2-1.1 2.4-1.1 3.8 0" data-p="stache" />
-      <path d="M5 8.5V5M19 8.5V5" />
+      {/* full beard from the sideburns down to the chin, open at the mouth */}
+      <path
+        data-p="draw"
+        pathLength={1}
+        d="M4.5 6.5c0 8 3.2 14 7.5 14s7.5-6 7.5-14c-1.2 3-3.3 4.6-5.3 4.6H9.8c-2 0-4.1-1.6-5.3-4.6z"
+      />
+      {/* moustache */}
+      <path
+        data-p="stache"
+        d="M12 11.3c-1.2-1.5-3.4-1.8-4.8-.4 1.2.6 2.6 1.7 4.8 1.5 2.2.2 3.6-.9 4.8-1.5-1.4-1.4-3.6-1.1-4.8.4z"
+      />
+      <path d="M10.4 14.7c1 .6 2.2.6 3.2 0" />
     </>
   ),
   razor: (
