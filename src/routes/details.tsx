@@ -90,7 +90,7 @@ function DetailsScreen() {
   return (
     <>
     <DesktopDetails fields={fields} submit={submit} attempt={attempt} />
-    <div className="lg:hidden">
+    <div className="md:hidden">
       <Page>
         <StepHeader back="/time" step={4} />
         <Screen className="px-5">
@@ -276,8 +276,8 @@ function DesktopDetails({
       <DesktopStepHeader back="/time" step={4} />
 
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-        <div className="page-in mx-auto grid max-w-[90rem] grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)] gap-10 px-10 py-9 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,34rem)] xl:gap-16 xl:px-24">
-          <form noValidate onSubmit={submit} className="border-r border-hairline pr-10 xl:pr-16">
+        <div className="page-in mx-auto grid max-w-[90rem] grid-cols-1 gap-10 px-8 py-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)] lg:px-10 lg:py-9 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,34rem)] xl:gap-16 xl:px-24">
+          <form noValidate onSubmit={submit} className="lg:border-r lg:border-hairline lg:pr-10 xl:pr-16">
             <StepTitle step="four">
               Your <Accent>details</Accent>
             </StepTitle>
@@ -292,7 +292,7 @@ function DesktopDetails({
             <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
           </form>
 
-          <aside className="pt-4">
+          <aside className="lg:pt-4">
             <div className="rounded-sm border border-hairline bg-card p-8">
               <div className="flex items-baseline justify-between">
                 <span className="text-[0.72rem] uppercase tracking-[0.3em] text-foreground/75">Your appointment</span>
@@ -325,7 +325,7 @@ function DesktopDetails({
               </div>
             </div>
 
-            <ul className="mt-8 space-y-7 px-1">
+            <ul className="mt-8 grid gap-6 px-1 md:grid-cols-3 lg:grid-cols-1 lg:gap-7">
               {assurances.map(({ icon: Icon, title, body }) => (
                 <li key={title} className="flex gap-6">
                   <Icon className="mt-0.5 h-7 w-7 shrink-0" strokeWidth={1.1} />
@@ -345,7 +345,7 @@ function DesktopDetails({
           <Lock className="h-4 w-4" strokeWidth={1.25} />
           Your details are only used to manage your appointment.
         </p>
-        <DesktopCTA onClick={() => submit()} className="min-w-[26rem] justify-between">
+        <DesktopCTA onClick={() => submit()} className="justify-between md:min-w-[16rem] lg:min-w-[26rem]">
           Review appointment
         </DesktopCTA>
       </DesktopBar>

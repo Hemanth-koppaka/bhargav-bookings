@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Clock, Plus, ShoppingBag } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
+import { ServiceGlyph, ServiceIconTile, categoryKind, serviceKind } from "@/components/service-icons";
 import {
   AUDIENCE_IMAGE,
   DesktopBar,
@@ -57,7 +58,7 @@ function ServicesScreen() {
   return (
     <>
       <DesktopServices menu={menu} category={category} onCategory={setActive} />
-      <div className="lg:hidden">
+      <div className="md:hidden">
         <Page>
           <StepHeader back="/book" step={2} />
           <Screen className="px-5">
@@ -88,6 +89,7 @@ function ServicesScreen() {
                           : "border-foreground/15 bg-card text-foreground/75 hover:border-foreground/40")
                       }
                     >
+                      <ServiceGlyph kind={categoryKind(c.id)} active={on} className="h-4 w-4" />
                       {c.title}
                       {count > 0 ? (
                         <span
@@ -132,6 +134,7 @@ function ServicesScreen() {
                             : "border-foreground/8 bg-card/60 hover:border-foreground/25")
                         }
                       >
+                        <ServiceIconTile kind={serviceKind(x)} active={on} size="sm" />
                         <span className="min-w-0 flex-1">
                           <span className="block text-[1rem] leading-snug [overflow-wrap:anywhere]">{x.name}</span>
                           {x.note ? (
@@ -224,9 +227,9 @@ function DesktopServices({
     <DesktopPage>
       <DesktopStepperHeader step={2} />
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(17rem,22%)_minmax(0,1fr)_minmax(18rem,32%)]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,34%)] xl:grid-cols-[minmax(17rem,22%)_minmax(0,1fr)_minmax(18rem,32%)]">
         {/* Categories */}
-        <nav aria-label="Service categories" className="flex min-h-0 flex-col overflow-y-auto border-r border-hairline px-8 py-8 [scrollbar-width:thin]">
+        <nav aria-label="Service categories" className="hidden min-h-0 flex-col overflow-y-auto border-r xl:flex border-hairline px-8 py-8 [scrollbar-width:thin]">
           <Link to="/book" className="label-caps inline-flex items-center gap-3 text-foreground/70 transition-opacity hover:opacity-60">
             <ArrowLeft className="h-4 w-4" strokeWidth={1.25} />
             Back
@@ -243,7 +246,7 @@ function DesktopServices({
             Choose one or more services. Each service is tailored to your style.
           </p>
           <ul role="tablist" className="mt-7 space-y-2.5">
-            {menu.map((c, i) => {
+            {menu.map((c) => {
               const on = c.id === category.id;
               const count = c.services.filter((x) => draft.serviceIds.includes(x.id)).length;
               return (
@@ -259,9 +262,12 @@ function DesktopServices({
                         : "border-foreground/10 bg-card hover:border-foreground/35")
                     }
                   >
-                    <span className={"font-display text-xl tabular-nums " + (on ? "text-champagne" : "text-bronze/80")}>
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
+                    <ServiceIconTile
+                      kind={categoryKind(c.id)}
+                      active={on}
+                      size="sm"
+                      className={on ? "bg-background/10" : ""}
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[0.95rem]">{c.title}</span>
                       <span className={"mt-0.5 block text-[0.75rem] " + (on ? "text-background/65" : "text-muted-foreground")}>
@@ -276,8 +282,53 @@ function DesktopServices({
           </ul>
         </nav>
 
-        {/* Service list */}
-        <section key={category.id} className="slide-in min-h-0 overflow-y-auto px-10 py-8 [scrollbar-width:thin] xl:px-12">
+        {/* Service list (tablets and small laptops get the intro + category chips here) */}
+        <div className="min-h-0 overflow-y-auto [scrollbar-width:thin]">
+          <div className="px-8 pt-7 lg:px-10 xl:hidden">
+            <Link to="/book" className="label-caps inline-flex items-center gap-3 text-foreground/70 transition-opacity hover:opacity-60">
+              <ArrowLeft className="h-4 w-4" strokeWidth={1.25} />
+              Back
+            </Link>
+            <div className="mt-6 text-[0.7rem] uppercase tracking-[0.3em] text-bronze">{men ? "Men's" : "Women's"} services</div>
+            <h1 className="mt-2 font-display text-[clamp(2.4rem,4.4vw,3.2rem)] leading-[1.02]">
+              Select your <span className="italic text-bronze">services.</span>
+            </h1>
+            <div role="tablist" aria-label="Service categories" className="mt-6 flex flex-wrap gap-2">
+              {menu.map((c) => {
+                const on = c.id === category.id;
+                const count = c.services.filter((x) => draft.serviceIds.includes(x.id)).length;
+                return (
+                  <button
+                    key={c.id}
+                    role="tab"
+                    aria-selected={on}
+                    onClick={() => onCategory(c.id)}
+                    className={
+                      "press inline-flex min-h-11 items-center gap-2 rounded-sm border px-4 text-[0.88rem] " +
+                      (on
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-foreground/12 bg-card text-foreground/80 hover:border-foreground/40")
+                    }
+                  >
+                    <ServiceGlyph kind={categoryKind(c.id)} active={on} className="h-[18px] w-[18px]" />
+                    {c.title}
+                    {count > 0 ? (
+                      <span
+                        key={count}
+                        className={
+                          "pop-in inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[0.68rem] tabular-nums " +
+                          (on ? "bg-background/20 text-background" : "bg-bronze text-ivory")
+                        }
+                      >
+                        {count}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        <section key={category.id} className="slide-in px-8 py-7 lg:px-10 xl:px-12 xl:py-8">
           <div className="flex items-baseline justify-between gap-6">
             <h2 className="font-display text-[2.5rem] leading-tight">{category.title}</h2>
             <span className="label-caps shrink-0 text-foreground/55">{category.services.length} services</span>
@@ -293,8 +344,9 @@ function DesktopServices({
                   <button
                     onClick={() => toggleService(x.id)}
                     aria-pressed={on}
-                    className="group -mx-4 flex w-[calc(100%+2rem)] items-center gap-6 rounded-md px-4 py-5 text-left transition-colors duration-200 hover:bg-foreground/[0.025]"
+                    className="group -mx-4 flex w-[calc(100%+2rem)] items-center gap-5 rounded-md px-4 py-5 text-left transition-colors duration-200 hover:bg-foreground/[0.025]"
                   >
+                    <ServiceIconTile kind={serviceKind(x)} active={on} />
                     <span className="min-w-0 flex-1">
                       <span className="block text-[1.05rem] leading-snug">{x.name}</span>
                       {x.note ? (
@@ -325,8 +377,10 @@ function DesktopServices({
             })}
           </ul>
         </section>
+        </div>
 
         <ImagePanel
+          className="hidden lg:block"
           src={img.src}
           pos={img.pos}
           eyebrow="Expert styling"

@@ -115,8 +115,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Decide before first paint whether the home intro should play (once per session, home only). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var k='hb-intro';if(sessionStorage.getItem(k)||location.pathname!=='/'){document.documentElement.classList.add('intro-seen')}sessionStorage.setItem(k,'1')}catch(e){document.documentElement.classList.add('intro-seen')}",
+          }}
+        />
         <HeadContent />
       </head>
       <body>

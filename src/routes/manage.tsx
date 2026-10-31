@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { CalendarDays, ChevronRight, Clock, Search } from "lucide-react";
 import { GhostAction, PrimaryAction } from "@/components/screen";
 import { InfoPage, InfoTitle, SectionLabel } from "@/components/info-page";
-import { prettyPhone } from "@/components/desktop";
+import { ScrollStrip, prettyPhone } from "@/components/desktop";
 import { useBooking, servicesOf, type Booking } from "@/lib/booking-store";
 import { getBusySlots } from "@/lib/salon.functions";
 import { availableSlots, calendarDays, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
@@ -311,8 +311,8 @@ function BookingPanel({
           <SectionLabel>
             <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.25} /> Pick a new date
           </SectionLabel>
-          <div className="-mx-5 mt-4 overflow-x-auto px-5 pb-2 [scrollbar-width:none] lg:mx-0 lg:px-0 lg:[scrollbar-width:thin]">
-            <div className="flex w-max gap-2">
+          <ScrollStrip label="Pick a new date" className="mt-4">
+            <div className="flex w-max gap-2 pb-1">
               {days.map((d) => {
                 const on = date === d.iso;
                 return (
@@ -347,7 +347,7 @@ function BookingPanel({
                 );
               })}
             </div>
-          </div>
+          </ScrollStrip>
 
           <div key={date} className="stagger mt-6 grid grid-cols-3 gap-2 sm:grid-cols-4">
             {slots.map((x) => {

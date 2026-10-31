@@ -16,6 +16,7 @@ import {
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
 import { haptic } from "@/lib/utils";
+import { ServiceGlyph, serviceKind } from "@/components/service-icons";
 import { BUSINESS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
 
 export const Route = createFileRoute("/review")({
@@ -77,7 +78,7 @@ function ReviewScreen() {
   return (
     <>
       <DesktopReview confirm={confirm} saving={saving} saveError={saveError} />
-      <div className="lg:hidden">
+      <div className="md:hidden">
         <Page>
           <StepHeader back="/details" step={5} />
           <Screen className="px-5">
@@ -93,7 +94,10 @@ function ReviewScreen() {
                     <ul className="space-y-1">
                       {selected.map((x) => (
                         <li key={x.id} className="flex items-baseline justify-between gap-3">
-                          <span className="font-display text-[1.35rem] leading-tight">{x.name}</span>
+                          <span className="flex items-center gap-2.5 font-display text-[1.35rem] leading-tight">
+                            <ServiceGlyph kind={serviceKind(x)} className="h-4 w-4 shrink-0 text-bronze" />
+                            {x.name}
+                          </span>
                           {selected.length > 1 ? (
                             <span className="flex shrink-0 items-center gap-2 text-[0.82rem] text-muted-foreground">
                               {inr(x.price)}
@@ -242,7 +246,7 @@ function DesktopReview({
       <DesktopStepHeader back="/details" step={5} />
 
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-        <main className="page-in mx-auto max-w-6xl px-14 py-6">
+        <main className="page-in mx-auto max-w-6xl px-8 py-6 lg:px-14">
           <StepTitle step="five">
             Review your <Accent>appointment</Accent>
           </StepTitle>
@@ -258,6 +262,7 @@ function DesktopReview({
                   <ul className="space-y-1">
                     {selected.map((x) => (
                       <li key={x.id} className="group flex items-center gap-3">
+                        <ServiceGlyph kind={serviceKind(x)} className="h-5 w-5 shrink-0 text-bronze" />
                         <span className="font-display text-[1.7rem] leading-tight">{x.name}</span>
                         {selected.length > 1 ? (
                           <span className="text-[0.9rem] text-muted-foreground">
@@ -269,7 +274,7 @@ function DesktopReview({
                           <button
                             onClick={() => removeService(x.id)}
                             aria-label={`Remove ${x.name}`}
-                            className="text-foreground/35 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+                            className="press -m-2 inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/35 opacity-0 transition-opacity hover:bg-foreground/5 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
                           >
                             <X className="h-4 w-4" strokeWidth={1.25} />
                           </button>
@@ -287,7 +292,7 @@ function DesktopReview({
                     </Link>
                   </div>
                 </div>
-                <div className="self-stretch border-l border-hairline pl-14 pr-6">
+                <div className="self-stretch border-l border-hairline pl-8 pr-2 lg:pl-14 lg:pr-6">
                   <div className="flex h-full flex-col justify-center">
                     <div className="text-[0.72rem] uppercase tracking-[0.3em] text-foreground/70">
                       {hasFromPricing ? "Estimated price" : "Price"}
@@ -345,7 +350,7 @@ function DesktopReview({
                   src={embedUrl}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
-                  className="h-24 w-80 shrink-0 rounded-sm border-0 bg-muted grayscale"
+                  className="h-24 w-56 shrink-0 rounded-sm border-0 bg-muted grayscale lg:w-80"
                 />
               </div>
             </Card>
@@ -373,7 +378,7 @@ function DesktopReview({
             </p>
           )}
         </div>
-        <DesktopCTA onClick={confirm} disabled={saving} className="min-w-[30rem] justify-between">
+        <DesktopCTA onClick={confirm} disabled={saving} className="justify-between md:min-w-[16rem] lg:min-w-[30rem]">
           {saving ? "Confirming…" : "Confirm appointment"}
         </DesktopCTA>
       </DesktopBar>

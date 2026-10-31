@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png.asset.json";
+import { SnipLine } from "@/components/motion";
 
 export function Wordmark({ className }: { className?: string }) {
   return (
@@ -160,34 +161,22 @@ export function StepHeader({ back, step, total = 5 }: { back: string; step: numb
   const pad = (n: number) => String(n).padStart(2, "0");
   return (
     <header className="sticky top-0 z-30 bg-background/92 backdrop-blur-md safe-t">
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-2.5">
         <Link
           to={back as never}
           aria-label="Back"
-          className="press inline-flex h-11 w-11 items-center justify-center rounded-full text-foreground/75 hover:bg-foreground/5"
+          className="press inline-flex h-11 w-11 items-center justify-center justify-self-start rounded-full text-foreground/75 hover:bg-foreground/5"
         >
           <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.25} />
         </Link>
         <Link to="/" aria-label="Hair by Bhargav" className="mx-auto inline-flex">
           <Wordmark className="h-8" />
         </Link>
-        <span className="label-caps w-11 whitespace-nowrap text-right text-[0.6rem] tabular-nums text-foreground/60">
+        <span className="label-caps justify-self-end whitespace-nowrap pr-1 text-[0.6rem] tabular-nums text-foreground/60">
           {pad(step)} / {pad(total)}
         </span>
       </div>
-      <div
-        className="h-px w-full bg-hairline"
-        role="progressbar"
-        aria-label={`Step ${step} of ${total}`}
-        aria-valuemin={1}
-        aria-valuemax={total}
-        aria-valuenow={step}
-      >
-        <div
-          className="h-px bg-bronze/70 transition-[width] duration-700"
-          style={{ width: `${(step / total) * 100}%` }}
-        />
-      </div>
+      <SnipLine step={step} total={total} />
     </header>
   );
 }

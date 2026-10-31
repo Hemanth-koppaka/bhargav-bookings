@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowRight, Phone } from "lucide-react";
 import { BUSINESS, hoursFor, isClosed, minuteLabel, toISO } from "@/lib/salon";
-import { Wordmark } from "@/components/screen";
+import { LogoReveal } from "@/components/motion";
+import { ServiceGlyph } from "@/components/service-icons";
 import { CallButton, InfoStrip } from "@/components/desktop";
 import founder from "@/assets/founder.jpg.asset.json";
 
@@ -80,9 +81,38 @@ function StatusPill({ className }: { className?: string }) {
 function Home() {
   return (
     <>
+      <Intro />
       <MobileHome />
       <DesktopHome />
     </>
+  );
+}
+
+/** First-visit opening: the wordmark is unveiled and a pair of scissors cuts the ribbon. */
+function Intro() {
+  const [gone, setGone] = useState(false);
+  if (gone) return null;
+  return (
+    <div
+      aria-hidden
+      onClick={() => setGone(true)}
+      onAnimationEnd={(e) => {
+        if (e.target === e.currentTarget) setGone(true);
+      }}
+      className="intro fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background"
+    >
+      <LogoReveal className="h-24 lg:h-32" delay={150} />
+      <div className="relative mt-9 h-6 w-52 lg:w-64">
+        <span className="absolute inset-x-0 top-1/2 h-px [background-image:linear-gradient(90deg,var(--hairline)_55%,transparent_55%)] [background-size:7px_1px]" />
+        <span className="intro-cut absolute inset-x-0 top-1/2 h-px bg-bronze/70" />
+        <span className="intro-scissors absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 text-bronze">
+          <ServiceGlyph kind="scissors" className="h-5 w-5 rotate-90" />
+        </span>
+      </div>
+      <div className="fade-rise mt-6 text-[0.66rem] uppercase tracking-[0.36em] text-muted-foreground [animation-delay:1.3s]">
+        {BUSINESS.tagline}
+      </div>
+    </div>
   );
 }
 
@@ -91,7 +121,9 @@ function MobileHome() {
     <div className="flex h-[100svh] min-h-[600px] flex-col overflow-hidden bg-background lg:hidden">
       <div className="safe-t">
         <header className="flex items-center justify-between px-5 pt-4 pb-3">
-          <Wordmark className="h-10" />
+          <span className="after-intro-logo inline-flex">
+            <LogoReveal className="h-10" />
+          </span>
           <a
             href={`tel:${BUSINESS.phones[0]}`}
             aria-label="Call the studio"
@@ -128,7 +160,7 @@ function MobileHome() {
           </span>
         </Link>
 
-        <div className="stagger shrink-0 pt-[clamp(1rem,3svh,1.75rem)] pb-[clamp(0.75rem,2svh,1.25rem)]">
+        <div className="stagger after-intro shrink-0 pt-[clamp(1rem,3svh,1.75rem)] pb-[clamp(0.75rem,2svh,1.25rem)]">
           <div className="text-[0.6rem] uppercase tracking-[0.28em] text-muted-foreground">{BUSINESS.locationShort}</div>
           <h1 className="mt-2 font-display text-[clamp(2.6rem,12vw,3.4rem)] leading-[0.95] tracking-[-0.015em]">
             Reserve <span className="italic text-bronze">your chair.</span>
@@ -176,8 +208,8 @@ function DesktopHome() {
   return (
     <div className="hidden min-h-[100svh] flex-col bg-background lg:flex">
       <header className="mx-8 flex shrink-0 items-center justify-between gap-8 hairline-b px-6 py-5 xl:mx-10 xl:px-16">
-        <Link to="/" aria-label="Hair by Bhargav" className="inline-flex">
-          <Wordmark className="h-14" />
+        <Link to="/" aria-label="Hair by Bhargav" className="after-intro-logo inline-flex">
+          <LogoReveal className="h-14" />
         </Link>
         <nav className="flex items-center gap-10" aria-label="Main">
           {quickLinks.map((l) => (
@@ -194,7 +226,7 @@ function DesktopHome() {
       </header>
 
       <main className="grid flex-1 grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] items-center gap-12 px-12 py-8 xl:gap-20 xl:px-24">
-        <div className="stagger">
+        <div className="stagger after-intro">
           <div className="flex items-center gap-4 text-[0.72rem] uppercase tracking-[0.32em] text-bronze">
             <span className="h-px w-10 bg-bronze/60" />
             {BUSINESS.tagline}

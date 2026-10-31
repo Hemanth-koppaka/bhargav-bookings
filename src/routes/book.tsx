@@ -1,10 +1,10 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
-import { StepHeader, StepIntro, Wordmark } from "@/components/screen";
+import { StepHeader, StepIntro } from "@/components/screen";
 import { haptic } from "@/lib/utils";
-import { CallButton, InfoStrip, ProgressLine } from "@/components/desktop";
+import { DesktopStepperHeader, InfoStrip } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
-import { BUSINESS, type Audience } from "@/lib/salon";
+import type { Audience } from "@/lib/salon";
 import menImg from "@/assets/men.jpg.asset.json";
 import womenImg from "@/assets/women.jpg.asset.json";
 
@@ -42,7 +42,7 @@ function BookEntry() {
   return (
     <>
       {/* Phone / tablet: one-screen app layout */}
-      <div className="flex h-[100svh] min-h-[560px] flex-col overflow-hidden bg-background lg:hidden">
+      <div className="flex h-[100svh] min-h-[560px] flex-col overflow-hidden bg-background md:hidden">
         <StepHeader back="/" step={1} />
         <main className="mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col px-5 safe-b">
           <StepIntro eyebrow="Step one">
@@ -90,40 +90,23 @@ function BookEntry() {
 
 function DesktopBookEntry({ choose }: { choose: (a: Audience) => void }) {
   return (
-    <div className="hidden h-[100svh] min-h-[640px] flex-col overflow-hidden bg-background lg:flex">
-      <header className="mx-8 flex shrink-0 items-center justify-between hairline-b px-6 py-6 xl:mx-10 xl:px-16">
-        <Link to="/" aria-label="Hair by Bhargav" className="inline-flex">
-          <Wordmark className="h-16" />
-        </Link>
-        <div className="flex items-center gap-8">
-          <CallButton withNumber={false} />
-          <div className="text-[0.68rem] uppercase leading-relaxed tracking-[0.3em] text-foreground/80">
-            {BUSINESS.locationShort.split(" · ").slice(0, 1)}
-            <br />
-            {BUSINESS.locationShort.split(" · ").slice(1).join(" · ")}
-          </div>
-        </div>
-      </header>
+    <div className="hidden min-h-[100svh] flex-col bg-background md:flex lg:h-[100svh] lg:min-h-[640px] lg:overflow-hidden">
+      <DesktopStepperHeader step={1} />
 
-      <main className="page-in grid min-h-0 flex-1 grid-cols-[minmax(21rem,0.8fr)_minmax(0,2fr)] items-center gap-10 px-14 py-8 xl:px-24">
+      <main className="page-in grid flex-1 grid-cols-1 content-center gap-8 px-8 py-8 lg:min-h-0 lg:grid-cols-[minmax(19rem,0.8fr)_minmax(0,2fr)] lg:items-center lg:gap-10 lg:px-14 xl:px-24">
         <div>
-          <div className="text-[0.72rem] uppercase tracking-[0.32em]">
-            <span className="text-bronze">Step one</span>
-            <span className="mx-4 text-foreground/40">/</span>
-            <span className="text-foreground/70">01 of 05</span>
-          </div>
-          <ProgressLine step={1} className="mt-4 w-56 rounded-full" />
-          <h1 className="mt-14 font-display text-[clamp(3.25rem,5vw,4.75rem)] leading-[1] tracking-[-0.015em]">
+          <div className="text-[0.72rem] uppercase tracking-[0.32em] text-bronze">Step one</div>
+          <span className="mt-4 block h-px w-12 bg-bronze/60" />
+          <h1 className="mt-6 font-display text-[clamp(3rem,5vw,4.75rem)] leading-[1] tracking-[-0.015em] lg:mt-10">
             <span className="whitespace-nowrap">Who are we</span>
-            <br />
-            <span className="italic">styling?</span>
+            <br className="hidden lg:block" /> <span className="italic text-bronze">styling?</span>
           </h1>
-          <p className="mt-8 max-w-xs text-[1.05rem] leading-relaxed text-muted-foreground">
+          <p className="mt-4 max-w-sm text-[1.05rem] leading-relaxed text-muted-foreground lg:mt-8 lg:max-w-xs">
             This helps us show you the right services and availability.
           </p>
         </div>
 
-        <div className="stagger grid h-full max-h-[600px] grid-cols-2 gap-5">
+        <div className="stagger grid h-[min(56svh,560px)] grid-cols-2 gap-4 lg:h-full lg:max-h-[600px] lg:gap-5">
           {options.map((o) => (
             <button
               key={o.key}
@@ -154,7 +137,7 @@ function DesktopBookEntry({ choose }: { choose: (a: Audience) => void }) {
         </div>
       </main>
 
-      <InfoStrip className="px-14 xl:px-24" />
+      <InfoStrip className="mx-8 lg:mx-14 xl:mx-24" />
     </div>
   );
 }
