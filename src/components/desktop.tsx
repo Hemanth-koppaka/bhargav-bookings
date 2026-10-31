@@ -11,7 +11,7 @@ import { ScissorsLine, useRewindBack } from "@/components/scissors-line";
 export const STEPS = ["Who", "Services", "Time", "Details", "Confirm"] as const;
 
 export const AUDIENCE_IMAGE: Record<Audience, { src: string; pos: string }> = {
-  men: { src: "/services/men-panel.webp", pos: "50% 8%" },
+  men: { src: "/team/bhargav.webp", pos: "50% 18%" },
   women: { src: "/services/women-panel.webp", pos: "50% 20%" },
 };
 
