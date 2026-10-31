@@ -15,6 +15,13 @@
       "when": 1791511732017,
       "tag": "0001_grant_service_role_salon_content",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793440000000,
+      "tag": "0002_admin_os_foundation",
+      "breakpoints": true
     }
   ]
 }

@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Clock, Plus, Search, ShoppingBag, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock, Plus, Search, ShoppingBag, X } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
+import { useRewindBack } from "@/components/scissors-line";
 import { ServiceGlyph, ServiceIconTile, categoryKind, serviceKind } from "@/components/service-icons";
 import {
   AUDIENCE_IMAGE,
@@ -32,7 +33,7 @@ export const Route = createFileRoute("/services")({
 });
 
 function ServicesScreen() {
-  const { draft, hydrated, toggleService, selected, totalSlots, totalPrice, hasFromPricing } =
+  const { draft, hydrated, toggleService, selected, totalMinutes, totalPrice, hasFromPricing } =
     useBooking();
   const navigate = useNavigate();
   const [active, setActive] = useState<string | null>(null);
@@ -47,6 +48,7 @@ function ServicesScreen() {
   const category = menu.find((c) => c.id === activeId) ?? menu[0];
   const [query, setQuery] = useState("");
   const search = useServiceSearch(menu, query);
+  const listHasPhotos = (search ?? category?.services ?? []).some((x) => x.photo);
 
   useEffect(() => {
     const el = chipRow.current?.querySelector<HTMLElement>('[aria-selected="true"]');
@@ -78,7 +80,7 @@ function ServicesScreen() {
               Select your <span className="italic text-bronze">services.</span>
             </StepIntro>
 
-            <SearchBox value={query} onChange={setQuery} className="mt-5" />
+            <SearchBox value={query} onChange={setQuery} className="mt-5" hint={men ? "haircut, beard, colour…" : "haircut, facial, colour…"} />
 
             <div
               ref={chipRow}
@@ -154,7 +156,7 @@ function ServicesScreen() {
                             : "border-foreground/8 bg-card/60 hover:border-foreground/25")
                         }
                       >
-                        <ServiceIconTile kind={serviceKind(x)} active={on} size="sm" />
+                        <ServiceIconTile kind={serviceKind(x)} photo={x.photo} framed={listHasPhotos} active={on} size="sm" />
                         <span className="min-w-0 flex-1">
                           <span className="block text-[1rem] leading-snug [overflow-wrap:anywhere]">{x.name}</span>
                           {x.category ? (
@@ -165,7 +167,7 @@ function ServicesScreen() {
                           ) : null}
                           <span className="mt-1.5 flex items-center gap-1.5 text-[0.75rem] text-muted-foreground">
                             <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
-                            {formatDuration(x.slots)}
+                            {formatDuration(x.minutes)}
                           </span>
                         </span>
                         <span className="shrink-0 whitespace-nowrap text-[1rem]">
@@ -213,7 +215,7 @@ function ServicesScreen() {
                     {selected.length ? selected.map((x) => x.name).join(", ") : "No services yet"}
                   </span>
                   <span className="block text-[0.75rem] text-muted-foreground">
-                    {selected.length ? formatDuration(totalSlots) : "Tap + to add"}
+                    {selected.length ? formatDuration(totalMinutes) : "Tap + to add"}
                   </span>
                 </span>
               </div>
@@ -247,10 +249,12 @@ function DesktopServices({
   onQuery: (q: string) => void;
   search: SearchHit[] | null;
 }) {
-  const { draft, toggleService, selected, totalSlots, totalPrice, hasFromPricing } = useBooking();
+  const { draft, toggleService, selected, totalMinutes, totalPrice, hasFromPricing } = useBooking();
   const navigate = useNavigate();
   const men = draft.audience === "men";
   const img = AUDIENCE_IMAGE[men ? "men" : "women"];
+  const [sort, setSort] = useState<SortKey>("popular");
+  const goBack = useRewindBack("/book", 1);
 
   return (
     <DesktopPage>
@@ -259,7 +263,7 @@ function DesktopServices({
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,34%)] xl:grid-cols-[minmax(17rem,22%)_minmax(0,1fr)_minmax(18rem,32%)]">
         {/* Categories */}
         <nav aria-label="Service categories" className="hidden min-h-0 flex-col overflow-y-auto border-r xl:flex border-hairline px-8 py-8 [scrollbar-width:thin]">
-          <Link to="/book" className="label-caps inline-flex items-center gap-3 text-foreground/70 transition-opacity hover:opacity-60">
+          <Link to="/book" onClick={(e) => void goBack(e)} className="label-caps press inline-flex items-center gap-3 text-foreground/70 transition-opacity hover:opacity-60">
             <ArrowLeft className="h-4 w-4" strokeWidth={1.25} />
             Back
           </Link>
@@ -293,6 +297,7 @@ function DesktopServices({
                   >
                     <ServiceIconTile
                       kind={categoryKind(c.id)}
+                      photo={c.photo}
                       active={on}
                       size="sm"
                       className={on ? "bg-background/10" : ""}
@@ -314,7 +319,7 @@ function DesktopServices({
         {/* Service list (tablets and small laptops get the intro + category chips here) */}
         <div className="min-h-0 overflow-y-auto [scrollbar-width:thin]">
           <div className="px-8 pt-7 lg:px-10 xl:hidden">
-            <Link to="/book" className="label-caps inline-flex items-center gap-3 text-foreground/70 transition-opacity hover:opacity-60">
+            <Link to="/book" onClick={(e) => void goBack(e)} className="label-caps press inline-flex items-center gap-3 text-foreground/70 transition-opacity hover:opacity-60">
               <ArrowLeft className="h-4 w-4" strokeWidth={1.25} />
               Back
             </Link>
@@ -357,8 +362,9 @@ function DesktopServices({
               })}
             </div>
           </div>
-          <div className="px-8 pt-6 lg:px-10 xl:px-12 xl:pt-8">
-            <SearchBox value={query} onChange={onQuery} />
+          <div className="flex items-center gap-3 px-8 pt-6 lg:px-10 xl:px-12 xl:pt-7">
+            <SearchBox value={query} onChange={onQuery} className="min-w-0 flex-1" hint={men ? "haircut, beard, colour…" : "haircut, facial, colour…"} />
+            <SortMenu value={sort} onChange={setSort} />
           </div>
         <section key={search ? "search" : category.id} className="slide-in px-8 py-7 lg:px-10 xl:px-12 xl:py-8">
           <div className="flex items-baseline justify-between gap-6">
@@ -371,37 +377,40 @@ function DesktopServices({
             <p className="mt-1 max-w-lg text-[0.9rem] leading-relaxed text-muted-foreground">{category.blurb}</p>
           ) : null}
           {search && search.length === 0 ? <NoResults query={query} onClear={() => onQuery("")} /> : null}
-          <ul className="stagger mt-6 hairline-t">
-            {(search ?? category.services.map((x) => ({ ...x, category: "" }))).map((x) => {
+          <ul key={sort} className="stagger mt-5 hairline-t">
+            {sortServices(search ?? category.services.map((x) => ({ ...x, category: "" })), sort).map((x) => {
               const on = draft.serviceIds.includes(x.id);
               return (
                 <li key={x.id} className="hairline-b">
                   <button
                     onClick={() => toggleService(x.id)}
                     aria-pressed={on}
-                    className="group -mx-4 flex w-[calc(100%+2rem)] items-center gap-5 rounded-md px-4 py-5 text-left transition-colors duration-200 hover:bg-foreground/[0.025]"
+                    className={
+                      "group -mx-3 flex w-[calc(100%+1.5rem)] items-center gap-5 px-3 py-3.5 text-left transition-colors duration-300 " +
+                      (on ? "bg-champagne/16" : "hover:bg-foreground/[0.025]")
+                    }
                   >
-                    <ServiceIconTile kind={serviceKind(x)} active={on} />
+                    <ServiceIconTile kind={serviceKind(x)} photo={x.photo} framed active={on} size="thumb" />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[1.05rem] leading-snug">{x.name}</span>
+                      <span className="block font-display text-[1.3rem] leading-tight">{x.name}</span>
                       {x.category ? (
                         <span className="mt-0.5 block text-[0.68rem] uppercase tracking-[0.22em] text-bronze">{x.category}</span>
                       ) : null}
                       {x.note ? (
-                        <span className="mt-1 block text-[0.85rem] leading-relaxed text-muted-foreground">{x.note}</span>
+                        <span className="mt-0.5 block truncate text-[0.85rem] text-muted-foreground">{x.note}</span>
                       ) : null}
-                      <span className="mt-2 flex items-center gap-2 text-[0.82rem] text-muted-foreground">
+                      <span className="mt-1 flex items-center gap-2 text-[0.82rem] text-muted-foreground">
                         <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
-                        {formatDuration(x.slots)}
+                        {formatDuration(x.minutes)}
                       </span>
                     </span>
-                    <span className="shrink-0 whitespace-nowrap text-[1.05rem]">
+                    <span className="shrink-0 whitespace-nowrap font-display text-[1.4rem]">
                       {inr(x.price)}
                       {x.from ? "+" : ""}
                     </span>
                     <span
                       className={
-                        "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border transition-all duration-300 group-active:scale-90 " +
+                        "ml-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border transition-all duration-300 group-active:scale-90 " +
                         (on
                           ? "ring-pulse border-foreground bg-foreground text-background"
                           : "border-foreground/30 group-hover:border-foreground/70")
@@ -434,15 +443,21 @@ function DesktopServices({
       </div>
 
       <DesktopBar>
-        <span className="flex h-16 w-16 shrink-0 items-center justify-center border border-foreground/12">
-          <ShoppingBag className="h-6 w-6" strokeWidth={1.1} />
-        </span>
+        {selected[0] ? (
+          <ServiceIconTile key={selected[0].id} kind={serviceKind(selected[0])} photo={selected[0].photo} framed size="thumb" className="pop-in" />
+        ) : (
+          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-foreground/12">
+            <ShoppingBag className="h-6 w-6" strokeWidth={1.1} />
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           {selected.length ? (
             <>
-              <div className="truncate text-[1.05rem]">{selected.map((x) => x.name).join(", ")}</div>
-              <div className="mt-0.5 text-[0.85rem] text-muted-foreground">
-                {selected.length} selected · {formatDuration(totalSlots)}
+              <div className="truncate font-display text-[1.35rem] leading-tight">
+                {selected.length} {selected.length === 1 ? "service" : "services"} selected
+              </div>
+              <div className="mt-0.5 truncate text-[0.88rem] text-muted-foreground">
+                {formatDuration(totalMinutes)} · {selected.map((x) => x.name).join(", ")}
               </div>
             </>
           ) : (
@@ -493,7 +508,17 @@ function useServiceSearch(menu: Category[], query: string): SearchHit[] | null {
   }, [menu, query]);
 }
 
-function SearchBox({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+function SearchBox({
+  value,
+  onChange,
+  className,
+  hint = "haircut, facial, colour…",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+  hint?: string;
+}) {
   return (
     <label className={"group relative block " + (className ?? "")}>
       <span className="sr-only">Search services</span>
@@ -508,7 +533,7 @@ function SearchBox({ value, onChange, className }: { value: string; onChange: (v
         onKeyDown={(e) => {
           if (e.key === "Escape") onChange("");
         }}
-        placeholder="Search services — haircut, facial, colour…"
+        placeholder={`Search services — ${hint}`}
         enterKeyHint="search"
         autoComplete="off"
         className="h-12 w-full rounded-full border border-foreground/12 bg-card pr-11 pl-11 text-[0.95rem] outline-none transition-colors placeholder:text-foreground/35 focus:border-foreground/45 [&::-webkit-search-cancel-button]:hidden"
@@ -536,5 +561,47 @@ function NoResults({ query, onClear }: { query: string; onClear: () => void }) {
         Clear search
       </button>
     </div>
+  );
+}
+
+type SortKey = "popular" | "price-asc" | "price-desc" | "duration";
+
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: "popular", label: "Popular" },
+  { key: "price-asc", label: "Price: low to high" },
+  { key: "price-desc", label: "Price: high to low" },
+  { key: "duration", label: "Quickest first" },
+];
+
+/** "Popular" keeps the salon's own order, with featured services first. */
+function sortServices<T extends { price: number; minutes: number; featured?: boolean | undefined }>(list: T[], key: SortKey) {
+  const out = list.map((x, i) => ({ x, i }));
+  out.sort((a, b) => {
+    if (key === "price-asc") return a.x.price - b.x.price || a.i - b.i;
+    if (key === "price-desc") return b.x.price - a.x.price || a.i - b.i;
+    if (key === "duration") return a.x.minutes - b.x.minutes || a.i - b.i;
+    return Number(Boolean(b.x.featured)) - Number(Boolean(a.x.featured)) || a.i - b.i;
+  });
+  return out.map((o) => o.x);
+}
+
+function SortMenu({ value, onChange }: { value: SortKey; onChange: (k: SortKey) => void }) {
+  return (
+    <label className="group relative flex h-12 shrink-0 cursor-pointer flex-col justify-center rounded-full border border-foreground/12 bg-card pr-10 pl-5 transition-colors hover:border-foreground/35 focus-within:border-foreground/45">
+      <span className="text-[0.62rem] leading-none text-muted-foreground">Sort by</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as SortKey)}
+        className="mt-1 cursor-pointer appearance-none bg-transparent pr-1 text-[0.9rem] leading-none outline-none"
+        aria-label="Sort services"
+      >
+        {SORTS.map((o) => (
+          <option key={o.key} value={o.key}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute top-1/2 right-4 h-4 w-4 -translate-y-1/2 text-foreground/60" strokeWidth={1.5} />
+    </label>
   );
 }

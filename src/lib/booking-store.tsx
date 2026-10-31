@@ -9,7 +9,11 @@ export type Customer = {
   phone: string;
   email: string;
   notes?: string;
+  /** Storage paths of reference photos (server-set; removed after the visit). */
+  photos?: string[];
 };
+
+export type RefPhoto = { path: string; thumb: string };
 
 export type Draft = {
   audience: Audience | null;
@@ -17,6 +21,10 @@ export type Draft = {
   date: string | null; // ISO yyyy-mm-dd
   time: number | null; // minutes from midnight
   customer: Customer | null;
+  /** Identifies this booking's uploads before it has a reference. */
+  draftId?: string;
+  /** Optional reference photos already uploaded (deleted after the visit). */
+  photos?: RefPhoto[];
 };
 
 export type Booking = {
@@ -43,13 +51,15 @@ const BOOKINGS_KEY = "hbb.bookings.v1";
 
 type Ctx = {
   draft: Draft;
-  update: (patch: Partial<Draft>) => void;
+  update: (patch: Partial<Draft> | ((d: Draft) => Partial<Draft>)) => void;
   setAudience: (a: Audience) => void;
   toggleService: (id: string) => void;
   removeService: (id: string) => void;
   resetDraft: () => void;
   selected: Service[];
   totalSlots: number;
+  /** Service time of the selection, in minutes. */
+  totalMinutes: number;
   totalPrice: number;
   hasFromPricing: boolean;
   bookings: Booking[];
@@ -76,12 +86,6 @@ function read<T>(key: string, fallback: T): T {
   }
 }
 
-function makeReference() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return "HB-" + out;
-}
 
 export function BookingProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -111,7 +115,8 @@ export function BookingProvider({ children }: { children: ReactNode }) {
           .filter((x): x is Service => Boolean(x))
       : [];
 
-    const totalSlots = selected.reduce((n, s) => n + s.slots, 0);
+    const totalMinutes = selected.reduce((n, s) => n + (s.minutes ?? s.slots * 30), 0);
+    const totalSlots = Math.ceil(totalMinutes / 30);
     const totalPrice = selected.reduce((n, s) => n + s.price, 0);
     const hasFromPricing = selected.some((s) => s.from);
 
@@ -120,10 +125,11 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       hydrated,
       selected,
       totalSlots,
+      totalMinutes,
       totalPrice,
       hasFromPricing,
       bookings,
-      update: (patch) => setDraft((d) => ({ ...d, ...patch })),
+      update: (patch) => setDraft((d) => ({ ...d, ...(typeof patch === "function" ? patch(d) : patch) })),
       setAudience: (a) =>
         setDraft((d) =>
           d.audience === a
@@ -145,7 +151,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         if (!draft.audience || !draft.date || draft.time == null || !draft.customer)
           return { error: "Your booking is incomplete." };
         const booking: Booking = {
-          reference: makeReference(),
+          reference: "",
           audience: draft.audience,
           serviceIds: draft.serviceIds,
           date: draft.date,
@@ -155,10 +161,16 @@ export function BookingProvider({ children }: { children: ReactNode }) {
           createdAt: new Date().toISOString(),
         };
         try {
+          const { reference: _unused, ...payload } = booking;
           const res = await createBooking({
-            data: { ...booking, slots: Math.max(1, totalSlots), customer: { ...booking.customer, email: booking.customer.email ?? "" } },
+            data: {
+              ...payload,
+              customer: { ...booking.customer, email: booking.customer.email ?? "" },
+              ...(draft.photos?.length ? { photos: draft.photos.map((x) => x.path) } : {}),
+            },
           });
           if (!res.ok) return { error: res.error };
+          booking.reference = res.reference; // issued by the salon (HB-2026-00124)
         } catch {
           return { error: "We couldn't reach the salon. Check your connection and try again." };
         }

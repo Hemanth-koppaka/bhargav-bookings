@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Lock, MessageCircle, ShieldCheck } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
+import { ReferencePhotos } from "@/components/reference-photos";
 import {
   AUDIENCE_IMAGE,
   Accent,
@@ -121,7 +122,7 @@ function DetailsScreen() {
 }
 
 function MobileSummary() {
-  const { draft, selected, totalSlots, totalPrice, hasFromPricing } = useBooking();
+  const { draft, selected, totalMinutes, totalPrice, hasFromPricing } = useBooking();
   const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
   return (
     <div className="mt-5 flex items-center gap-4 rounded-md border border-hairline bg-card p-3.5">
@@ -134,7 +135,7 @@ function MobileSummary() {
           {draft.date
             ? fromISO(draft.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
             : ""}
-          {draft.time != null ? ` · ${minuteLabel(draft.time)}` : ""} · {formatDuration(totalSlots)}
+          {draft.time != null ? ` · ${minuteLabel(draft.time)}` : ""} · {formatDuration(totalMinutes)}
         </div>
       </div>
       <div className="text-right">
@@ -249,6 +250,10 @@ function DetailsFields({
         placeholder="Anything you'd like us to know?"
       />
     </div>
+
+    <div className="mt-6">
+      <ReferencePhotos />
+    </div>
     </>
   );
 }
@@ -262,7 +267,7 @@ function DesktopDetails({
   submit: (e?: FormEvent) => void;
   attempt: number;
 }) {
-  const { draft, selected, totalSlots, totalPrice, hasFromPricing } = useBooking();
+  const { draft, selected, totalMinutes, totalPrice, hasFromPricing } = useBooking();
   const img = AUDIENCE_IMAGE[draft.audience ?? "men"];
 
   const assurances = [
@@ -312,7 +317,7 @@ function DesktopDetails({
                     </div>
                   ) : null}
                   <div className="mt-1 text-[1.05rem] text-muted-foreground">
-                    {draft.time != null ? minuteLabel(draft.time) : ""} · {formatDuration(totalSlots)}
+                    {draft.time != null ? minuteLabel(draft.time) : ""} · {formatDuration(totalMinutes)}
                   </div>
                 </div>
               </div>

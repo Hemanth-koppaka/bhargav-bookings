@@ -3,6 +3,11 @@ import { z } from "zod";
 
 // Admin-only editing of salon content. Every call re-checks the admin session.
 
+const audit = async (e: Parameters<typeof import("./engine.server").audit>[0]) => {
+  const E = await import("./engine.server");
+  await E.audit(e);
+};
+
 // `pin` carries the admin session token issued by adminSignIn.
 async function assertPin(token: string) {
   const { assertAdmin } = await import("./admin-auth.server");
@@ -57,6 +62,7 @@ export const adminGetContent = createServerFn({ method: "POST" })
       businessJson: JSON.stringify(
         (st.data ?? []).find((x) => x.key === "business")?.value ?? {},
       ),
+      mediaJson: JSON.stringify((st.data ?? []).find((x) => x.key === "media")?.value ?? {}),
     };
   });
 
@@ -86,6 +92,7 @@ export const adminSaveCategory = createServerFn({ method: "POST" })
       const { error } = await sb.from("service_categories").insert({ ...row, id: `${data.gender}-${s}`, slug: s });
       if (error) throw new Error("Couldn't add category");
     }
+    await audit({ action: data.id ? "category.update" : "category.create", entity: "category", entityId: data.id ?? "", summary: `${data.id ? "Updated" : "Added"} category ${data.name}`, after: row });
     return { ok: true };
   });
 
@@ -97,15 +104,18 @@ export const adminSaveService = createServerFn({ method: "POST" })
       categoryId: z.string().max(60),
       name: z.string().trim().min(1).max(120),
       description: z.string().max(1000),
-      minutes: z.number().int().min(30).max(600).multipleOf(30),
+      minutes: z.number().int().min(5).max(600).multipleOf(5),
       price: z.number().int().min(0).max(1_000_000),
       from: z.boolean(),
       order: z.number().int().min(0).max(999),
       active: z.boolean(),
+      buffer: z.number().int().min(0).max(120).optional(),
+      featured: z.boolean().optional(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
     const sb = await assertPin(data.pin);
+    const { data: before } = data.id ? await sb.from("services").select("*").eq("id", data.id).maybeSingle() : { data: null };
     const { data: cat } = await sb.from("service_categories").select("gender").eq("id", data.categoryId).maybeSingle();
     if (!cat) throw new Error("Category not found");
     const row = {
@@ -113,11 +123,34 @@ export const adminSaveService = createServerFn({ method: "POST" })
       duration_minutes: data.minutes, price: data.price, price_from: data.from,
       display_order: data.order, active: data.active,
     };
-    const { error } = data.id
-      ? await sb.from("services").update(row).eq("id", data.id)
-      : await sb.from("services").insert({ ...row, id: `${cat.gender[0]}-${slug(data.name)}-${rid()}` });
+    const extra = {
+      ...(data.buffer != null ? { buffer_minutes: data.buffer } : {}),
+      ...(data.featured != null ? { featured: data.featured } : {}),
+    };
+    const id = data.id ?? `${cat.gender[0]}-${slug(data.name)}-${rid()}`;
+    const write = (r: object) =>
+      data.id ? sb.from("services").update(r as never).eq("id", id) : sb.from("services").insert({ ...r, id } as never);
+    let { error } = await write({ ...row, ...extra });
+    if (error && Object.keys(extra).length && /column/i.test(error.message)) ({ error } = await write(row));
     if (error) throw new Error("Couldn't save service");
-    return { ok: true };
+    const changes: string[] = [];
+    const b = before as Record<string, unknown> | null;
+    if (b) {
+      if (b["price"] !== data.price) changes.push(`price ₹${b["price"]} → ₹${data.price}`);
+      if (b["duration_minutes"] !== data.minutes) changes.push(`duration ${b["duration_minutes"]} → ${data.minutes} min`);
+      if (b["active"] !== data.active) changes.push(data.active ? "shown to guests" : "hidden from guests");
+      if (data.buffer != null && (b["buffer_minutes"] ?? 0) !== data.buffer) changes.push(`buffer ${b["buffer_minutes"] ?? 0} → ${data.buffer} min`);
+      if (b["name"] !== data.name) changes.push(`renamed from "${b["name"]}"`);
+    }
+    await audit({
+      action: data.id ? "service.update" : "service.create",
+      entity: "service",
+      entityId: id,
+      summary: `${data.name}${changes.length ? ": " + changes.join(", ") : data.id ? " updated" : " added"}`,
+      before: b,
+      after: { ...row, ...extra },
+    });
+    return { ok: true, id };
   });
 
 export const adminSaveHours = createServerFn({ method: "POST" })
@@ -136,6 +169,7 @@ export const adminSaveHours = createServerFn({ method: "POST" })
       data.hours.map((h) => ({ day_of_week: h.day, is_open: h.open, opening_time: h.from, closing_time: h.to })),
     );
     if (error) throw new Error("Couldn't save hours");
+    await audit({ action: "hours.update", entity: "hours", summary: "Updated opening hours", after: data.hours });
     return { ok: true };
   });
 
@@ -155,6 +189,7 @@ export const adminSaveException = createServerFn({ method: "POST" })
     const sb = await assertPin(data.pin);
     if (data.remove) {
       await sb.from("opening_exceptions").delete().eq("date", data.date);
+      await audit({ action: "closure.remove", entity: "date", entityId: data.date, summary: `Removed special hours for ${data.date}` });
       return { ok: true };
     }
     const { error } = await sb.from("opening_exceptions").upsert({
@@ -162,6 +197,13 @@ export const adminSaveException = createServerFn({ method: "POST" })
       opening_time: data.open ? data.from : null, closing_time: data.open ? data.to : null, note: data.note,
     });
     if (error) throw new Error("Couldn't save date");
+    await audit({
+      action: data.open ? "date.special_hours" : "date.close",
+      entity: "date",
+      entityId: data.date,
+      summary: data.open ? `Special hours on ${data.date}: ${data.from}–${data.to}` : `Closed ${data.date}${data.note ? ` (${data.note})` : ""}`,
+      reason: data.note,
+    });
     return { ok: true };
   });
 
@@ -188,5 +230,6 @@ export const adminSaveBusiness = createServerFn({ method: "POST" })
     const value = { ...((cur?.value as object) ?? {}), ...data.business };
     const { error } = await sb.from("site_settings").upsert({ key: "business", value });
     if (error) throw new Error("Couldn't save details");
+    await audit({ action: "studio.update", entity: "studio", summary: "Updated studio details", before: cur?.value ?? null, after: value });
     return { ok: true };
   });
