@@ -12,6 +12,7 @@ const key = (audience: string, name: string) =>
 const SERVICES: Record<string, string> = {
   [key("men", "Basic Haircut")]: "/services/men-haircut.webp",
   [key("men", "Beard Trim")]: "/services/men-beard.webp",
+  [key("men", "Shave")]: "/services/men-shave.webp",
   [key("men", "Bhargav's Signature")]: "/team/bhargav-portrait.webp",
   [key("women", "Bhargav's Signature")]: "/team/bhargav-portrait.webp",
   [key("men", "Kids (U-14)")]: "/services/men-kids.webp",
@@ -22,11 +23,9 @@ const SERVICES: Record<string, string> = {
   [key("women", "Highlights")]: "/services/women-highlights.webp",
 };
 
-const CATEGORIES: Record<string, string> = {
-  [key("men", "Hairstyles")]: "/services/men-hairstyles.webp",
-  [key("men", "Colours")]: "/services/men-highlights.webp",
-  [key("women", "Colours")]: "/services/women-highlights.webp",
-};
+// Categories use the line icons (as in the menu design); an admin-uploaded
+// photo still takes priority.
+const CATEGORIES: Record<string, string> = {};
 
 export const builtInServicePhoto = (audience: string, name: string) =>
   SERVICES[key(audience, name)];
