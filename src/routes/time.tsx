@@ -63,7 +63,12 @@ function TimeScreen() {
   }, [draft.date, hydrated]);
 
   const days = useMemo(() => calendarDays(56, now), [now]);
-  const rawDay = useDayAvailability(draft.date, draft.audience, draft.serviceIds);
+  // the three open days after the chosen one load in the background
+  const ahead = useMemo(() => {
+    if (!draft.date) return [];
+    return days.filter((d) => d.selectable && d.iso > draft.date!).slice(0, 3).map((d) => d.iso);
+  }, [days, draft.date]);
+  const rawDay = useDayAvailability(draft.date, draft.audience, draft.serviceIds, ahead);
   const day = forStylist(rawDay, draft.staffId);
   const slots = day.data?.slots ?? [];
   const selectedBreaks = day.data?.breaks ?? [];
@@ -222,29 +227,78 @@ function StylistPicker({ day }: { day: DayState }) {
   );
 }
 
+/*
+ * Day availability with a short-lived cache: a day already fetched shows
+ * instantly (and refreshes quietly), and the next few open days are loaded
+ * in the background so tapping them feels immediate.
+ */
+const FRESH_MS = 60_000;
+const dayCache = new Map<string, { at: number; data: DayAvailability }>();
+const inflight = new Map<string, Promise<DayAvailability>>();
+const cacheKey = (date: string, audience: string, key: string) => `${date}|${audience}|${key}`;
+
+function fetchDay(date: string, audience: string, key: string, force = false): Promise<DayAvailability> {
+  const k = cacheKey(date, audience, key);
+  const hit = dayCache.get(k);
+  if (!force && hit && Date.now() - hit.at < FRESH_MS) return Promise.resolve(hit.data);
+  const running = inflight.get(k);
+  if (running) return running;
+  const p = getAvailability({ data: { date, audience: audience as "men" | "women", serviceIds: key.split(",") } })
+    .then((r) => {
+      dayCache.set(k, { at: Date.now(), data: r });
+      return r;
+    })
+    .finally(() => inflight.delete(k));
+  inflight.set(k, p);
+  return p;
+}
+
+/** Warm the cache for a day (e.g. on press, before the tap completes). */
+function prefetchDay(date: string, audience: string | null, serviceIds: string[]) {
+  if (audience && serviceIds.length) void fetchDay(date, audience, serviceIds.join(",")).catch(() => {});
+}
+
 /** Live availability for the chosen day and services, straight from the booking engine. */
-function useDayAvailability(date: string | null, audience: string | null, serviceIds: string[]): DayState {
+function useDayAvailability(
+  date: string | null,
+  audience: string | null,
+  serviceIds: string[],
+  ahead: string[] = [],
+): DayState {
   const [state, setState] = useState<DayState>({ data: null, loading: false, error: "" });
   const key = serviceIds.join(",");
+  const aheadKey = ahead.join(",");
   useEffect(() => {
     if (!date || !audience || !key) {
       setState({ data: null, loading: false, error: "" });
       return;
     }
     let live = true;
-    setState((s) => ({ data: s.data?.date === date ? s.data : null, loading: true, error: "" }));
-    const load = () =>
-      getAvailability({ data: { date, audience: audience as "men" | "women", serviceIds: key.split(",") } })
+    const hit = dayCache.get(cacheKey(date, audience, key));
+    // a cached day shows at once; otherwise keep the old grid only if it's the same day
+    setState((s) =>
+      hit
+        ? { data: hit.data, loading: false, error: "" }
+        : { data: s.data?.date === date ? s.data : null, loading: true, error: "" },
+    );
+    const load = (force: boolean) =>
+      fetchDay(date, audience, key, force)
         .then((r) => live && setState({ data: r, loading: false, error: "" }))
-        .catch(() => live && setState({ data: null, loading: false, error: "Couldn't load times. Check your connection and try again." }));
-    void load();
+        .catch(() => live && !hit && setState({ data: null, loading: false, error: "Couldn't load times. Check your connection and try again." }));
+    void load(Boolean(hit) && Date.now() - hit!.at > 15_000).then(() => {
+      // then the next few open days, one after another, so they're ready when tapped
+      if (!live) return;
+      let chain = Promise.resolve();
+      for (const d of aheadKey ? aheadKey.split(",") : [])
+        chain = chain.then(() => (live ? fetchDay(d, audience, key).then(() => {}, () => {}) : undefined));
+    });
     // keep the picture fresh while the guest decides
-    const t = window.setInterval(() => void load(), 45_000);
+    const t = window.setInterval(() => void load(true), 45_000);
     return () => {
       live = false;
       window.clearInterval(t);
     };
-  }, [date, audience, key]);
+  }, [date, audience, key, aheadKey]);
   return state;
 }
 
@@ -275,6 +329,7 @@ function DayStrip({ days }: { days: { iso: string; date: Date; selectable: boole
             key={d.iso}
             disabled={!d.selectable}
             data-sfx-off=""
+            onPointerDown={() => d.selectable && prefetchDay(d.iso, draft.audience, draft.serviceIds)}
             aria-pressed={on}
             aria-label={d.date.toDateString() + (d.selectable ? "" : " (closed)")}
             onClick={() => {
@@ -506,6 +561,7 @@ function MonthCalendar({
               type="button"
               disabled={!open}
               data-sfx-off=""
+              onPointerDown={() => open && prefetchDay(iso, draft.audience, draft.serviceIds)}
               aria-pressed={on}
               aria-label={d.toDateString() + (closed ? " (closed)" : !inWindow ? " (unavailable)" : "")}
               onClick={() => pick(iso)}

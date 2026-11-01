@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { staffChoiceOf, staffIdOf } from "./booking-staff";
 
 // Read side of the admin console: everything is queried on demand (by day,
 // range or page) instead of downloading the whole booking history. Every call
@@ -89,9 +90,9 @@ function toAdmin(r: Row, menuLookup: (aud: string, id: string) => { name: string
     createdAt: r["created_at"] as string,
     cancelReason: (r["cancel_reason"] as string) ?? "",
     history: (r["history"] as AdminBooking["history"]) ?? [],
-    staffId: (r["staff_id"] as string | null) ?? null,
-    staffName: (r["staff_id"] ? staffNames.get(r["staff_id"] as string) : undefined) ?? "",
-    staffChosen: r["staff_choice"] === "specific",
+    staffId: staffIdOf(r),
+    staffName: (staffIdOf(r) ? staffNames.get(staffIdOf(r)!) : undefined) ?? "",
+    staffChosen: staffChoiceOf(r) === "specific",
   };
 }
 
@@ -101,7 +102,9 @@ const staffNames = new Map<string, string>();
 async function lookup() {
   const { findService } = await import("./salon");
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: st, error } = await supabaseAdmin.from("staff" as never).select("id, name");
+  void supabaseAdmin;
+  const { stable } = await import("./staff-store.server");
+  const { data: st, error } = await stable("staff").select("id, name");
   if (!error) for (const r of (st ?? []) as { id: string; name: string }[]) staffNames.set(r.id, r.name);
   return (aud: string, id: string) => {
     const s = findService(aud as "men" | "women", id);
@@ -345,7 +348,7 @@ export const adminAvailability = createServerFn({ method: "POST" })
       if (r) {
         const row = r as Row;
         q = { minutes: (row["duration_minutes"] as number | null) ?? (row["slots"] as number) * 30, buffer: (row["buffer_minutes"] as number | null) ?? 0 };
-        if (!data.staffId) choice = row["staff_choice"] === "specific" && row["staff_id"] ? (row["staff_id"] as string) : "any";
+        if (!data.staffId) choice = staffChoiceOf(row) === "specific" && staffIdOf(row) ? staffIdOf(row)! : "any";
       }
     }
     return E.availability(data.date, q, rules, {

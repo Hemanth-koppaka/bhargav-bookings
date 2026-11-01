@@ -1,6 +1,7 @@
 // Server-only booking writes: create (with price/duration snapshot, customer
 // record and race-safe insert) and patch. Used by the server functions.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { metaWithStaff } from "./staff-store.server";
 import { applyConfig, type SalonConfig } from "./salon";
 import { loadConfig } from "./config.server";
 
@@ -148,10 +149,13 @@ export async function insertBooking(
   const insert = async (staffId: string | null | undefined) => {
     // newest columns first; older shapes if a migration isn't applied yet
     const staffCols = staffId !== undefined ? { staff_id: staffId, staff_choice: choice === "any" ? "any" : "specific" } : {};
-    let r = await sb.from("bookings").insert({ ...extended, ...notifyCols, ...staffCols } as never);
-    if (r.error && !E.isSlotTaken(r.error) && /column/i.test(r.error.message)) r = await sb.from("bookings").insert({ ...extended, ...notifyCols } as never);
-    if (r.error && !E.isSlotTaken(r.error) && /column/i.test(r.error.message)) r = await sb.from("bookings").insert(extended as never);
-    if (r.error && !E.isSlotTaken(r.error) && /column/i.test(r.error.message)) r = await sb.from("bookings").insert(row as never);
+    // the stylist is also kept in meta, which every database version has
+    const withMeta = <T extends Record<string, unknown>>(x: T) =>
+      staffId !== undefined ? { ...x, meta: metaWithStaff(x["meta"], staffId, choice === "any" ? "any" : "specific") } : x;
+    let r = await sb.from("bookings").insert(withMeta({ ...extended, ...notifyCols, ...staffCols }) as never);
+    if (r.error && !E.isSlotTaken(r.error) && /column/i.test(r.error.message)) r = await sb.from("bookings").insert(withMeta({ ...extended, ...notifyCols }) as never);
+    if (r.error && !E.isSlotTaken(r.error) && /column/i.test(r.error.message)) r = await sb.from("bookings").insert(withMeta(extended) as never);
+    if (r.error && !E.isSlotTaken(r.error) && /column/i.test(r.error.message)) r = await sb.from("bookings").insert(withMeta(row) as never);
     return r.error;
   };
   let error = await insert(check.staffId);
@@ -185,7 +189,8 @@ export async function insertBooking(
   const staffId = check.ok ? (check.staffId ?? null) : null;
   let staffName: string | null = null;
   if (staffId) {
-    const { data: st } = await sb.from("staff" as never).select("name").eq("id", staffId).maybeSingle();
+    const { stable } = await import("./staff-store.server");
+    const { data: st } = await stable("staff").select("name").eq("id", staffId).maybeSingle();
     staffName = ((st as { name?: string } | null)?.name as string) ?? null;
   }
   return {

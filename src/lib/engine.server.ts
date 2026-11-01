@@ -3,6 +3,7 @@
 // which times are bookable. Every customer and admin booking goes through
 // here, and the database trigger is the final guard against races.
 import { supabaseAdmin as sb } from "@/integrations/supabase/client.server";
+import { hasPerStylistGuard, loadStore, staffIdOf } from "./staff-store.server";
 import {
   computeSlots,
   computeStaffSlots,
@@ -76,7 +77,7 @@ export const dayDiff = (a: string, b: string) =>
  * Opening hours, weekly and one-day breaks, closures and blocked periods for a date.
  * Expects the salon config (hours, exceptions) to be applied already (applyConfig).
  */
-export async function dayPlan(date: string): Promise<DayPlan> {
+export async function dayPlan(date: string, store?: Awaited<ReturnType<typeof loadStore>>): Promise<DayPlan> {
   const hours = hoursFor(date);
   const weekly: Range[] = breaksFor(date).map((b) => ({
     start: b.start,
@@ -84,11 +85,15 @@ export async function dayPlan(date: string): Promise<DayPlan> {
     label: "Break",
   }));
   // time_blocks arrives with the Admin OS migration; until then there are simply none
-  const { data, error } = await sb
-    .from("time_blocks" as never)
-    .select("start_minute, end_minute, kind, reason")
-    .eq("date", date)
-    .is("archived_at", null);
+  // blocks and closures load together (one round trip, not two)
+  const [{ data, error }, closure] = await Promise.all([
+    sb
+      .from("time_blocks" as never)
+      .select("start_minute, end_minute, kind, reason")
+      .eq("date", date)
+      .is("archived_at", null),
+    salonClosureOn(date, store),
+  ]);
   const rows = (error ? [] : (data ?? [])) as {
     start_minute: number;
     end_minute: number;
@@ -102,7 +107,6 @@ export async function dayPlan(date: string): Promise<DayPlan> {
     .filter((r) => r.kind !== "break")
     .map((r) => ({ start: r.start_minute, end: r.end_minute, label: r.reason || "Blocked" }));
   // salon closures: whole days (ranges, or until reopened) or a few hours
-  const closure = await salonClosureOn(date);
   return {
     closed: isClosed(date) || closure.fullDay,
     open: hours.open,
@@ -113,16 +117,11 @@ export async function dayPlan(date: string): Promise<DayPlan> {
   };
 }
 
-/** Salon closures affecting a date (table from the staff migration; none before it). */
-export async function salonClosureOn(date: string): Promise<{ fullDay: boolean; hours: Range[]; reason: string }> {
-  const { data, error } = await sb
-    .from("salon_closures" as never)
-    .select("*")
-    .lte("start_date", date)
-    .is("reopened_at", null);
-  if (error) return { fullDay: false, hours: [], reason: "" };
-  const rows = ((data ?? []) as Record<string, unknown>[]).filter(
-    (r) => !r["end_date"] || (r["end_date"] as string) >= date,
+/** Salon closures affecting a date (kept in the settings store). */
+export async function salonClosureOn(date: string, store?: Awaited<ReturnType<typeof loadStore>>): Promise<{ fullDay: boolean; hours: Range[]; reason: string }> {
+  const s = store ?? (await loadStore());
+  const rows = (s.salon_closures as Record<string, unknown>[]).filter(
+    (r) => !r["reopened_at"] && (r["start_date"] as string) <= date && (!r["end_date"] || (r["end_date"] as string) >= date),
   );
   const full = rows.find((r) => r["start_minute"] == null);
   return {
@@ -147,22 +146,26 @@ export type Stylist = { id: string; name: string; gender: string; order: number 
 export async function staffDay(
   date: string,
   serviceIds: string[],
-  options: { ignoreReference?: string | undefined; staffMode?: boolean | undefined } = {},
-): Promise<{ eligible: Stylist[]; working: StaffDay[] } | null> {
-  const { data: staff, error } = await sb.from("staff" as never).select("*").eq("active", true).is("archived_at", null).order("display_order");
-  if (error) return null;
-  const all = ((staff ?? []) as Record<string, unknown>[]).filter((r) => options.staffMode || r["bookable"]);
-  if (!all.length) return { eligible: [], working: [] };
-  const ids = all.map((r) => r["id"] as string);
-  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
-  const [svc, hours, breaks, leave, unavail, bookings] = await Promise.all([
-    serviceIds.length ? sb.from("staff_services" as never).select("*").in("service_id", serviceIds as never) : Promise.resolve({ data: [] }),
-    sb.from("staff_working_hours" as never).select("*").eq("day_of_week", dow),
-    sb.from("staff_breaks" as never).select("*"),
-    sb.from("staff_leave" as never).select("*").lte("start_date", date).gte("end_date", date).is("archived_at", null),
-    sb.from("staff_unavailability" as never).select("*").eq("date", date).is("archived_at", null),
+  options: { ignoreReference?: string | undefined; staffMode?: boolean | undefined; store?: Awaited<ReturnType<typeof loadStore>> | undefined } = {},
+): Promise<{ eligible: Stylist[]; working: StaffDay[]; salonBusy: Range[] } | null> {
+  const [store, booked] = await Promise.all([
+    options.store ?? loadStore(),
     sb.from("bookings").select("*").eq("date", date).neq("status", "cancelled"),
   ]);
+  const staff = (store.staff as Record<string, unknown>[])
+    .filter((r) => r["active"] !== false && !r["archived_at"])
+    .sort((a, b) => ((a["display_order"] as number) ?? 0) - ((b["display_order"] as number) ?? 0));
+  const all = ((staff ?? []) as Record<string, unknown>[]).filter((r) => options.staffMode || r["bookable"]);
+  if (!all.length) return { eligible: [], working: [], salonBusy: [] };
+  const ids = all.map((r) => r["id"] as string);
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+  type R0 = Record<string, unknown>;
+  const svc = { data: (store.staff_services as R0[]).filter((r) => serviceIds.includes(r["service_id"] as string)) };
+  const hours = { data: (store.staff_working_hours as R0[]).filter((r) => r["day_of_week"] === dow) };
+  const breaks = { data: store.staff_breaks as R0[] };
+  const leave = { data: (store.staff_leave as R0[]).filter((r) => !r["archived_at"] && (r["start_date"] as string) <= date && (r["end_date"] as string) >= date) };
+  const unavail = { data: (store.staff_unavailability as R0[]).filter((r) => !r["archived_at"] && r["date"] === date) };
+  const bookings = booked;
   type R = Record<string, unknown>;
   const can = new Map<string, Set<string>>();
   for (const r of (svc.data ?? []) as R[]) {
@@ -190,12 +193,16 @@ export async function staffDay(
         .map((r) => ({ start: r["start_minute"] as number, end: r["end_minute"] as number, label: (r["label"] as string) || "Break" })),
       blocks: mine((unavail.data ?? []) as R[]).map((r) => ({ start: r["start_minute"] as number, end: r["end_minute"] as number, label: (r["reason"] as string) || "Unavailable" })),
       busy: ((bookings.data ?? []) as R[])
-        .filter((r) => r["staff_id"] === st.id && r["reference"] !== options.ignoreReference && isLive(r))
+        .filter((r) => staffIdOf(r) === st.id && r["reference"] !== options.ignoreReference && isLive(r))
         .map((r) => ({ start: r["time"] as number, end: (r["ends_at_minute"] as number | null) ?? (r["time"] as number) + (r["slots"] as number) * 30 })),
     });
   }
   void ids;
-  return { eligible, working };
+  // every live booking that day, whoever it's with (for the one-chair rule)
+  const salonBusy: Range[] = ((bookings.data ?? []) as R[])
+    .filter((r) => r["reference"] !== options.ignoreReference && isLive(r))
+    .map((r) => ({ start: r["time"] as number, end: (r["ends_at_minute"] as number | null) ?? (r["time"] as number) + (r["slots"] as number) * 30 }));
+  return { eligible, working, salonBusy };
 }
 
 const isLive = (r: Record<string, unknown>) => {
@@ -285,7 +292,7 @@ export type DayAvailability = {
 export async function availability(
   date: string,
   q: Pick<Quote, "minutes" | "buffer">,
-  rules: BookingRules,
+  rulesIn: BookingRules | Promise<BookingRules>,
   options: {
     ignoreReference?: string;
     staff?: boolean;
@@ -295,7 +302,15 @@ export async function availability(
     choice?: string;
   } = {},
 ): Promise<DayAvailability> {
-  const plan = await dayPlan(date);
+  // one read of the stylist store, then everything else in parallel
+  const [store, rules] = await Promise.all([loadStore(), rulesIn]);
+  const [plan, team, perStylist] = await Promise.all([
+    dayPlan(date, store),
+    options.serviceIds?.length
+      ? staffDay(date, options.serviceIds, { ignoreReference: options.ignoreReference, staffMode: options.staff, store })
+      : Promise.resolve(null),
+    hasPerStylistGuard(),
+  ]);
   const now = salonNow();
   const base = {
     date,
@@ -326,11 +341,18 @@ export async function availability(
     now: date === now.iso ? now.minute : null,
     notice: options.staff ? 0 : rules.minNoticeMinutes,
   };
-  const team = options.serviceIds?.length
-    ? await staffDay(date, options.serviceIds, { ignoreReference: options.ignoreReference, staffMode: options.staff })
-    : null;
   if (team) {
-    const slots: StaffSlot[] = computeStaffSlots({ ...common, staff: team.working, choice: options.choice || "any", allowOverrun: true });
+    let slots: StaffSlot[] = computeStaffSlots({ ...common, staff: team.working, choice: options.choice || "any", allowOverrun: true });
+    // Until the database guards each stylist separately it accepts one appointment
+    // at a time for the whole salon, so never offer a time it would refuse.
+    if (!perStylist) {
+      const need = q.minutes + q.buffer;
+      slots = slots.map((s) =>
+        s.available && team.salonBusy.some((b) => s.minute < b.end && b.start < s.minute + need)
+          ? { ...s, available: false, reason: "booked", staff: [] }
+          : s,
+      );
+    }
     const message = !team.eligible.length ? "No stylist offers this combination of services. Please book them separately." : undefined;
     return { ...base, slots, bookable: slots.some((s) => s.available), stylists: team.eligible, ...(message ? { message } : {}) };
   }

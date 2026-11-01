@@ -101,6 +101,7 @@ export function CinematicKit({
   className,
   loop = false,
   onDone,
+  onStart,
 }: {
   src?: string;
   alt?: string;
@@ -108,9 +109,13 @@ export function CinematicKit({
   loop?: boolean;
   /** Called once the final hold has settled (or straight away if the film can't play). */
   onDone?: () => void;
+  /** Called once, on the film's first frame (the score starts with it). */
+  onStart?: () => void;
 }) {
   const done = useRef(onDone);
   done.current = onDone;
+  const started = useRef(onStart);
+  started.current = onStart;
   const fired = useRef(false);
   const finish = () => {
     if (fired.current) return;
@@ -198,7 +203,10 @@ export function CinematicKit({
       return () => window.clearTimeout(t);
     }
     const tick = (now: number) => {
-      if (start === null) start = now;
+      if (start === null) {
+        start = now;
+        started.current?.();
+      }
       let s = (now - start) / 1000;
       if (loop && s > DURATION + 4) {
         start = now;

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { metaWithStaff, staffChoiceOf, staffIdOf } from "./booking-staff";
 import { withHistory, type HistoryEntry } from "./history";
 
 // All salon data lives in tables with no public access; every read/write goes
@@ -23,7 +24,7 @@ const last10 = (p: string) => p.replace(/\D/g, "").slice(-10);
 
 /** The stylist rule a booking was made with: its own stylist if chosen, else "any". */
 const bookingChoice = (row: Record<string, unknown>) =>
-  row["staff_choice"] === "specific" && row["staff_id"] ? (row["staff_id"] as string) : "any";
+  staffChoiceOf(row) === "specific" && staffIdOf(row) ? staffIdOf(row)! : "any";
 
 export type BookingRow = {
   reference: string;
@@ -173,7 +174,8 @@ export const getAvailability = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const E = await engine();
-    const rules = await E.loadRules();
+    // rules load alongside the day's data instead of before it
+    const rules = E.loadRules();
     let q: { minutes: number; buffer: number } = E.quote(data.audience, data.serviceIds) ?? { minutes: 30, buffer: 0 };
     let ignore: string | undefined;
     let serviceIds = data.serviceIds;
@@ -374,7 +376,7 @@ export const updateMyBooking = createServerFn({ method: "POST" })
       choice: bookingChoice(row),
     });
     if (!check.ok) return check;
-    const error = await patchBooking(sb, r.reference, { date: data.date, time: data.time }, {
+    const error = await patchBooking(sb, r.reference, { date: data.date, time: data.time, ...(check.staffId !== undefined ? { meta: metaWithStaff(row["meta"], check.staffId, staffChoiceOf(row)) } : {}) }, {
       ...(check.staffId !== undefined ? { staff_id: check.staffId } : {}),
       history: withHistory(row, { by: "guest", action: "rescheduled", from: { date: r.date, time: r.time }, to: { date: data.date, time: data.time } }),
     });
@@ -478,7 +480,7 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
     const base: Record<string, unknown> = {};
     const extra: Record<string, unknown> = {};
     const moved = (p.date && p.date !== current.date) || (p.time != null && p.time !== current.time);
-    const restaff = p.staffId !== undefined && (p.staffId === "any" ? row["staff_choice"] !== "any" : p.staffId !== row["staff_id"]);
+    const restaff = p.staffId !== undefined && (p.staffId === "any" ? staffChoiceOf(row) !== "any" : p.staffId !== staffIdOf(row));
 
     if (moved || restaff) {
       // admins can't create clashes either; the booking keeps its booked length
@@ -497,6 +499,8 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
       if (check.staffId !== undefined) {
         extra["staff_id"] = check.staffId;
         extra["staff_choice"] = choice === "any" ? "any" : "specific";
+        // kept in meta as well, which works on every database version
+        base["meta"] = metaWithStaff(base["meta"] ?? current.meta, check.staffId, choice === "any" ? "any" : "specific");
       }
       if (moved) {
         base["date"] = p.date ?? current.date;
@@ -511,7 +515,7 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
     const cancelling = p.status === "cancelled" || metaStatus === "cancelled";
     if (p.status) base["status"] = p.status;
     // merge, so a status change never wipes notes or payment details
-    if (p.meta) base["meta"] = { ...((current.meta as Record<string, unknown>) ?? {}), ...p.meta };
+    if (p.meta) base["meta"] = { ...((base["meta"] ?? current.meta) as Record<string, unknown> | null ?? {}), ...p.meta };
     if (p.customer) base["customer"] = { ...((current.customer as Record<string, unknown>) ?? {}), ...p.customer };
     if (cancelling && current.status !== "cancelled") {
       base["status"] = "cancelled";

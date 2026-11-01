@@ -81,6 +81,8 @@ const isBrowser = () => typeof window !== "undefined" && typeof document !== "un
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
+  /** While the score is being scheduled, voices go to its own fader. */
+  private route: GainNode | null = null;
   private bus: GainNode | null = null;
   private master: GainNode | null = null;
   private verbIn: GainNode | null = null;
@@ -298,7 +300,7 @@ class SoundEngine {
       g.connect(p);
       node = p;
     }
-    node.connect(this.bus!);
+    node.connect(this.route ?? this.bus!);
     let s: GainNode | null = null;
     if (send > 0 && !this.lite) {
       s = ctx.createGain();
@@ -320,7 +322,7 @@ class SoundEngine {
 
   /** A sine (or other) partial with an attack/decay envelope and optional glide. */
   tone(o: Tone) {
-    if (!this.ctx || this.voices > SFX.MAX_VOICES || o.gain <= 0) return;
+    if (!this.ctx || (this.voices > SFX.MAX_VOICES && !this.route) || o.gain <= 0) return;
     const ctx = this.ctx;
     const a = o.a ?? SFX.ATTACK;
     const osc = ctx.createOscillator();
@@ -343,7 +345,7 @@ class SoundEngine {
 
   /** Filtered noise: air, brush, paper, breath. */
   noise(o: Noise) {
-    if (!this.ctx || !this.noiseBuf || this.voices > SFX.MAX_VOICES || o.gain <= 0) return;
+    if (!this.ctx || !this.noiseBuf || (this.voices > SFX.MAX_VOICES && !this.route) || o.gain <= 0) return;
     const ctx = this.ctx;
     const a = o.a ?? SFX.ATTACK;
     const src = ctx.createBufferSource();
@@ -780,11 +782,26 @@ class SoundEngine {
     },
 
     // The seal stamping onto the confirmation card: a soft press, nothing more
+    // The seal: it drops and lands (~0.38 s), rings, then the tick is drawn (0.45–0.95 s)
     ui_seal: ({ t, v }) => {
       const S = SFX.SUCCESS_VOLUME * v.g;
-      this.noise({ t, type: "lowpass", f: 420, gain: S * 0.4, a: 0.003, d: 0.09 });
-      this.click(t + 0.004, 1800, S * 0.25, 0.012);
-      if (this.shimmer) this.metal(t + 0.02, 3800 * v.p, SFX.SHIMMER_VOLUME * 0.2, 0.2, 0.4);
+      // a faint air rush as it falls toward the card
+      this.noise({ t, type: "bandpass", f: 900, to: 2400, q: 0.8, gain: S * 0.18, a: 0.25, d: 0.12 });
+      // landing: a soft, weighty press
+      const land = t + 0.37;
+      this.tone({ t: land, f: 140, to: 70, glide: 0.12, gain: S * 0.6, a: 0.003, d: 0.16 });
+      this.noise({ t: land, type: "lowpass", f: 500, gain: S * 0.55, a: 0.002, d: 0.08 });
+      this.click(land, 2200, S * 0.35, 0.012);
+      // the gold rings briefly
+      this.tone({ t: land + 0.02, f: NOTE.D6 * v.p, gain: S * 0.16 * Math.max(0.6, this.tonal), a: 0.004, d: 0.5, send: 0.45 });
+      this.tone({ t: land + 0.02, f: NOTE.D6 * 2.76 * v.p, gain: S * 0.04, a: 0.004, d: 0.25, send: 0.45 });
+      // the tick being drawn: a quick pen stroke, then a bright "done"
+      const tick = t + 0.47;
+      this.noise({ t: tick, type: "bandpass", f: 1800, to: 5200, q: 1.4, gain: S * 0.22, a: 0.06, d: 0.32 });
+      this.click(tick + 0.42, 5000 * v.p, S * 0.4, 0.006);
+      this.tone({ t: tick + 0.42, f: NOTE.A5 * v.p, gain: S * 0.22 * Math.max(0.6, this.tonal), a: 0.006, d: 0.18, send: 0.3 });
+      this.tone({ t: tick + 0.5, f: NOTE.D6 * v.p, gain: S * 0.2 * Math.max(0.6, this.tonal), a: 0.006, d: 0.32, send: 0.35 });
+      if (this.shimmer) this.metal(tick + 0.5, 4200 * v.p, SFX.SHIMMER_VOLUME * 0.3, 0.35, 0.5);
     },
 
     // Something didn't work: a muted click and a short downward step. No alarm.
@@ -967,6 +984,116 @@ class SoundEngine {
     this.lastHover = now;
     this.play("ui_hover");
   };
+
+  /** A detuned-saw "string" chord through a slowly opening filter. */
+  private pad(t: number, freqs: number[], dur: number, gain: number, cut: [number, number], a = 0.5, r = 0.7, send = 0.45) {
+    const ctx = this.ctx!;
+    const f = ctx.createBiquadFilter();
+    f.type = "lowpass";
+    f.Q.value = 0.7;
+    f.frequency.setValueAtTime(cut[0], t);
+    f.frequency.exponentialRampToValueAtTime(cut[1], t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + a);
+    g.gain.setValueAtTime(gain, t + dur);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + r);
+    f.connect(g);
+    const done = this.out(g, send);
+    const detunes = this.lite ? [0] : [-7, 6];
+    const oscs: OscillatorNode[] = [];
+    for (const fr of freqs)
+      for (const dt of detunes) {
+        const o = ctx.createOscillator();
+        o.type = "sawtooth";
+        o.frequency.value = fr;
+        o.detune.value = dt;
+        o.connect(f);
+        o.start(t);
+        o.stop(t + dur + r + 0.05);
+        oscs.push(o);
+      }
+    this.voices += 1;
+    oscs[0]!.onended = () => {
+      this.voices -= 1;
+      oscs.forEach((o) => o.disconnect());
+      f.disconnect();
+      done();
+    };
+  }
+
+  /** A soft timpani hit: a falling low sine with a felt-mallet thud. */
+  private timpani(t: number, f: number, gain: number) {
+    this.tone({ t, f, to: f * 0.8, glide: 0.5, gain, a: 0.006, d: 0.9, send: 0.4 });
+    this.tone({ t, f: f * 1.5, gain: gain * 0.25, a: 0.006, d: 0.3 });
+    this.noise({ t, type: "lowpass", f: 260, gain: gain * 0.6, a: 0.003, d: 0.12 });
+  }
+
+  /** A horn-like line: a filtered saw with a gentle swell. */
+  private horn(t: number, f: number, dur: number, gain: number) {
+    this.pad(t, [f], dur, gain, [700, 1500], Math.min(0.14, dur / 3), 0.35, 0.5);
+  }
+
+  /**
+   * About eight seconds of rising, heroic score for the confirmation film,
+   * cut to its shots: D minor → B♭ → C → A → D major at the reveal.
+   * Returns a stop() that fades it out (when the guest skips the film).
+   */
+  score(): () => void {
+    if (!this.active || !this.ctx || !this.bus) return () => {};
+    const ctx = this.ctx;
+    const fader = ctx.createGain();
+    fader.gain.value = SFX.SCORE_VOLUME;
+    fader.connect(this.bus);
+    const t0 = ctx.currentTime + 0.06;
+    const S = 1;
+    this.route = fader;
+    try {
+      const N = { D2: 73.42, A2: 110, Bb2: 116.54, C3: 130.81, Cs3: 138.59, D3: 146.83, E3: 164.81, F3: 174.61, Fs3: 185, G3: 196, A3: 220, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392, A4: 440, Fs4: 369.99 };
+      // strings
+      this.pad(t0, [N.D3, N.F3, N.A3], 2.4, S * 0.05, [350, 900], 1.2);
+      this.pad(t0 + 2.4, [N.Bb2, N.D3, N.F3], 1.6, S * 0.06, [700, 1300], 0.3);
+      this.pad(t0 + 4.0, [N.C3, N.E3, N.G3], 1.6, S * 0.07, [900, 1700], 0.3);
+      this.pad(t0 + 5.6, [N.A2, N.D3, N.E3], 0.6, S * 0.075, [1200, 2000], 0.2, 0.2);
+      this.pad(t0 + 6.2, [N.A2, N.Cs3, N.E3], 0.6, S * 0.08, [1500, 2400], 0.1, 0.25);
+      // the reveal: D major, full and warm, then a long settle
+      this.pad(t0 + 6.8, [N.D2, N.D3, N.Fs3, N.A3, N.D4], 1.9, S * 0.075, [2600, 1400], 0.08, 1.6, 0.55);
+      // pulse: a low heartbeat that builds
+      for (let i = 0; i < 24; i++) {
+        const tt = t0 + 0.8 + i * 0.25;
+        const lv = 0.04 + (i / 24) * 0.1;
+        this.tone({ t: tt, f: i % 4 === 3 ? N.A2 : N.D2 * 2, type: "triangle", gain: S * lv, a: 0.004, d: 0.17 });
+      }
+      // timpani on the cuts
+      for (const [at, lv] of [[2.4, 0.22], [4.0, 0.26], [5.6, 0.3], [6.2, 0.2], [6.8, 0.42]] as const)
+        this.timpani(t0 + at, N.D2, S * lv);
+      // horn melody, rising to the major third at the reveal
+      const line: [number, number, number][] = [
+        [1.6, N.A3, 0.75], [2.4, N.D4, 0.75], [3.2, N.E4, 0.75], [4.0, N.F4, 0.75],
+        [4.8, N.G4, 0.75], [5.6, N.A4, 0.55], [6.2, N.G4, 0.55], [6.8, N.Fs4, 1.9],
+      ];
+      for (const [at, f, d] of line) this.horn(t0 + at, f, d, S * 0.07);
+      // cymbal swell into the reveal, a soft crash on it
+      this.noise({ t: t0 + 5.7, type: "highpass", f: 5000, to: 7000, gain: S * 0.09, a: 1.08, d: 0.04 });
+      this.noise({ t: t0 + 6.8, type: "highpass", f: 4200, gain: S * 0.08, a: 0.01, d: 1.6, send: 0.5 });
+      if (this.shimmer) this.metal(t0 + 6.85, 3600, SFX.SHIMMER_VOLUME * 0.35, 1.2, 0.6);
+    } finally {
+      this.route = null;
+    }
+    let stopped = false;
+    const end = t0 + 10.5;
+    const cleanup = window.setTimeout(() => fader.disconnect(), (end - ctx.currentTime) * 1000 + 500);
+    return () => {
+      if (stopped) return;
+      stopped = true;
+      const now = ctx.currentTime;
+      fader.gain.cancelScheduledValues(now);
+      fader.gain.setValueAtTime(fader.gain.value, now);
+      fader.gain.setTargetAtTime(0.0001, now, 0.25);
+      window.clearTimeout(cleanup);
+      window.setTimeout(() => fader.disconnect(), 2000);
+    };
+  }
 
   /** Console preview: plays a short phrase with the given settings. */
   preview(s: SoundSettings) {

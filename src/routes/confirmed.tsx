@@ -87,52 +87,75 @@ async function renderConfirmationImage(booking: Booking, serviceLine: string): P
   ctx.strokeRect(56, 56, W - 112, H - 112);
 
   ctx.textAlign = "center";
+  // text never runs past the frame: long names shrink to fit
+  const fit = (text: string, max: number, size: number, face: string, min = 24) => {
+    let s = size;
+    ctx.font = face.replace("{s}", String(s));
+    while (ctx.measureText(text).width > max && s > min) {
+      s -= 2;
+      ctx.font = face.replace("{s}", String(s));
+    }
+    return s;
+  };
+  const SERIF = "300 {s}px 'Cormorant Garamond', Georgia, serif";
+  const SANS = "400 {s}px Jost, sans-serif";
+  const MAXW = W - 220;
+
   ctx.fillStyle = gold;
   ctx.font = "500 26px Jost, sans-serif";
-  ctx.fillText("H A I R   B Y   B H A R G A V", W / 2, 190);
+  ctx.fillText("H A I R   B Y   B H A R G A V", W / 2, 170);
 
   ctx.fillStyle = ivory;
   ctx.font = "300 74px 'Cormorant Garamond', Georgia, serif";
-  ctx.fillText("Booking Confirmed", W / 2, 300);
-
+  ctx.fillText("Booking Confirmed", W / 2, 268);
   ctx.fillStyle = "rgba(201,169,106,0.5)";
-  ctx.fillRect(W / 2 - 60, 340, 120, 1);
+  ctx.fillRect(W / 2 - 60, 306, 120, 1);
 
+  const longDate = fromISO(booking.date).toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
   const rows: Array<[string, string]> = [
     ["GUEST", booking.customer.name],
     ["SERVICE", serviceLine],
-    ["DATE", formatLongDate(booking.date)],
+    ["DATE", longDate],
     ["TIME", minuteLabel(booking.time)],
-    ["REFERENCE", booking.reference],
+    ["BOOKING ID", booking.reference],
   ];
-
-  let y = 470;
+  let y = 400;
   for (const [label, value] of rows) {
     ctx.fillStyle = "rgba(232,225,216,0.5)";
-    ctx.font = "400 22px Jost, sans-serif";
-    ctx.fillText(label, W / 2, y);
+    ctx.font = "400 21px Jost, sans-serif";
+    ctx.fillText(label.split("").join(" "), W / 2, y);
     ctx.fillStyle = ivory;
-    ctx.font = "300 46px 'Cormorant Garamond', Georgia, serif";
-    ctx.fillText(value, W / 2, y + 56);
-    y += 130;
+    fit(value, MAXW, 46, SERIF);
+    ctx.fillText(value, W / 2, y + 52);
+    y += 112;
   }
 
+  // studio
   ctx.fillStyle = "rgba(232,225,216,0.5)";
-  ctx.font = "400 22px Jost, sans-serif";
-  ctx.fillText("LOCATION", W / 2, y);
+  ctx.font = "400 21px Jost, sans-serif";
+  ctx.fillText("S T U D I O", W / 2, 972);
   ctx.fillStyle = ivory;
   ctx.font = "300 38px 'Cormorant Garamond', Georgia, serif";
-  ctx.fillText("Hair by Bhargav", W / 2, y + 48);
-  ctx.font = "300 28px Jost, sans-serif";
+  ctx.fillText("Hair by Bhargav", W / 2, 1018);
   ctx.fillStyle = "rgba(232,225,216,0.72)";
-  ctx.fillText("KPHB Phase 9, Kukatpally, Hyderabad", W / 2, y + 92);
+  const where = BUSINESS.locationShort || "KPHB Phase 9, Kukatpally, Hyderabad";
+  fit(where, MAXW, 26, SANS, 18);
+  ctx.fillText(where, W / 2, 1058);
+
+  ctx.fillStyle = "rgba(201,169,106,0.35)";
+  ctx.fillRect(W / 2 - 160, 1104, 320, 1);
 
   ctx.fillStyle = ivory;
-  ctx.font = "italic 300 52px 'Cormorant Garamond', Georgia, serif";
-  ctx.fillText("Your chair is waiting.", W / 2, H - 190);
+  ctx.font = "italic 300 50px 'Cormorant Garamond', Georgia, serif";
+  ctx.fillText("Your chair is waiting.", W / 2, 1182);
   ctx.fillStyle = gold;
-  ctx.font = "300 34px 'Cormorant Garamond', Georgia, serif";
-  ctx.fillText("— Bhargav", W / 2, H - 130);
+  ctx.font = "300 32px 'Cormorant Garamond', Georgia, serif";
+  ctx.fillText("— Bhargav", W / 2, 1234);
 
   try {
     return await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
@@ -188,11 +211,26 @@ function ConfirmedScreen() {
   const cinematic = seq === 1;
   const [stage, setStage] = useState(cinematic ? 0 : FINAL);
   // the barber-kit film opens a fresh confirmation; the booking ID follows it
-  const [film, setFilm] = useState<"on" | "leaving" | "off">(cinematic ? "on" : "off");
+  // The film is framed for phones (9:16): it plays on phones and portrait
+  // tablets; wide screens go straight to the confirmation.
+  const [film, setFilm] = useState<"on" | "leaving" | "off">(() =>
+    cinematic &&
+    (typeof window === "undefined" ||
+      window.matchMedia("(max-width: 767px), (orientation: portrait) and (max-width: 1100px)").matches)
+      ? "on"
+      : "off",
+  );
+  const stopScore = useRef<(() => void) | null>(null);
   const endFilm = useCallback(() => {
     setFilm((f) => (f === "on" ? "leaving" : f));
     window.setTimeout(() => setFilm("off"), 700);
   }, []);
+  // skipping the film fades its music; letting it finish lets the last chord ring
+  const skipFilm = useCallback(() => {
+    stopScore.current?.();
+    endFilm();
+  }, [endFilm]);
+  useEffect(() => () => stopScore.current?.(), []);
 
   useEffect(() => {
     if (hydrated && booking) resetDraft();
@@ -595,13 +633,16 @@ function ConfirmedScreen() {
           style={{ opacity: film === "leaving" ? 0 : 1 }}
           onClick={(e) => {
             e.stopPropagation();
-            endFilm();
+            skipFilm();
           }}
         >
           <CinematicKit
             className="h-auto w-[min(100vw,calc(100svh*9/16))]"
             alt="Bhargav's tools: comb, clipper, round brush, scissors and razor"
             onDone={endFilm}
+            onStart={() => {
+              stopScore.current = sfx.score();
+            }}
           />
           <div className="pointer-events-none absolute inset-x-0 bottom-6 text-center text-[0.6rem] uppercase tracking-[0.3em] text-[#E8E1D8]/40">
             Preparing your chair · tap to skip
