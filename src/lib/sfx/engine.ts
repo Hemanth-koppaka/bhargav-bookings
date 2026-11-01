@@ -46,6 +46,9 @@ export type SoundName =
   | "ui_hover"
   | "ui_ambience";
 
+/** The confirmation film's score: stop() fades it; chair() moves it into the chair scene. */
+export type ScoreControl = { stop: () => void; chair: () => void };
+
 /** Kinds usable as `data-sfx="…"` on any element (played by the delegated listener). */
 export type SfxKind =
   "primary" | "secondary" | "nav" | "select" | "contact" | "calendar" | "filter" | "back";
@@ -345,7 +348,8 @@ class SoundEngine {
 
   /** Filtered noise: air, brush, paper, breath. */
   noise(o: Noise) {
-    if (!this.ctx || !this.noiseBuf || (this.voices > SFX.MAX_VOICES && !this.route) || o.gain <= 0) return;
+    if (!this.ctx || !this.noiseBuf || (this.voices > SFX.MAX_VOICES && !this.route) || o.gain <= 0)
+      return;
     const ctx = this.ctx;
     const a = o.a ?? SFX.ATTACK;
     const src = ctx.createBufferSource();
@@ -786,21 +790,67 @@ class SoundEngine {
     ui_seal: ({ t, v }) => {
       const S = SFX.SUCCESS_VOLUME * v.g;
       // a faint air rush as it falls toward the card
-      this.noise({ t, type: "bandpass", f: 900, to: 2400, q: 0.8, gain: S * 0.18, a: 0.25, d: 0.12 });
+      this.noise({
+        t,
+        type: "bandpass",
+        f: 900,
+        to: 2400,
+        q: 0.8,
+        gain: S * 0.18,
+        a: 0.25,
+        d: 0.12,
+      });
       // landing: a soft, weighty press
       const land = t + 0.37;
       this.tone({ t: land, f: 140, to: 70, glide: 0.12, gain: S * 0.6, a: 0.003, d: 0.16 });
       this.noise({ t: land, type: "lowpass", f: 500, gain: S * 0.55, a: 0.002, d: 0.08 });
       this.click(land, 2200, S * 0.35, 0.012);
       // the gold rings briefly
-      this.tone({ t: land + 0.02, f: NOTE.D6 * v.p, gain: S * 0.16 * Math.max(0.6, this.tonal), a: 0.004, d: 0.5, send: 0.45 });
-      this.tone({ t: land + 0.02, f: NOTE.D6 * 2.76 * v.p, gain: S * 0.04, a: 0.004, d: 0.25, send: 0.45 });
+      this.tone({
+        t: land + 0.02,
+        f: NOTE.D6 * v.p,
+        gain: S * 0.16 * Math.max(0.6, this.tonal),
+        a: 0.004,
+        d: 0.5,
+        send: 0.45,
+      });
+      this.tone({
+        t: land + 0.02,
+        f: NOTE.D6 * 2.76 * v.p,
+        gain: S * 0.04,
+        a: 0.004,
+        d: 0.25,
+        send: 0.45,
+      });
       // the tick being drawn: a quick pen stroke, then a bright "done"
       const tick = t + 0.47;
-      this.noise({ t: tick, type: "bandpass", f: 1800, to: 5200, q: 1.4, gain: S * 0.22, a: 0.06, d: 0.32 });
+      this.noise({
+        t: tick,
+        type: "bandpass",
+        f: 1800,
+        to: 5200,
+        q: 1.4,
+        gain: S * 0.22,
+        a: 0.06,
+        d: 0.32,
+      });
       this.click(tick + 0.42, 5000 * v.p, S * 0.4, 0.006);
-      this.tone({ t: tick + 0.42, f: NOTE.A5 * v.p, gain: S * 0.22 * Math.max(0.6, this.tonal), a: 0.006, d: 0.18, send: 0.3 });
-      this.tone({ t: tick + 0.5, f: NOTE.D6 * v.p, gain: S * 0.2 * Math.max(0.6, this.tonal), a: 0.006, d: 0.32, send: 0.35 });
+      this.tone({
+        t: tick + 0.42,
+        f: NOTE.A5 * v.p,
+        gain: S * 0.22 * Math.max(0.6, this.tonal),
+        a: 0.006,
+        d: 0.18,
+        send: 0.3,
+      });
+      this.tone({
+        t: tick + 0.5,
+        f: NOTE.D6 * v.p,
+        gain: S * 0.2 * Math.max(0.6, this.tonal),
+        a: 0.006,
+        d: 0.32,
+        send: 0.35,
+      });
       if (this.shimmer) this.metal(tick + 0.5, 4200 * v.p, SFX.SHIMMER_VOLUME * 0.3, 0.35, 0.5);
     },
 
@@ -986,7 +1036,16 @@ class SoundEngine {
   };
 
   /** A detuned-saw "string" chord through a slowly opening filter. */
-  private pad(t: number, freqs: number[], dur: number, gain: number, cut: [number, number], a = 0.5, r = 0.7, send = 0.45) {
+  private pad(
+    t: number,
+    freqs: number[],
+    dur: number,
+    gain: number,
+    cut: [number, number],
+    a = 0.5,
+    r = 0.7,
+    send = 0.45,
+  ) {
     const ctx = this.ctx!;
     const f = ctx.createBiquadFilter();
     f.type = "lowpass";
@@ -1039,8 +1098,9 @@ class SoundEngine {
    * cut to its shots: D minor → B♭ → C → A → D major at the reveal.
    * Returns a stop() that fades it out (when the guest skips the film).
    */
-  score(): () => void {
-    if (!this.active || !this.ctx || !this.bus) return () => {};
+  score(): ScoreControl {
+    const none: ScoreControl = { stop: () => {}, chair: () => {} };
+    if (!this.active || !this.ctx || !this.bus) return none;
     const ctx = this.ctx;
     const fader = ctx.createGain();
     fader.gain.value = SFX.SCORE_VOLUME;
@@ -1049,7 +1109,25 @@ class SoundEngine {
     const S = 1;
     this.route = fader;
     try {
-      const N = { D2: 73.42, A2: 110, Bb2: 116.54, C3: 130.81, Cs3: 138.59, D3: 146.83, E3: 164.81, F3: 174.61, Fs3: 185, G3: 196, A3: 220, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392, A4: 440, Fs4: 369.99 };
+      const N = {
+        D2: 73.42,
+        A2: 110,
+        Bb2: 116.54,
+        C3: 130.81,
+        Cs3: 138.59,
+        D3: 146.83,
+        E3: 164.81,
+        F3: 174.61,
+        Fs3: 185,
+        G3: 196,
+        A3: 220,
+        D4: 293.66,
+        E4: 329.63,
+        F4: 349.23,
+        G4: 392,
+        A4: 440,
+        Fs4: 369.99,
+      };
       // strings
       this.pad(t0, [N.D3, N.F3, N.A3], 2.4, S * 0.05, [350, 900], 1.2);
       this.pad(t0 + 2.4, [N.Bb2, N.D3, N.F3], 1.6, S * 0.06, [700, 1300], 0.3);
@@ -1057,42 +1135,272 @@ class SoundEngine {
       this.pad(t0 + 5.6, [N.A2, N.D3, N.E3], 0.6, S * 0.075, [1200, 2000], 0.2, 0.2);
       this.pad(t0 + 6.2, [N.A2, N.Cs3, N.E3], 0.6, S * 0.08, [1500, 2400], 0.1, 0.25);
       // the reveal: D major, full and warm, then a long settle
-      this.pad(t0 + 6.8, [N.D2, N.D3, N.Fs3, N.A3, N.D4], 1.9, S * 0.075, [2600, 1400], 0.08, 1.6, 0.55);
+      this.pad(
+        t0 + 6.8,
+        [N.D2, N.D3, N.Fs3, N.A3, N.D4],
+        1.9,
+        S * 0.075,
+        [2600, 1400],
+        0.08,
+        1.6,
+        0.55,
+      );
       // pulse: a low heartbeat that builds
       for (let i = 0; i < 24; i++) {
         const tt = t0 + 0.8 + i * 0.25;
         const lv = 0.04 + (i / 24) * 0.1;
-        this.tone({ t: tt, f: i % 4 === 3 ? N.A2 : N.D2 * 2, type: "triangle", gain: S * lv, a: 0.004, d: 0.17 });
+        this.tone({
+          t: tt,
+          f: i % 4 === 3 ? N.A2 : N.D2 * 2,
+          type: "triangle",
+          gain: S * lv,
+          a: 0.004,
+          d: 0.17,
+        });
       }
       // timpani on the cuts
-      for (const [at, lv] of [[2.4, 0.22], [4.0, 0.26], [5.6, 0.3], [6.2, 0.2], [6.8, 0.42]] as const)
+      for (const [at, lv] of [
+        [2.4, 0.22],
+        [4.0, 0.26],
+        [5.6, 0.3],
+        [6.2, 0.2],
+        [6.8, 0.42],
+      ] as const)
         this.timpani(t0 + at, N.D2, S * lv);
       // horn melody, rising to the major third at the reveal
       const line: [number, number, number][] = [
-        [1.6, N.A3, 0.75], [2.4, N.D4, 0.75], [3.2, N.E4, 0.75], [4.0, N.F4, 0.75],
-        [4.8, N.G4, 0.75], [5.6, N.A4, 0.55], [6.2, N.G4, 0.55], [6.8, N.Fs4, 1.9],
+        [1.6, N.A3, 0.75],
+        [2.4, N.D4, 0.75],
+        [3.2, N.E4, 0.75],
+        [4.0, N.F4, 0.75],
+        [4.8, N.G4, 0.75],
+        [5.6, N.A4, 0.55],
+        [6.2, N.G4, 0.55],
+        [6.8, N.Fs4, 1.9],
       ];
       for (const [at, f, d] of line) this.horn(t0 + at, f, d, S * 0.07);
       // cymbal swell into the reveal, a soft crash on it
-      this.noise({ t: t0 + 5.7, type: "highpass", f: 5000, to: 7000, gain: S * 0.09, a: 1.08, d: 0.04 });
-      this.noise({ t: t0 + 6.8, type: "highpass", f: 4200, gain: S * 0.08, a: 0.01, d: 1.6, send: 0.5 });
+      this.noise({
+        t: t0 + 5.7,
+        type: "highpass",
+        f: 5000,
+        to: 7000,
+        gain: S * 0.09,
+        a: 1.08,
+        d: 0.04,
+      });
+      this.noise({
+        t: t0 + 6.8,
+        type: "highpass",
+        f: 4200,
+        gain: S * 0.08,
+        a: 0.01,
+        d: 1.6,
+        send: 0.5,
+      });
       if (this.shimmer) this.metal(t0 + 6.85, 3600, SFX.SHIMMER_VOLUME * 0.35, 1.2, 0.6);
     } finally {
       this.route = null;
     }
     let stopped = false;
+    let chairFader: GainNode | null = null;
     const end = t0 + 10.5;
-    const cleanup = window.setTimeout(() => fader.disconnect(), (end - ctx.currentTime) * 1000 + 500);
-    return () => {
-      if (stopped) return;
-      stopped = true;
+    const cleanup = window.setTimeout(
+      () => fader.disconnect(),
+      (end - ctx.currentTime) * 1000 + 500,
+    );
+    const fadeOut = (g: GainNode, tc: number) => {
       const now = ctx.currentTime;
-      fader.gain.cancelScheduledValues(now);
-      fader.gain.setValueAtTime(fader.gain.value, now);
-      fader.gain.setTargetAtTime(0.0001, now, 0.25);
-      window.clearTimeout(cleanup);
-      window.setTimeout(() => fader.disconnect(), 2000);
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(g.gain.value, now);
+      g.gain.setTargetAtTime(0.0001, now, tc);
     };
+    return {
+      stop: () => {
+        if (stopped) return;
+        stopped = true;
+        fadeOut(fader, 0.25);
+        if (chairFader) fadeOut(chairFader, 0.25);
+        window.clearTimeout(cleanup);
+        window.setTimeout(() => {
+          fader.disconnect();
+          chairFader?.disconnect();
+        }, 2000);
+      },
+      /**
+       * The chair scene (~3.3 s): the tools' D major hands over to a warm
+       * G major 7, then an expectant A (sus4 → A) that the confirmation's
+       * D major answers. Same instruments, no new melody; it dips a little
+       * at the hero moment to leave room for the chair's own sound.
+       */
+      chair: () => {
+        if (stopped || chairFader || !this.active) return;
+        const c0 = ctx.currentTime + 0.02;
+        // the tools' tail steps back as the chair music comes in
+        fader.gain.cancelScheduledValues(c0);
+        fader.gain.setValueAtTime(fader.gain.value, c0);
+        fader.gain.setTargetAtTime(0.0001, c0, 0.18);
+        const g = ctx.createGain();
+        chairFader = g;
+        const base = SFX.SCORE_VOLUME;
+        g.gain.setValueAtTime(base * 0.88, c0);
+        g.gain.setValueAtTime(base * 0.88, c0 + 1.45);
+        g.gain.linearRampToValueAtTime(base * 0.78, c0 + 1.75); // room for the hero chair
+        g.gain.setValueAtTime(base * 0.78, c0 + 2.3);
+        g.gain.linearRampToValueAtTime(base * 0.9, c0 + 2.8); // lift toward the confirmation
+        g.connect(this.bus!);
+        this.route = g;
+        try {
+          const N = {
+            A1: 55,
+            D2: 73.42,
+            G2: 98,
+            A2: 110,
+            Cs3: 138.59,
+            D3: 146.83,
+            E3: 164.81,
+            Fs3: 185,
+            B3: 246.94,
+          };
+          this.pad(c0, [N.G2, N.D3, N.Fs3, N.B3], 1.6, 0.045, [700, 1500], 0.4, 0.5, 0.5);
+          this.pad(c0 + 1.6, [N.A2, N.D3, N.E3], 0.8, 0.06, [1000, 1600], 0.25, 0.3, 0.5);
+          this.pad(c0 + 2.4, [N.A2, N.Cs3, N.E3], 0.85, 0.065, [1300, 2000], 0.2, 0.7, 0.55);
+          // the pulse carries on from the tools, slower now: anticipation, not urgency
+          for (let i = 0; i < 6; i++)
+            this.tone({
+              t: c0 + 0.25 + i * 0.5,
+              f: i % 2 ? N.A1 * 2 : N.D2,
+              type: "triangle",
+              gain: 0.05 + i * 0.008,
+              a: 0.006,
+              d: 0.3,
+            });
+        } finally {
+          this.route = null;
+        }
+        window.setTimeout(() => g.disconnect(), 6000);
+      },
+    };
+  }
+
+  /* ── "Your chair is being reserved" ─────────────────────────────────── */
+
+  /** Leaving the tools: cloth moving, a hint of metal, a low transition breath. */
+  chairEnter() {
+    if (!this.active || !this.ctx) return;
+    const t = this.ctx.currentTime + 0.01;
+    const S = SFX.TRANSITION_VOLUME * 0.5;
+    this.noise({ t, type: "bandpass", f: 700, to: 1700, q: 0.7, gain: S * 0.45, a: 0.06, d: 0.2 }); // fabric
+    this.metal(t + 0.03, 3300, SFX.SHIMMER_VOLUME * 0.35, 0.22, 0.4); // the tools settling
+    this.tone({ t, f: 92, to: 62, glide: 0.3, gain: S * 0.5, a: 0.02, d: 0.32 }); // low-frequency transition
+  }
+
+  /**
+   * Sound for the chair footage, started on its first frame and timed to the
+   * edit: push-in air (0 s), speed-ramp whoosh (0.45–0.85 s), the hero chair's
+   * warm presence (~1.8 s), a clean resolve into the confirmation (~3.0 s),
+   * over a barely-there room tone.
+   */
+  chairScene() {
+    if (!this.active || !this.ctx) return;
+    const t = this.ctx.currentTime + 0.01;
+    const T = SFX.TRANSITION_VOLUME;
+    // room tone: felt, not heard
+    this.noise({
+      t,
+      type: "lowpass",
+      f: 260,
+      q: 0.4,
+      gain: SFX.AMBIENCE_VOLUME * 0.7,
+      a: 0.5,
+      d: 2.9,
+    });
+    // camera air, with the push-in
+    this.noise({ t, type: "bandpass", f: 320, to: 900, q: 0.6, gain: T * 0.35, a: 0.35, d: 0.55 });
+    // speed ramp: a restrained tonal whoosh
+    this.noise({
+      t: t + 0.42,
+      type: "bandpass",
+      f: 600,
+      to: 2300,
+      q: 0.9,
+      gain: T * 0.38,
+      a: 0.28,
+      d: 0.2,
+    });
+    this.tone({
+      t: t + 0.45,
+      f: NOTE.A3,
+      to: NOTE.E4,
+      glide: 0.4,
+      gain: T * 0.12 * this.tonal,
+      a: 0.2,
+      d: 0.25,
+      send: 0.3,
+    });
+    // hero chair: warm low presence
+    const h = t + 1.78;
+    const P = 0.68; // presence, not impact: the confirmation stays the loudest moment
+    this.tone({
+      t: h,
+      f: NOTE.A2 * 0.666,
+      gain: SFX.SUCCESS_VOLUME * P * 0.45,
+      a: 0.035,
+      d: 1.3,
+      send: 0.35,
+    }); // D2
+    this.tone({
+      t: h,
+      f: NOTE.A2,
+      gain: SFX.SUCCESS_VOLUME * P * 0.22,
+      a: 0.05,
+      d: 1.1,
+      send: 0.4,
+    });
+    this.tone({
+      t: h + 0.01,
+      f: NOTE.D4 * 0.5,
+      gain: SFX.SUCCESS_VOLUME * P * 0.12,
+      a: 0.06,
+      d: 1.0,
+      send: 0.45,
+    });
+    this.noise({
+      t: h,
+      type: "lowpass",
+      f: 180,
+      gain: SFX.SUCCESS_VOLUME * P * 0.25,
+      a: 0.02,
+      d: 0.25,
+    });
+    // resolve: clean and high, leading into the confirmation chime
+    const r = t + 3.0;
+    this.tone({
+      t: r,
+      f: NOTE.A5,
+      gain: SFX.SELECTION_VOLUME * 0.2 * Math.max(0.6, this.tonal),
+      a: 0.02,
+      d: 0.6,
+      send: 0.5,
+    });
+    this.tone({
+      t: r + 0.06,
+      f: NOTE.D6,
+      gain: SFX.SELECTION_VOLUME * 0.16 * Math.max(0.6, this.tonal),
+      a: 0.02,
+      d: 0.8,
+      send: 0.55,
+    });
+    this.noise({
+      t: r - 0.15,
+      type: "bandpass",
+      f: 1500,
+      to: 3200,
+      q: 0.8,
+      gain: T * 0.18,
+      a: 0.2,
+      d: 0.2,
+    }); // the forward push
   }
 
   /** Console preview: plays a short phrase with the given settings. */

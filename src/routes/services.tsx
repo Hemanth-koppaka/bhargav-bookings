@@ -1,12 +1,27 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock, Plus, Search, ShoppingBag, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Clock,
+  Plus,
+  Search,
+  ShoppingBag,
+  X,
+} from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
 import { sfx } from "@/lib/sfx";
 import { useRewindBack } from "@/components/scissors-line";
 import { SIGNATURE_MARK, isSignature } from "@/lib/service-photos";
-import { ServiceGlyph, ServiceIconTile, categoryKind, serviceKind } from "@/components/service-icons";
+import {
+  ServiceGlyph,
+  ServiceIconTile,
+  categoryKind,
+  serviceKind,
+} from "@/components/service-icons";
 import {
   AUDIENCE_IMAGE,
   DesktopBar,
@@ -55,9 +70,34 @@ function ServicesScreen() {
   const search = useServiceSearch(menu, query);
   const listHasPhotos = (search ?? category?.services ?? []).some((x) => x.photo);
 
+  // warm every icon on this menu while the browser is idle, so switching
+  // categories never shows empty tiles (small files, fetched once, then cached)
+  useEffect(() => {
+    if (!menu.length) return;
+    const urls = [
+      ...new Set(
+        menu.flatMap((c) => [c.icon, ...c.services.map((x) => x.icon)]).filter(Boolean) as string[],
+      ),
+    ];
+    const idle =
+      (window as unknown as { requestIdleCallback?: (f: () => void) => number })
+        .requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 600));
+    const h = idle(() => urls.forEach((u) => (new Image().src = u)));
+    return () => {
+      (window as unknown as { cancelIdleCallback?: (n: number) => void }).cancelIdleCallback?.(h);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.audience, menu.length]);
+
   // each category has its own note; staying on the same one stays silent
   const goCategory = (id: string) => {
-    if (id !== category?.id || search) sfx.categoryChange(Math.max(0, menu.findIndex((c) => c.id === id)));
+    if (id !== category?.id || search)
+      sfx.categoryChange(
+        Math.max(
+          0,
+          menu.findIndex((c) => c.id === id),
+        ),
+      );
     setActive(id);
     setQuery("");
   };
@@ -95,7 +135,12 @@ function ServicesScreen() {
               Select your <span className="italic text-bronze">services.</span>
             </StepIntro>
 
-            <SearchBox value={query} onChange={setQuery} className="mt-5" hint={men ? "haircut, beard, colour…" : "haircut, facial, colour…"} />
+            <SearchBox
+              value={query}
+              onChange={setQuery}
+              className="mt-5"
+              hint={men ? "haircut, beard, colour…" : "haircut, facial, colour…"}
+            />
 
             <div
               ref={chipRow}
@@ -121,12 +166,12 @@ function ServicesScreen() {
                       }
                     >
                       {c.icon ? (
-                      <span className="-ml-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f3ece1]">
-                        <img src={c.icon} alt="" className="h-5 w-5 object-contain" />
-                      </span>
-                    ) : (
-                      <ServiceGlyph kind={categoryKind(c.id)} active={on} className="h-4 w-4" />
-                    )}
+                        <span className="-ml-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f3ece1]">
+                          <img src={c.icon} alt="" className="h-5 w-5 object-contain" />
+                        </span>
+                      ) : (
+                        <ServiceGlyph kind={categoryKind(c.id)} active={on} className="h-4 w-4" />
+                      )}
                       {c.title}
                       {count > 0 ? (
                         <span
@@ -147,17 +192,27 @@ function ServicesScreen() {
 
             <div key={search ? "search" : category.id} className="slide-in mt-6">
               <div className="flex items-baseline justify-between gap-4">
-                <h2 className="font-display text-[1.9rem] leading-tight">{search ? "Results" : category.title}</h2>
+                <h2 className="font-display text-[1.9rem] leading-tight">
+                  {search ? "Results" : category.title}
+                </h2>
                 <span className="text-[0.75rem] text-muted-foreground">
                   {search ? `${search.length} found` : `${category.services.length} services`}
                 </span>
               </div>
               {!search && category.blurb ? (
-                <p className="mt-1 text-[0.85rem] leading-relaxed text-muted-foreground">{category.blurb}</p>
+                <p className="mt-1 text-[0.85rem] leading-relaxed text-muted-foreground">
+                  {category.blurb}
+                </p>
               ) : null}
-              {search && search.length === 0 ? <NoResults query={query} onClear={() => setQuery("")} /> : null}
+              {search && search.length === 0 ? (
+                <NoResults query={query} onClear={() => setQuery("")} />
+              ) : null}
               <ul className="stagger mt-4 space-y-2.5">
-                {sortServices(search ?? category.services.map((x) => ({ ...x, category: "" })), "popular", popularity).map((x) => {
+                {sortServices(
+                  search ?? category.services.map((x) => ({ ...x, category: "" })),
+                  "popular",
+                  popularity,
+                ).map((x) => {
                   const on = draft.serviceIds.includes(x.id);
                   return (
                     <li key={x.id}>
@@ -175,14 +230,27 @@ function ServicesScreen() {
                             : "border-foreground/8 bg-card/60 hover:border-foreground/25")
                         }
                       >
-                        <ServiceIconTile kind={serviceKind(x)} photo={x.photo} icon={x.icon} framed={listHasPhotos} active={on} size="sm" />
+                        <ServiceIconTile
+                          kind={serviceKind(x)}
+                          photo={x.photo}
+                          icon={x.icon}
+                          framed={listHasPhotos}
+                          active={on}
+                          size="sm"
+                        />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-[clamp(0.9rem,3.9vw,1rem)] leading-snug [text-wrap:balance]">{x.name}</span>
+                          <span className="block text-[clamp(0.9rem,3.9vw,1rem)] leading-snug [text-wrap:balance]">
+                            {x.name}
+                          </span>
                           {x.category ? (
-                            <span className="mt-0.5 block text-[0.66rem] uppercase tracking-[0.2em] text-bronze">{x.category}</span>
+                            <span className="mt-0.5 block text-[0.66rem] uppercase tracking-[0.2em] text-bronze">
+                              {x.category}
+                            </span>
                           ) : null}
                           {x.note ? (
-                            <span className="mt-1 block text-[0.78rem] leading-relaxed text-muted-foreground">{x.note}</span>
+                            <span className="mt-1 block text-[0.78rem] leading-relaxed text-muted-foreground">
+                              {x.note}
+                            </span>
                           ) : null}
                           <span className="mt-1.5 flex items-center gap-1.5 text-[0.75rem] text-muted-foreground">
                             <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
@@ -216,38 +284,44 @@ function ServicesScreen() {
           </Screen>
 
           {selected.length ? (
-          <StickyBar>
-            <div className="fade-rise mb-3 flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/12">
-                  <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.1} />
-                  {selected.length ? (
-                    <span
-                      key={selected.length}
-                      className="pop-in absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-bronze px-1 text-[0.65rem] text-ivory tabular-nums"
-                    >
-                      {selected.length}
+            <StickyBar>
+              <div className="fade-rise mb-3 flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/12">
+                    <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.1} />
+                    {selected.length ? (
+                      <span
+                        key={selected.length}
+                        className="pop-in absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-bronze px-1 text-[0.65rem] text-ivory tabular-nums"
+                      >
+                        {selected.length}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[0.9rem]">
+                      {selected.map((x) => x.name).join(", ")}
                     </span>
-                  ) : null}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-[0.9rem]">
-                    {selected.map((x) => x.name).join(", ")}
+                    <span className="block text-[0.75rem] text-muted-foreground">
+                      {formatDuration(totalMinutes)}
+                    </span>
                   </span>
-                  <span className="block text-[0.75rem] text-muted-foreground">
-                    {formatDuration(totalMinutes)}
-                  </span>
+                </div>
+                <span
+                  key={totalPrice}
+                  className="tick-in shrink-0 font-display text-[1.7rem] leading-none"
+                >
+                  {inr(totalPrice)}
+                  {hasFromPricing ? "+" : ""}
                 </span>
               </div>
-              <span key={totalPrice} className="tick-in shrink-0 font-display text-[1.7rem] leading-none">
-                {inr(totalPrice)}
-                {hasFromPricing ? "+" : ""}
-              </span>
-            </div>
-            <PrimaryAction disabled={selected.length === 0} onClick={() => navigate({ to: "/time" })}>
-              Choose a time
-            </PrimaryAction>
-          </StickyBar>
+              <PrimaryAction
+                disabled={selected.length === 0}
+                onClick={() => navigate({ to: "/time" })}
+              >
+                Choose a time
+              </PrimaryAction>
+            </StickyBar>
           ) : null}
         </Page>
       </div>
@@ -284,8 +358,15 @@ function DesktopServices({
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,34%)] xl:grid-cols-[minmax(17rem,22%)_minmax(0,1fr)_minmax(18rem,32%)]">
         {/* Categories */}
-        <nav aria-label="Service categories" className="hidden min-h-0 flex-col overflow-y-auto border-r xl:flex border-hairline px-8 py-8 [scrollbar-width:thin]">
-          <Link to="/book" onClick={(e) => void goBack(e)} className="label-caps press inline-flex items-center gap-3 text-foreground/70 transition-opacity hover:opacity-60">
+        <nav
+          aria-label="Service categories"
+          className="hidden min-h-0 flex-col overflow-y-auto border-r xl:flex border-hairline px-8 py-8 [scrollbar-width:thin]"
+        >
+          <Link
+            to="/book"
+            onClick={(e) => void goBack(e)}
+            className="label-caps press inline-flex items-center gap-3 text-foreground/70 transition-opacity hover:opacity-60"
+          >
             <ArrowLeft className="h-4 w-4" strokeWidth={1.25} />
             Back
           </Link>
@@ -342,15 +423,25 @@ function DesktopServices({
         {/* Service list (tablets and small laptops get the intro + category chips here) */}
         <div className="min-h-0 overflow-y-auto [scrollbar-width:thin]">
           <div className="px-8 pt-7 lg:px-10 xl:hidden">
-            <Link to="/book" onClick={(e) => void goBack(e)} className="label-caps press inline-flex items-center gap-3 text-foreground/70 transition-opacity hover:opacity-60">
+            <Link
+              to="/book"
+              onClick={(e) => void goBack(e)}
+              className="label-caps press inline-flex items-center gap-3 text-foreground/70 transition-opacity hover:opacity-60"
+            >
               <ArrowLeft className="h-4 w-4" strokeWidth={1.25} />
               Back
             </Link>
-            <div className="mt-6 text-[0.7rem] uppercase tracking-[0.3em] text-bronze">{men ? "Men's" : "Women's"} services</div>
+            <div className="mt-6 text-[0.7rem] uppercase tracking-[0.3em] text-bronze">
+              {men ? "Men's" : "Women's"} services
+            </div>
             <h1 className="mt-2 font-display text-[clamp(2.4rem,4.4vw,3.2rem)] leading-[1.02]">
               Select your <span className="italic text-bronze">services.</span>
             </h1>
-            <div role="tablist" aria-label="Service categories" className="mt-6 flex flex-wrap gap-2">
+            <div
+              role="tablist"
+              aria-label="Service categories"
+              className="mt-6 flex flex-wrap gap-2"
+            >
               {menu.map((c) => {
                 const on = !search && c.id === category.id;
                 const count = c.services.filter((x) => draft.serviceIds.includes(x.id)).length;
@@ -372,7 +463,11 @@ function DesktopServices({
                         <img src={c.icon} alt="" className="h-5 w-5 object-contain" />
                       </span>
                     ) : (
-                      <ServiceGlyph kind={categoryKind(c.id)} active={on} className="h-[18px] w-[18px]" />
+                      <ServiceGlyph
+                        kind={categoryKind(c.id)}
+                        active={on}
+                        className="h-[18px] w-[18px]"
+                      />
                     )}
                     {c.title}
                     {count > 0 ? (
@@ -392,70 +487,105 @@ function DesktopServices({
             </div>
           </div>
           <div className="flex items-center gap-3 px-8 pt-6 lg:px-10 xl:px-12 xl:pt-7">
-            <SearchBox value={query} onChange={onQuery} className="min-w-0 flex-1" hint={men ? "haircut, beard, colour…" : "haircut, facial, colour…"} />
+            <SearchBox
+              value={query}
+              onChange={onQuery}
+              className="min-w-0 flex-1"
+              hint={men ? "haircut, beard, colour…" : "haircut, facial, colour…"}
+            />
             <SortMenu value={sort} onChange={setSort} />
           </div>
-        <section key={search ? "search" : category.id} className="slide-in px-8 py-7 lg:px-10 xl:px-12 xl:py-8">
-          <div className="flex items-baseline justify-between gap-6">
-            <h2 className="font-display text-[2.5rem] leading-tight">{search ? "Results" : category.title}</h2>
-            <span className="label-caps shrink-0 text-foreground/55">
-              {search ? `${search.length} found` : `${category.services.length} services`}
-            </span>
-          </div>
-          {!search && category.blurb ? (
-            <p className="mt-1 max-w-lg text-[0.9rem] leading-relaxed text-muted-foreground">{category.blurb}</p>
-          ) : null}
-          {search && search.length === 0 ? <NoResults query={query} onClear={() => onQuery("")} /> : null}
-          <ul key={sort} className="stagger mt-5 hairline-t">
-            {sortServices(search ?? category.services.map((x) => ({ ...x, category: "" })), sort, popularity).map((x) => {
-              const on = draft.serviceIds.includes(x.id);
-              return (
-                <li key={x.id} className="hairline-b">
-                  <button
-                    onClick={() => {
-                      sfx.serviceSelect(!on);
-                      toggleService(x.id);
-                    }}
-                    aria-pressed={on}
-                    className={
-                      "group -mx-3 flex w-[calc(100%+1.5rem)] items-center gap-5 px-3 py-3.5 text-left transition-colors duration-300 " +
-                      (on ? "bg-champagne/16" : "hover:bg-foreground/[0.025]")
-                    }
-                  >
-                    <ServiceIconTile kind={serviceKind(x)} photo={x.photo} icon={x.icon} framed active={on} size="thumb" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-display text-[1.3rem] leading-tight">{x.name}</span>
-                      {x.category ? (
-                        <span className="mt-0.5 block text-[0.68rem] uppercase tracking-[0.22em] text-bronze">{x.category}</span>
-                      ) : null}
-                      {x.note ? (
-                        <span className="mt-0.5 block truncate text-[0.85rem] text-muted-foreground">{x.note}</span>
-                      ) : null}
-                      <span className="mt-1 flex items-center gap-2 text-[0.82rem] text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
-                        {formatDuration(x.minutes)}
-                      </span>
-                    </span>
-                    <span className="shrink-0 whitespace-nowrap font-display text-[1.4rem]">
-                      {inr(x.price)}
-                      {x.from ? "+" : ""}
-                    </span>
-                    <span
+          <section
+            key={search ? "search" : category.id}
+            className="slide-in px-8 py-7 lg:px-10 xl:px-12 xl:py-8"
+          >
+            <div className="flex items-baseline justify-between gap-6">
+              <h2 className="font-display text-[2.5rem] leading-tight">
+                {search ? "Results" : category.title}
+              </h2>
+              <span className="label-caps shrink-0 text-foreground/55">
+                {search ? `${search.length} found` : `${category.services.length} services`}
+              </span>
+            </div>
+            {!search && category.blurb ? (
+              <p className="mt-1 max-w-lg text-[0.9rem] leading-relaxed text-muted-foreground">
+                {category.blurb}
+              </p>
+            ) : null}
+            {search && search.length === 0 ? (
+              <NoResults query={query} onClear={() => onQuery("")} />
+            ) : null}
+            <ul key={sort} className="stagger mt-5 hairline-t">
+              {sortServices(
+                search ?? category.services.map((x) => ({ ...x, category: "" })),
+                sort,
+                popularity,
+              ).map((x) => {
+                const on = draft.serviceIds.includes(x.id);
+                return (
+                  <li key={x.id} className="hairline-b">
+                    <button
+                      onClick={() => {
+                        sfx.serviceSelect(!on);
+                        toggleService(x.id);
+                      }}
+                      aria-pressed={on}
                       className={
-                        "ml-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border transition-all duration-300 group-active:scale-90 " +
-                        (on
-                          ? "ring-pulse border-foreground bg-foreground text-background"
-                          : "border-foreground/30 group-hover:border-foreground/70")
+                        "group -mx-3 flex w-[calc(100%+1.5rem)] items-center gap-5 px-3 py-3.5 text-left transition-colors duration-300 " +
+                        (on ? "bg-champagne/16" : "hover:bg-foreground/[0.025]")
                       }
                     >
-                      {on ? <Check className="pop-in h-5 w-5" strokeWidth={1.5} /> : <Plus className="h-5 w-5" strokeWidth={1.25} />}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+                      <ServiceIconTile
+                        kind={serviceKind(x)}
+                        photo={x.photo}
+                        icon={x.icon}
+                        framed
+                        active={on}
+                        size="thumb"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-display text-[1.3rem] leading-tight">
+                          {x.name}
+                        </span>
+                        {x.category ? (
+                          <span className="mt-0.5 block text-[0.68rem] uppercase tracking-[0.22em] text-bronze">
+                            {x.category}
+                          </span>
+                        ) : null}
+                        {x.note ? (
+                          <span className="mt-0.5 block truncate text-[0.85rem] text-muted-foreground">
+                            {x.note}
+                          </span>
+                        ) : null}
+                        <span className="mt-1 flex items-center gap-2 text-[0.82rem] text-muted-foreground">
+                          <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
+                          {formatDuration(x.minutes)}
+                        </span>
+                      </span>
+                      <span className="shrink-0 whitespace-nowrap font-display text-[1.4rem]">
+                        {inr(x.price)}
+                        {x.from ? "+" : ""}
+                      </span>
+                      <span
+                        className={
+                          "ml-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border transition-all duration-300 group-active:scale-90 " +
+                          (on
+                            ? "ring-pulse border-foreground bg-foreground text-background"
+                            : "border-foreground/30 group-hover:border-foreground/70")
+                        }
+                      >
+                        {on ? (
+                          <Check className="pop-in h-5 w-5" strokeWidth={1.5} />
+                        ) : (
+                          <Plus className="h-5 w-5" strokeWidth={1.25} />
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         </div>
 
         {selected.some(isSignature) ? (
@@ -473,14 +603,26 @@ function DesktopServices({
                 that's <span className="italic text-champagne">you</span>.
               </>
             }
-            sub={men ? "Precision cuts. Modern styles. Timeless confidence." : "Colour. Care. Makeover. Made for you."}
+            sub={
+              men
+                ? "Precision cuts. Modern styles. Timeless confidence."
+                : "Colour. Care. Makeover. Made for you."
+            }
           />
         )}
       </div>
 
       <DesktopBar>
         {selected[0] ? (
-          <ServiceIconTile key={selected[0].id} kind={serviceKind(selected[0])} photo={selected[0].photo} icon={selected[0].icon} framed size="thumb" className="pop-in" />
+          <ServiceIconTile
+            key={selected[0].id}
+            kind={serviceKind(selected[0])}
+            photo={selected[0].photo}
+            icon={selected[0].icon}
+            framed
+            size="thumb"
+            className="pop-in"
+          />
         ) : (
           <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-foreground/12">
             <ShoppingBag className="h-6 w-6" strokeWidth={1.1} />
@@ -499,7 +641,9 @@ function DesktopServices({
           ) : (
             <>
               <div className="text-[1.05rem]">No services selected</div>
-              <div className="mt-0.5 text-[0.85rem] text-muted-foreground">Add one or more services to continue</div>
+              <div className="mt-0.5 text-[0.85rem] text-muted-foreground">
+                Add one or more services to continue
+              </div>
             </>
           )}
         </div>
@@ -600,7 +744,11 @@ function NoResults({ query, onClear }: { query: string; onClear: () => void }) {
     <div className="mt-6 flex flex-col items-center gap-3 rounded-md border border-dashed border-foreground/15 px-6 py-10 text-center">
       <Search className="h-6 w-6 text-bronze/70" strokeWidth={1.1} />
       <p className="text-[0.95rem]">Nothing matches “{query.trim()}”.</p>
-      <button type="button" onClick={onClear} className="press text-[0.85rem] text-bronze underline underline-offset-4">
+      <button
+        type="button"
+        onClick={onClear}
+        className="press text-[0.85rem] text-bronze underline underline-offset-4"
+      >
         Clear search
       </button>
     </div>
@@ -672,7 +820,10 @@ function SortMenu({ value, onChange }: { value: SortKey; onChange: (k: SortKey) 
           </option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute top-1/2 right-4 h-4 w-4 -translate-y-1/2 text-foreground/60" strokeWidth={1.5} />
+      <ChevronDown
+        className="pointer-events-none absolute top-1/2 right-4 h-4 w-4 -translate-y-1/2 text-foreground/60"
+        strokeWidth={1.5}
+      />
     </label>
   );
 }

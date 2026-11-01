@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CinematicKit } from "@/components/cinematic-kit";
+import { CHAIR_SRC, CHAIR_WEBM, ChairReserve } from "@/components/chair-reserve";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Copy, Download, MapPin, MessageCircle } from "lucide-react";
 import { guestToSalonText, waLink } from "@/lib/whatsapp-link";
 import { AddToCalendar } from "@/components/add-to-calendar";
-import { sfx } from "@/lib/sfx";
+import { sfx, type ScoreControl } from "@/lib/sfx";
 import { prettyPhone } from "@/components/desktop";
 import { LogoReveal } from "@/components/motion";
 import { useBooking, servicesOf, type Booking } from "@/lib/booking-store";
@@ -44,7 +45,10 @@ function loadImage(src: string) {
 }
 
 /** Draws the confirmation card and returns it as a PNG (null if the browser can't). */
-async function renderConfirmationImage(booking: Booking, serviceLine: string): Promise<Blob | null> {
+async function renderConfirmationImage(
+  booking: Booking,
+  serviceLine: string,
+): Promise<Blob | null> {
   // the card's typefaces must be ready, or the canvas falls back to defaults
   await document.fonts?.ready.catch(() => {});
   const W = 1080;
@@ -177,7 +181,10 @@ const framed = () => {
  * Computers: a normal download. If neither is possible (or we're inside a
  * preview frame that blocks downloads), the card opens on screen to save by hand.
  */
-async function deliverImage(blob: Blob, name: string): Promise<"shared" | "downloaded" | "manual" | "cancelled"> {
+async function deliverImage(
+  blob: Blob,
+  name: string,
+): Promise<"shared" | "downloaded" | "manual" | "cancelled"> {
   const file = new File([blob], name, { type: "image/png" });
   const touch = window.matchMedia?.("(pointer: coarse)").matches;
   if (touch && navigator.canShare?.({ files: [file] })) {
@@ -213,24 +220,34 @@ function ConfirmedScreen() {
   // the barber-kit film opens a fresh confirmation; the booking ID follows it
   // The film is framed for phones (9:16): it plays on phones and portrait
   // tablets; wide screens go straight to the confirmation.
-  const [film, setFilm] = useState<"on" | "leaving" | "off">(() =>
+  // on (tools film) → chair (the reserved chair) → off (confirmation)
+  const [film, setFilm] = useState<"on" | "chair" | "leaving" | "off">(() =>
     cinematic &&
     (typeof window === "undefined" ||
-      window.matchMedia("(max-width: 767px), (orientation: portrait) and (max-width: 1100px)").matches)
+      window.matchMedia("(max-width: 767px), (orientation: portrait) and (max-width: 1100px)")
+        .matches)
       ? "on"
       : "off",
   );
-  const stopScore = useRef<(() => void) | null>(null);
+  const score = useRef<ScoreControl | null>(null);
+  const [chairSeen, setChairSeen] = useState(false);
   const endFilm = useCallback(() => {
-    setFilm((f) => (f === "on" ? "leaving" : f));
+    setFilm((f) => (f === "on" || f === "chair" ? "leaving" : f));
     window.setTimeout(() => setFilm("off"), 700);
   }, []);
-  // skipping the film fades its music; letting it finish lets the last chord ring
+  // the tools film ends → the chair scene (pushed through, with its own sound)
+  const toChair = useCallback(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return endFilm();
+    sfx.chairEnter();
+    setChairSeen(true);
+    setFilm((f) => (f === "on" ? "chair" : f));
+  }, [endFilm]);
+  // skipping fades the music; letting it play lets it resolve into the confirmation
   const skipFilm = useCallback(() => {
-    stopScore.current?.();
+    score.current?.stop();
     endFilm();
   }, [endFilm]);
-  useEffect(() => () => stopScore.current?.(), []);
+  useEffect(() => () => score.current?.stop(), []);
 
   useEffect(() => {
     if (hydrated && booking) resetDraft();
@@ -238,23 +255,25 @@ function ConfirmedScreen() {
   }, [hydrated, Boolean(booking)]);
 
   useEffect(() => {
-    if (!cinematic || film === "on") return;
+    if (!cinematic || film === "on" || film === "chair") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setStage(FINAL);
       return;
     }
     // 1 logo · 2 card turns in · 3 seal stamps · 4 portrait + message · 5 actions
     const marks = [250, 1900, 3000, 3900, 5100];
-    const timers = marks.map((ms, i) => window.setTimeout(() => setStage((s) => Math.max(s, i + 1)), ms));
+    const timers = marks.map((ms, i) =>
+      window.setTimeout(() => setStage((s) => Math.max(s, i + 1)), ms),
+    );
     return () => timers.forEach(window.clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cinematic, film === "on"]);
+  }, [cinematic, film === "on" || film === "chair"]);
 
   // sound follows the picture: soft impact + bloom as the logo appears,
   // a quiet press as the seal stamps the card
   const heard = useRef(0);
   useEffect(() => {
-    if (!cinematic || film === "on") return;
+    if (!cinematic || film === "on" || film === "chair") return;
     if (stage >= 1 && heard.current < 1) {
       heard.current = 1;
       sfx.bookingConfirm();
@@ -314,9 +333,12 @@ function ConfirmedScreen() {
       live = false;
     };
   }, [booking, serviceLine, stage]);
-  useEffect(() => () => {
-    if (preview) URL.revokeObjectURL(preview.url);
-  }, [preview]);
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview.url);
+    },
+    [preview],
+  );
 
   const onSave = useCallback(async () => {
     if (!booking) return;
@@ -420,21 +442,34 @@ function ConfirmedScreen() {
           transition: "opacity 550ms ease, transform 900ms cubic-bezier(0.22,0.61,0.36,1)",
         }}
       >
-        {stage >= 1 && stage < FINAL ? <LogoReveal className="h-24 lg:h-36" imgClassName="brightness-0 invert" /> : null}
+        {stage >= 1 && stage < FINAL ? (
+          <LogoReveal className="h-24 lg:h-36" imgClassName="brightness-0 invert" />
+        ) : null}
       </div>
 
       <div className="relative z-10 mx-auto grid min-h-[100svh] max-w-md content-center gap-y-12 px-6 py-12 sm:max-w-lg lg:max-w-6xl lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-x-20 lg:px-14">
         {/* 4 — message */}
         <div className="text-center lg:text-left">
-          <div className="flex justify-center lg:justify-start" style={{ ...reveal(stage >= 2, 10, 1200), transitionDelay: "450ms" }}>
-            <img src={logo.url} alt="Hair by Bhargav" className="h-12 w-auto object-contain brightness-0 invert lg:h-14" />
+          <div
+            className="flex justify-center lg:justify-start"
+            style={{ ...reveal(stage >= 2, 10, 1200), transitionDelay: "450ms" }}
+          >
+            <img
+              src={logo.url}
+              alt="Hair by Bhargav"
+              className="h-12 w-auto object-contain brightness-0 invert lg:h-14"
+            />
           </div>
           <div className="mt-9 lg:mt-14" style={reveal(stage >= 4, 14, 1500)}>
             <h1 className="font-display text-[3.2rem] leading-none tracking-wide sm:text-6xl lg:text-[4.75rem]">
               You're booked.
             </h1>
-            <p className="mt-4 font-display text-2xl italic text-[#E8E1D8]/80 lg:text-[2rem]">Your chair is reserved.</p>
-            <p className="mt-3 text-[0.7rem] uppercase tracking-[0.3em] text-[#C9A96A]">Bhargav is waiting for you</p>
+            <p className="mt-4 font-display text-2xl italic text-[#E8E1D8]/80 lg:text-[2rem]">
+              Your chair is reserved.
+            </p>
+            <p className="mt-3 text-[0.7rem] uppercase tracking-[0.3em] text-[#C9A96A]">
+              Bhargav is waiting for you
+            </p>
           </div>
         </div>
 
@@ -470,11 +505,19 @@ function ConfirmedScreen() {
                   >
                     Reservation · {booking.reference}
                     <span key={String(copied)} className="pop-in inline-flex">
-                      {copied ? <Check className="h-3.5 w-3.5" strokeWidth={1.5} /> : <Copy className="h-3.5 w-3.5" strokeWidth={1.25} />}
+                      {copied ? (
+                        <Check className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" strokeWidth={1.25} />
+                      )}
                     </span>
                   </button>
                   <div className="mt-6 font-display text-[1.8rem] leading-tight sm:text-[2rem] lg:text-[2.4rem]">
-                    {fromISO(booking.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+                    {fromISO(booking.date).toLocaleDateString("en-GB", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    })}
                   </div>
                   <div className="mt-1 font-display text-[1.5rem] italic text-[#E8D9B6] lg:text-[1.7rem]">
                     {minuteLabel(booking.time)} · {formatDuration(totalMinutes || 30)}
@@ -500,7 +543,14 @@ function ConfirmedScreen() {
           </div>
 
           {/* 5 — actions */}
-          <div ref={actionsRef} className="mt-8 scroll-mb-6 space-y-3" style={{ ...reveal(stage >= FINAL, 16, 900), pointerEvents: stage >= FINAL ? "auto" : "none" }}>
+          <div
+            ref={actionsRef}
+            className="mt-8 scroll-mb-6 space-y-3"
+            style={{
+              ...reveal(stage >= FINAL, 16, 900),
+              pointerEvents: stage >= FINAL ? "auto" : "none",
+            }}
+          >
             {/* free reminders: the guest's own calendar app reminds them */}
             <AddToCalendar booking={booking} tone="dark" />
             {/* free: opens WhatsApp with the booking written out, to the salon's number */}
@@ -512,11 +562,15 @@ function ConfirmedScreen() {
                   name: booking.customer.name,
                   date: booking.date,
                   time: booking.time,
-                  services: booking.snapshot?.services.map((s) => s.name) ?? services.map((s) => s.name),
+                  services:
+                    booking.snapshot?.services.map((s) => s.name) ?? services.map((s) => s.name),
                   minutes: booking.snapshot?.minutes ?? (totalMinutes || 30),
                   price: booking.snapshot?.price ?? services.reduce((n, s) => n + s.price, 0),
                   priceFrom: services.some((s) => s.from),
-                  manageUrl: typeof window !== "undefined" ? `${window.location.origin}/manage?ref=${booking.reference}` : "",
+                  manageUrl:
+                    typeof window !== "undefined"
+                      ? `${window.location.origin}/manage?ref=${booking.reference}`
+                      : "",
                 }),
               )}
               target="_blank"
@@ -529,7 +583,9 @@ function ConfirmedScreen() {
                 if (!framed()) return;
                 e.preventDefault();
                 const msg = new URL(e.currentTarget.href).searchParams.get("text") ?? "";
-                setWaNote("WhatsApp can't open inside this preview window. On the live site this button opens WhatsApp directly.");
+                setWaNote(
+                  "WhatsApp can't open inside this preview window. On the live site this button opens WhatsApp directly.",
+                );
                 // copy the message too, so it can be pasted in WhatsApp by hand
                 void navigator.clipboard?.writeText(msg).then(
                   () =>
@@ -564,7 +620,10 @@ function ConfirmedScreen() {
               </a>
             </div>
             {saveNote || waNote ? (
-              <p role="status" className="text-center text-[0.78rem] leading-relaxed text-[#E8E1D8]/70">
+              <p
+                role="status"
+                className="text-center text-[0.78rem] leading-relaxed text-[#E8E1D8]/70"
+              >
                 {waNote || saveNote}
               </p>
             ) : null}
@@ -600,7 +659,10 @@ function ConfirmedScreen() {
         }
       >
         Calendar · WhatsApp · Save
-        <ChevronDown className="h-4 w-4 text-[#C9A96A] motion-safe:animate-bounce" strokeWidth={1.5} />
+        <ChevronDown
+          className="h-4 w-4 text-[#C9A96A] motion-safe:animate-bounce"
+          strokeWidth={1.5}
+        />
       </button>
 
       {preview ? (
@@ -636,16 +698,42 @@ function ConfirmedScreen() {
             skipFilm();
           }}
         >
-          <CinematicKit
-            className="h-auto w-[min(100vw,calc(100svh*9/16))]"
-            alt="Bhargav's tools: comb, clipper, round brush, scissors and razor"
-            onDone={endFilm}
-            onStart={() => {
-              stopScore.current = sfx.score();
+          {/* the tools: pushed through (scale, blur) as the chair arrives */}
+          <div
+            className="flex h-full w-full items-center justify-center"
+            style={{
+              transform: film === "on" ? "none" : "scale(1.14) translateY(-2%)",
+              filter: film === "on" ? "none" : "blur(9px)",
+              opacity: film === "on" ? 1 : 0,
+              transition:
+                "transform 340ms cubic-bezier(0.5,0,0.75,0), filter 340ms ease-in, opacity 300ms ease-in 60ms",
             }}
-          />
+          >
+            <CinematicKit
+              className="h-auto w-[min(100vw,calc(100svh*9/16))]"
+              alt="Bhargav's tools: comb, clipper, round brush, scissors and razor"
+              onDone={toChair}
+              onStart={() => {
+                score.current = sfx.score();
+              }}
+            />
+          </div>
+          {film === "on" ? (
+            // warm the chair footage while the tools play
+            <video preload="auto" muted playsInline className="hidden" aria-hidden>
+              <source src={CHAIR_SRC} type="video/mp4" />
+              <source src={CHAIR_WEBM} type="video/webm" />
+            </video>
+          ) : null}
+          {chairSeen && (film === "chair" || film === "leaving") ? (
+            <ChairReserve
+              className="absolute inset-0 mx-auto h-full w-[min(100vw,calc(100svh*9/16))]"
+              onStart={() => score.current?.chair()}
+              onDone={() => setFilm("off")}
+            />
+          ) : null}
           <div className="pointer-events-none absolute inset-x-0 bottom-6 text-center text-[0.6rem] uppercase tracking-[0.3em] text-[#E8E1D8]/40">
-            Preparing your chair · tap to skip
+            {film === "on" ? "Preparing your chair · tap to skip" : ""}
           </div>
         </div>
       ) : null}
@@ -664,9 +752,15 @@ const FINAL = 5;
 /** Wax-seal style stamp: drops onto the card, then turns slowly. */
 function Seal() {
   return (
-    <div aria-hidden className="seal-stamp absolute -top-9 -right-4 h-24 w-24 sm:-right-7 lg:-top-11 lg:-right-10 lg:h-28 lg:w-28">
+    <div
+      aria-hidden
+      className="seal-stamp absolute -top-9 -right-4 h-24 w-24 sm:-right-7 lg:-top-11 lg:-right-10 lg:h-28 lg:w-28"
+    >
       <span className="seal-burst absolute inset-0 rounded-full border border-[#C9A96A]/70" />
-      <svg viewBox="0 0 100 100" className="h-full w-full drop-shadow-[0_10px_18px_rgba(0,0,0,0.6)]">
+      <svg
+        viewBox="0 0 100 100"
+        className="h-full w-full drop-shadow-[0_10px_18px_rgba(0,0,0,0.6)]"
+      >
         <defs>
           <radialGradient id="seal-fill" cx="35%" cy="30%" r="75%">
             <stop offset="0%" stopColor="#E3C88E" />
@@ -676,10 +770,32 @@ function Seal() {
           <path id="seal-ring" d="M50 50 m-35 0 a35 35 0 1 1 70 0 a35 35 0 1 1 -70 0" />
         </defs>
         <circle cx="50" cy="50" r="47" fill="url(#seal-fill)" />
-        <circle cx="50" cy="50" r="43" fill="none" stroke="#0B0B0B" strokeOpacity="0.35" strokeWidth="0.6" />
-        <circle cx="50" cy="50" r="27" fill="none" stroke="#0B0B0B" strokeOpacity="0.35" strokeWidth="0.6" />
+        <circle
+          cx="50"
+          cy="50"
+          r="43"
+          fill="none"
+          stroke="#0B0B0B"
+          strokeOpacity="0.35"
+          strokeWidth="0.6"
+        />
+        <circle
+          cx="50"
+          cy="50"
+          r="27"
+          fill="none"
+          stroke="#0B0B0B"
+          strokeOpacity="0.35"
+          strokeWidth="0.6"
+        />
         <g className="seal-spin">
-          <text fill="#0B0B0B" fillOpacity="0.78" fontSize="7.4" letterSpacing="2.6" fontFamily="Jost, sans-serif">
+          <text
+            fill="#0B0B0B"
+            fillOpacity="0.78"
+            fontSize="7.4"
+            letterSpacing="2.6"
+            fontFamily="Jost, sans-serif"
+          >
             <textPath href="#seal-ring">CONFIRMED · HAIR BY BHARGAV ·</textPath>
           </text>
         </g>
