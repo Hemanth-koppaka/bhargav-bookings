@@ -15,7 +15,7 @@ import {
   Thumb,
 } from "@/components/desktop";
 import { useBooking, type Customer } from "@/lib/booking-store";
-import { formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
+import { formatDuration, fromISO, inr, isValidMobile, minuteLabel } from "@/lib/salon";
 
 export const Route = createFileRoute("/details")({
   head: () => ({
@@ -62,7 +62,7 @@ function DetailsScreen() {
 
   const digits = phone.replace(/\D/g, "");
   const validName = name.trim().length >= 2;
-  const validPhone = digits.length >= 10;
+  const validPhone = isValidMobile(phone);
   const validEmail = email.trim() === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const valid = validName && validPhone && validEmail;
 
@@ -87,7 +87,7 @@ function DetailsScreen() {
 
   const fields = {
     name: { value: name, set: setName, error: touched && !validName ? "Please enter your name." : "" },
-    phone: { value: phone, set: setPhone, error: touched && !validPhone ? "Enter a valid 10-digit number." : "" },
+    phone: { value: phone, set: setPhone, error: touched && !validPhone ? digits.length < 10 ? "Enter a valid 10-digit number." : "Enter a valid mobile number (starts with 6, 7, 8 or 9)." : "" },
     email: { value: email, set: setEmail, error: touched && !validEmail ? "That email doesn't look right." : "" },
     notes: { value: notes, set: setNotes, error: "" },
     consent: { value: consent, set: setConsent },
@@ -131,7 +131,7 @@ function MobileSummary() {
   const img = selectionImage(selected, draft.audience);
   return (
     <div className="mt-5 flex items-center gap-4 rounded-md border border-hairline bg-card p-3.5">
-      <Thumb src={img.src} pos={img.pos} className="h-16 w-16" />
+      <Thumb src={img.src} pos={img.pos} fit={img.fit} className="h-16 w-16" />
       <div className="min-w-0 flex-1">
         <div className="truncate font-display text-[1.25rem] leading-tight">
           {selected.length > 1 ? `${selected[0]?.name} + ${selected.length - 1} more` : selected[0]?.name}
@@ -327,7 +327,7 @@ function DesktopDetails({
                 </Link>
               </div>
               <div className="mt-6 flex gap-6">
-                <Thumb src={img.src} pos={img.pos} className="h-28 w-28" />
+                <Thumb src={img.src} pos={img.pos} fit={img.fit} className="h-28 w-28" />
                 <div className="min-w-0">
                   {selected.map((x) => (
                     <div key={x.id} className="font-display text-[1.6rem] leading-tight">{x.name}</div>

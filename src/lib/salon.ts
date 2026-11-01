@@ -568,3 +568,16 @@ export function applyConfig(cfg: SalonConfig | null | undefined) {
   replaceArray(STYLISTS, full.stylists);
   replaceArray(CLOSURES, full.closures);
 }
+
+/** The 10-digit Indian mobile inside any typed form (+91…, 0…, spaces). */
+export const mobileDigits = (p: string) => {
+  let d = p.replace(/\D/g, "");
+  if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
+  if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+  return d;
+};
+/** A real Indian mobile: 10 digits starting 6–9, not one digit repeated (0000000000). */
+export const isValidMobile = (p: string) => {
+  const d = mobileDigits(p);
+  return /^[6-9]\d{9}$/.test(d) && !/^(\d)\1{9}$/.test(d);
+};

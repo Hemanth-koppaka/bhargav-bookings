@@ -28,7 +28,7 @@ const SERVICE_ICONS: Record<string, string> = {
   [key("men", "Global Colour")]: I("svc-global"),
   [key("women", "Fringe Cut / Bangs")]: I("svc-fringe"),
   [key("women", "Cut & Styling")]: I("svc-cut-styling"),
-  [key("women", "Bhargav's Signature")]: I("svc-signature-w"),
+  [key("women", "Bhargav's Signature")]: I("svc-signature"),
   [key("women", "Blow Dry Straight")]: I("svc-blowdry-straight"),
   [key("women", "Blow Dry Curls")]: I("svc-blowdry-curls"),
   [key("women", "Ironing / Tonging")]: I("svc-ironing"),

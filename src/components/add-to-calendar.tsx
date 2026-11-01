@@ -10,7 +10,6 @@ import {
   googleUrl,
   icsFileName,
   outlookUrl,
-  preferredCalendar,
   type CalendarBooking,
 } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
@@ -46,6 +45,8 @@ export function calendarBooking(b: Booking): CalendarBooking {
   };
 }
 
+// Fixed order with nothing pre-picked: the guest chooses their own calendar.
+const ORDER: Option[] = ["google", "apple", "outlook", "ics"];
 const STORE = "hb.calendar.";
 const slotKey = (b: Booking) => `${b.date}T${b.time}`;
 
@@ -73,17 +74,10 @@ export function AddToCalendar({
   const [open, setOpen] = useState(false);
   const [added, setAdded] = useState<"none" | "current" | "outdated">("none");
   const [failed, setFailed] = useState(false);
-  const [order, setOrder] = useState<Option[]>(["google", "apple", "outlook", "ics"]);
   const wrap = useRef<HTMLDivElement>(null);
   const cancelled = booking.status === "cancelled";
 
   useEffect(() => {
-    const first = preferredCalendar(navigator.userAgent);
-    setOrder([
-      first,
-      ...(["google", "apple", "outlook"] as const).filter((o) => o !== first),
-      "ics",
-    ]);
     try {
       const saved = localStorage.getItem(STORE + booking.reference);
       setAdded(saved ? (saved === slotKey(booking) ? "current" : "outdated") : "none");
@@ -224,7 +218,7 @@ export function AddToCalendar({
           >
             Add appointment to
           </div>
-          {order.map((o, i) => (
+          {ORDER.map((o, i) => (
             <button
               key={o}
               role="menuitem"
@@ -236,16 +230,6 @@ export function AddToCalendar({
               )}
             >
               {LABEL[o]}
-              {i === 0 && o !== "ics" ? (
-                <span
-                  className={cn(
-                    "text-[0.6rem] uppercase tracking-[0.2em]",
-                    dark ? "text-[#C9A96A]" : "text-bronze",
-                  )}
-                >
-                  Suggested
-                </span>
-              ) : null}
             </button>
           ))}
         </div>

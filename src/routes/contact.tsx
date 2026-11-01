@@ -3,7 +3,6 @@ import { ArrowUpRight, Clock, MapPin, MessageCircle, Phone } from "lucide-react"
 import { BookCTA, InfoPage, InfoTitle } from "@/components/info-page";
 import { openDaysLabel, prettyPhone } from "@/components/desktop";
 import { CLOSE_MINUTE, OPEN_MINUTE, minuteLabel } from "@/lib/salon";
-import menImg from "@/assets/men.jpg.asset.json";
 import { BUSINESS } from "@/lib/salon";
 
 export const Route = createFileRoute("/contact")({
@@ -47,8 +46,8 @@ function ContactScreen() {
   return (
     <InfoPage
       label="Contact"
-      image={menImg.url}
-      imagePos="60% 30%"
+      image="/team/bhargav-dog.webp"
+      imagePos="50% 0%"
       panelEyebrow="We'd love to see you"
       panelTitle={
         <>

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
 import { ScissorsLine, useRewindBack } from "@/components/scissors-line";
+import { SIGNATURE_MARK, isSignature } from "@/lib/service-photos";
 
 export const STEPS = ["Who", "Services", "Time", "Details", "Confirm"] as const;
 
@@ -17,7 +18,12 @@ export const AUDIENCE_IMAGE: Record<Audience, { src: string; pos: string }> = {
 };
 
 /** Picture for a booking summary: the first chosen service's photo, else the men/women image. */
-export function selectionImage(selected: { photo?: string | undefined }[], audience: Audience | null) {
+export function selectionImage(
+  selected: { name: string; photo?: string | undefined }[],
+  audience: Audience | null,
+): { src: string; pos: string; fit?: "contain" } {
+  // Bhargav's Signature always shows his HB crown mark, never a stock portrait
+  if (selected.some(isSignature)) return { src: SIGNATURE_MARK, pos: "50% 50%", fit: "contain" };
   const photo = selected.find((x) => x.photo)?.photo;
   return photo ? { src: photo, pos: "50% 30%" } : AUDIENCE_IMAGE[audience ?? "men"];
 }
@@ -306,12 +312,26 @@ export function Accent({ children }: { children: ReactNode }) {
 }
 
 /** Square thumbnail used in summaries. */
-export function Thumb({ src, pos, className }: { src: string; pos?: string; className?: string }) {
+export function Thumb({
+  src,
+  pos,
+  fit,
+  className,
+}: {
+  src: string;
+  pos?: string;
+  fit?: "contain" | undefined;
+  className?: string;
+}) {
   return (
     <img
       src={src}
       alt=""
-      className={cn("h-24 w-24 shrink-0 rounded-sm bg-muted object-cover", className)}
+      className={cn(
+        "h-24 w-24 shrink-0 rounded-sm",
+        fit === "contain" ? "bg-[#f3ece1] object-contain p-1.5" : "bg-muted object-cover",
+        className,
+      )}
       style={{ objectPosition: pos }}
       decoding="async"
     />
