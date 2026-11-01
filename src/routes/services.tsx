@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock, Plus, Search, Shoppin
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
 import { useRewindBack } from "@/components/scissors-line";
-import { BHARGAV_FULL, isSignature } from "@/lib/service-photos";
+import { SIGNATURE_MARK, isSignature } from "@/lib/service-photos";
 import { ServiceGlyph, ServiceIconTile, categoryKind, serviceKind } from "@/components/service-icons";
 import {
   AUDIENCE_IMAGE,
@@ -13,6 +13,7 @@ import {
   DesktopPage,
   DesktopStepperHeader,
   ImagePanel,
+  SignaturePanel,
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
 import { getServicePopularity } from "@/lib/salon.functions";
@@ -107,7 +108,7 @@ function ServicesScreen() {
                       className={
                         "press inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-[0.82rem] tracking-[0.02em] " +
                         (on
-                          ? "border-foreground bg-foreground text-background"
+                          ? "border-bronze/70 bg-champagne/30 text-foreground shadow-[0_8px_22px_-16px_rgba(60,40,20,0.45)]"
                           : "border-foreground/15 bg-card text-foreground/75 hover:border-foreground/40")
                       }
                     >
@@ -303,7 +304,7 @@ function DesktopServices({
                     className={
                       "press flex w-full items-center gap-4 rounded-sm border px-4 py-3.5 text-left " +
                       (on
-                        ? "border-foreground bg-foreground text-background"
+                        ? "border-bronze/70 bg-champagne/30 text-foreground shadow-[0_8px_22px_-16px_rgba(60,40,20,0.45)]"
                         : "border-foreground/10 bg-card hover:border-foreground/35")
                     }
                   >
@@ -313,11 +314,11 @@ function DesktopServices({
                       icon={c.icon}
                       active={on}
                       size="sm"
-                      className={on ? "bg-background/10" : ""}
+                      className={on ? "bg-[#f3ece1]" : ""}
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[0.95rem]">{c.title}</span>
-                      <span className={"mt-0.5 block text-[0.75rem] " + (on ? "text-background/65" : "text-muted-foreground")}>
+                      <span className={"mt-0.5 block text-[0.75rem] " + "text-muted-foreground"}>
                         {c.services.length} services{count ? ` · ${count} added` : ""}
                       </span>
                     </span>
@@ -353,7 +354,7 @@ function DesktopServices({
                     className={
                       "press inline-flex min-h-11 items-center gap-2 rounded-sm border px-4 text-[0.88rem] " +
                       (on
-                        ? "border-foreground bg-foreground text-background"
+                        ? "border-bronze/70 bg-champagne/30 text-foreground shadow-[0_8px_22px_-16px_rgba(60,40,20,0.45)]"
                         : "border-foreground/12 bg-card text-foreground/80 hover:border-foreground/40")
                     }
                   >
@@ -446,20 +447,7 @@ function DesktopServices({
         </div>
 
         {selected.some(isSignature) ? (
-          <ImagePanel
-            className="hidden lg:block"
-            src={BHARGAV_FULL}
-            pos="50% 22%"
-            eyebrow="Bhargav's Signature"
-            title={
-              <>
-                Styled by
-                <br />
-                <span className="italic text-champagne">Bhargav</span>.
-              </>
-            }
-            sub="Consultation, cut, beard, wash and styling."
-          />
+          <SignaturePanel className="hidden lg:flex" mark={SIGNATURE_MARK} />
         ) : (
           <ImagePanel
             className="hidden lg:block"

@@ -293,6 +293,16 @@
   animation: hbSoftFade 1.2s ease both;
 }
 
+/* side-panel portraits: drift from the top edge so heads are never cut */
+@utility cine-drift-top {
+  transform-origin: 50% 0%;
+  animation: hbDriftTop 18s ease-in-out infinite alternate;
+}
+@keyframes hbDriftTop {
+  from { transform: scale(1.01); }
+  to { transform: scale(1.06); }
+}
+
 @utility cine-drift {
   animation: hbDrift 18s ease-in-out infinite alternate;
 }
@@ -570,7 +580,7 @@ html:not(.intro-seen) .after-intro > *:nth-child(n + 6) { animation-delay: 2.75s
   [data-hero-logo] { opacity: 1 !important; animation: none !important; }
   .seal-stamp, .seal-burst, .seal-spin, .seal-tick { animation: none !important; }
   .seal-stamp { transform: rotate(-12deg); }
-  .page-in, .slide-in, .soft-fade, .cine-drift, .emblem-in {
+  .page-in, .slide-in, .soft-fade, .cine-drift, .cine-drift-top, .emblem-in {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
