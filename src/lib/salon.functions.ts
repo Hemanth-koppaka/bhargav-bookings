@@ -138,7 +138,12 @@ export const createBooking = createServerFn({ method: "POST" })
     if (!r.ok) return { ok: false as const, error: r.error };
     // the booking is committed; now tell the guest and the salon
     await notify(r.reference, "BOOKING_CONFIRMED", { actor: "guest" });
-    return { ok: true as const, reference: r.reference };
+    // the booking's own snapshot (for the confirmation and calendar export)
+    return {
+      ok: true as const,
+      reference: r.reference,
+      snapshot: { services: r.services, minutes: r.minutes, price: r.price },
+    };
   });
 
 /** Bookable start times for a day, for the selected services (customer time picker). */
@@ -252,8 +257,17 @@ export const findMyBookings = createServerFn({ method: "POST" })
     const bookings = await Promise.all(
       rows.slice(0, 12).map(async (r) => {
         const b = toRow(r);
+        const row = r as Record<string, unknown>;
+        const snap = (row["services_snapshot"] as { name: string; price: number; minutes?: number }[] | null) ?? [];
         return {
           ...b,
+          snapshot: snap.length
+            ? {
+                services: snap.map((x) => ({ name: x.name, price: x.price, minutes: x.minutes ?? 30 })),
+                minutes: (row["duration_minutes"] as number | null) ?? snap.reduce((n, x) => n + (x.minutes ?? 30), 0),
+                price: (row["price_total"] as number | null) ?? snap.reduce((n, x) => n + x.price, 0),
+              }
+            : null,
           meta: {},
           customer: { ...b.customer, phone: maskPhone(b.customer.phone), email: "" },
           token: await manageToken(b.reference),

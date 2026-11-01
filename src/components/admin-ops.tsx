@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAdmin, STATUS_LABEL, type ApptStatus } from "@/lib/admin-store";
-import { formatDuration, fromISO, inr, menuFor, minuteLabel, toISO, type Audience } from "@/lib/salon";
+import { BUSINESS, formatDuration, fromISO, inr, menuFor, minuteLabel, toISO, type Audience } from "@/lib/salon";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -37,6 +37,8 @@ import { adminSaveException } from "@/lib/admin-content.functions";
 import type { Slot } from "@/lib/availability";
 import { adminReferencePhotos } from "@/lib/photos.functions";
 import { adminNotificationLogs, type NotifyLog } from "@/lib/admin-notify.functions";
+import { messageText, type BookingFacts, type NotifyEvent } from "@/lib/notify/messages";
+import { waLink as whatsapp } from "@/lib/whatsapp-link";
 
 /* ── small shared bits ─────────────────────────────────────── */
 
@@ -427,6 +429,8 @@ export function BookingDrawer({
             <InternalNote booking={b} busy={busy} onSave={(note) => void patch({ meta: { note } }, "Note saved.")} />
             <PaymentRow booking={b} busy={busy} onSave={(payment, amount) => void patch({ meta: { payment, amount } }, "Payment recorded.")} />
 
+            <WhatsAppSend booking={b} />
+
             <BookingMessages reference={b.reference} version={data?.booking ? b.history.length + b.status : ""} />
 
             {/* history */}
@@ -487,6 +491,55 @@ function RefPhotos({ reference, count }: { reference: string; count: number }) {
   );
 }
 
+/**
+ * Free messaging: opens WhatsApp on this device with the message written out
+ * (from the booking's stored details). The salon taps Send in its own WhatsApp.
+ */
+function WhatsAppSend({ booking: b }: { booking: AdminBooking }) {
+  const facts: BookingFacts = {
+    reference: b.reference,
+    customerName: b.customer.name || "there",
+    customerPhone: b.customer.phone,
+    date: b.date,
+    time: b.time,
+    services: b.services.map((s) => s.name),
+    minutes: b.minutes,
+    price: b.price,
+    priceFrom: false,
+    location: BUSINESS.locationShort || BUSINESS.address,
+    manageUrl: typeof window !== "undefined" ? `${window.location.origin}/manage?ref=${b.reference}` : "",
+  };
+  const moved = b.history.some((h) => h.action === "rescheduled");
+  const options: { event: NotifyEvent; label: string }[] =
+    b.status === "cancelled"
+      ? [{ event: "BOOKING_CANCELLED", label: "Cancellation" }]
+      : [
+          { event: "BOOKING_CONFIRMED", label: "Confirmation" },
+          { event: "BOOKING_REMINDER_24H", label: "Reminder" },
+          ...(moved ? [{ event: "BOOKING_RESCHEDULED" as const, label: "New time" }] : []),
+        ];
+  if (!b.customer.phone) return null;
+  return (
+    <section>
+      <Label>Send on WhatsApp (free)</Label>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((o) => (
+          <a
+            key={o.event}
+            href={whatsapp(b.customer.phone, messageText("customer", o.event, facts))}
+            target="_blank"
+            rel="noreferrer"
+            className={ACTION}
+          >
+            <MessageCircle className="h-4 w-4" /> {o.label}
+          </a>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[0.74rem] text-muted-foreground">Opens WhatsApp with the message ready — just tap Send.</p>
+    </section>
+  );
+}
+
 /** What was sent about this booking, and whether it arrived. */
 function BookingMessages({ reference, version }: { reference: string; version: string }) {
   const { pin } = useAdmin();
@@ -511,7 +564,7 @@ function BookingMessages({ reference, version }: { reference: string; version: s
           <li key={l.id} className="flex items-start gap-2">
             <span className={cn("w-3 shrink-0", MSG_TONE[l.status])}>{icon(l.status)}</span>
             <span className="min-w-0 flex-1">
-              {who(l.recipient)} {l.eventLabel.toLowerCase()} — {l.channel === "whatsapp" ? "WhatsApp" : "SMS"}
+              {who(l.recipient)} {l.eventLabel.toLowerCase()} — {l.channel === "whatsapp" ? "WhatsApp" : l.channel === "email" ? "Email" : "SMS"}
               {l.fallback ? " (fallback)" : ""}
               {l.errorMessage && ["failed", "skipped"].includes(l.status) ? <span className="block text-[0.74rem] text-muted-foreground">{l.errorMessage}</span> : null}
             </span>

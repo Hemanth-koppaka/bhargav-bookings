@@ -44,6 +44,14 @@ export type Booking = {
   createdAt: string;
   /** Manage key from a lookup by booking ID or phone (the phone isn't sent back). */
   token?: string;
+  /** What was booked, as stored by the salon (never re-read from today's menu). */
+  snapshot?: BookingSnapshot | undefined;
+};
+
+export type BookingSnapshot = {
+  services: { name: string; price: number; minutes: number }[];
+  minutes: number;
+  price: number;
 };
 
 const EMPTY: Draft = {
@@ -186,6 +194,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
           });
           if (!res.ok) return { error: res.error };
           booking.reference = res.reference; // issued by the salon (HB-2026-00124)
+          if ("snapshot" in res && res.snapshot) booking.snapshot = res.snapshot;
         } catch {
           return { error: "We couldn't reach the salon. Check your connection and try again." };
         }
@@ -205,6 +214,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
             status: r.status,
             createdAt: r.createdAt,
             token: r.token,
+            ...(r.snapshot ? { snapshot: r.snapshot } : {}),
           }));
           const refs = new Set(found.map((f) => f.reference));
           setBookings((b) => [...found, ...b.filter((x) => !refs.has(x.reference))]);

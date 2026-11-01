@@ -47,7 +47,8 @@ const toLog = (r: Record<string, unknown>): NotifyLog => ({
   event: r["event_type"] as NotifyEvent,
   eventLabel: EVENT_LABEL[r["event_type"] as NotifyEvent] ?? String(r["event_type"]),
   recipient: r["recipient_type"] as string,
-  phone: r["recipient_phone"] as string,
+  // email messages are addressed by email instead of phone
+  phone: (r["recipient_email"] as string) || (r["recipient_phone"] as string) || "",
   channel: r["channel"] as string,
   status: r["status"] as string,
   errorCode: (r["error_code"] as string) ?? null,
@@ -108,6 +109,7 @@ export const adminNotifySettings = createServerFn({ method: "POST" })
         sms: st.sms,
         webhookSecret: Boolean(process.env["MSG91_WEBHOOK_SECRET"]),
         cronSecret: Boolean(process.env["LOVABLE_CRON_SECRET"]),
+        email: (await import("./notify/email.server")).emailStatus(s.email),
       },
       slots: SLOTS,
     };
@@ -143,6 +145,22 @@ const settingsInput = z.object({
       (u) => u === "" || /^https:\/\/[a-z0-9.-]+(:\d+)?\/?$/i.test(u),
       "Use the full address, e.g. https://hairbybhargav.com",
     ),
+  customerEmail: z.boolean(),
+  adminEmail: z.boolean(),
+  adminEmailAddress: z
+    .string()
+    .trim()
+    .max(200)
+    .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Enter a valid salon email"),
+  email: z.object({
+    provider: z.enum(["brevo", "resend"]),
+    from: z
+      .string()
+      .trim()
+      .max(200)
+      .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Enter a valid sender email"),
+    fromName: z.string().trim().max(80),
+  }),
   providerConfig: z.object({
     whatsappNumber: phone.optional(),
     whatsappLanguage: z.string().trim().max(10).optional(),
@@ -187,6 +205,12 @@ export const adminSaveNotifySettings = createServerFn({ method: "POST" })
       test_phone: x.testPhone,
       public_site_url: x.publicSiteUrl.replace(/\/+$/, ""),
       provider_config: x.providerConfig,
+      customer_email_enabled: x.customerEmail,
+      admin_email_enabled: x.adminEmail,
+      admin_notification_email: x.adminEmailAddress,
+      email_provider: x.email.provider,
+      email_from: x.email.from,
+      email_from_name: x.email.fromName || "Hair by Bhargav",
     };
     const { data: before } = await sb
       .from("notification_settings" as never)
@@ -219,7 +243,7 @@ export const adminSaveNotifySettings = createServerFn({ method: "POST" })
 export const adminSendTestMessage = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z
-      .object({ pin, kind: z.enum(["customer", "admin"]), channel: z.enum(["whatsapp", "sms"]) })
+      .object({ pin, kind: z.enum(["customer", "admin"]), channel: z.enum(["whatsapp", "sms", "email"]) })
       .parse(d),
   )
   .handler(async ({ data }) => {

@@ -78,7 +78,14 @@ export async function insertBooking(
   b: NewBooking,
   options: { staff: boolean; photos?: string[] },
 ): Promise<
-  { ok: true; reference: string; price: number; minutes: number } | { ok: false; error: string }
+  | {
+      ok: true;
+      reference: string;
+      price: number;
+      minutes: number;
+      services: { name: string; price: number; minutes: number }[];
+    }
+  | { ok: false; error: string }
 > {
   const sb = await db();
   const E = await engine();
@@ -157,7 +164,13 @@ export async function insertBooking(
         () => undefined,
       );
   }
-  return { ok: true, reference, price: q.price, minutes: q.minutes };
+  return {
+    ok: true,
+    reference,
+    price: q.price,
+    minutes: q.minutes,
+    services: q.snapshot.map((x) => ({ name: x.name, price: x.price, minutes: x.minutes })),
+  };
 }
 
 /** Applies a patch; columns from the Admin OS migration are dropped if it isn't applied yet. */
