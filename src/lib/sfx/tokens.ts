@@ -22,6 +22,8 @@ export const SFX = {
   SUCCESS_VOLUME: 0.36,
   ERROR_VOLUME: 0.24,
   SHIMMER_VOLUME: 0.12,
+  /** The short heroic score under the confirmation film. */
+  SCORE_VOLUME: 0.42,
   AMBIENCE_VOLUME: 0.07,
   HOVER_VOLUME: 0.05,
 

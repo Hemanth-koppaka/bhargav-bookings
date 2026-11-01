@@ -1,6 +1,7 @@
 // Server-only: builds the live salon configuration (menu, hours, breaks,
 // closures, media) from the database for every screen and the booking engine.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { loadStore, stable, storeFromValue } from "./staff-store.server";
 
 async function db() {
   return supabaseAdmin;
@@ -114,10 +115,12 @@ export async function loadConfig() {
     });
   }
   // stylists guests can choose (multi-stylist) and whole-day salon closures
+  // (the store came with the settings read above; only a first visit seeds it)
+  const store = storeFromValue(set["staff_store"]) ?? (await loadStore());
   const [st, ss, cl] = await Promise.all([
-    sb.from("staff" as never).select("id, name, gender, specialties, bookable, active, archived_at, display_order").order("display_order"),
-    sb.from("staff_services" as never).select("staff_id, service_id"),
-    sb.from("salon_closures" as never).select("start_date, end_date, start_minute, reason, reopened_at"),
+    stable("staff", store).select("id, name, gender, specialties, bookable, active, archived_at, display_order").order("display_order"),
+    stable("staff_services", store).select("staff_id, service_id"),
+    stable("salon_closures", store).select("start_date, end_date, start_minute, reason, reopened_at"),
   ]);
   if (!st.error) {
     const can = new Map<string, string[]>();

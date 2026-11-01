@@ -21,6 +21,8 @@ const label = (m: number) =>
   `${Math.floor(m / 60) % 12 || 12}:${String(m % 60).padStart(2, "0")} ${m >= 720 ? "PM" : "AM"}`;
 
 type Row = Record<string, unknown>;
+// staff and closures live in the settings store (no database update needed)
+const staffTable = async () => (await import("./staff-store.server")).stable;
 
 export type StaffHours = { day: number; working: boolean; start: number; end: number };
 export type StaffBreak = {
@@ -53,23 +55,22 @@ export const adminStaffList = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const sb = await admin(data.pin);
     const today = salonToday();
+    const S = await import("./staff-store.server");
+    const store = await S.loadStore(); // one read for every table below
     const [st, svc, hrs, brk, lv, un, bk, menu] = await Promise.all([
-      sb
-        .from("staff" as never)
+      S.stable("staff", store)
         .select("*")
         .is("archived_at", null)
         .order("display_order"),
-      sb.from("staff_services" as never).select("*"),
-      sb.from("staff_working_hours" as never).select("*"),
-      sb.from("staff_breaks" as never).select("*"),
-      sb
-        .from("staff_leave" as never)
+      S.stable("staff_services", store).select("*"),
+      S.stable("staff_working_hours", store).select("*"),
+      S.stable("staff_breaks", store).select("*"),
+      S.stable("staff_leave", store)
         .select("*")
         .gte("end_date", today)
         .is("archived_at", null)
         .order("start_date"),
-      sb
-        .from("staff_unavailability" as never)
+      S.stable("staff_unavailability", store)
         .select("*")
         .gte("date", today)
         .is("archived_at", null)
@@ -208,14 +209,12 @@ export const adminSaveStaff = createServerFn({ method: "POST" })
     };
     let id = x.id;
     if (id) {
-      const { error } = await sb
-        .from("staff" as never)
+      const { error } = await (await staffTable())("staff")
         .update(row as never)
         .eq("id", id);
       if (error) return { ok: false as const, error: "Couldn't save this stylist." };
     } else {
-      const { data: made, error } = await sb
-        .from("staff" as never)
+      const { data: made, error } = await (await staffTable())("staff")
         .insert(row as never)
         .select();
       if (error || !Array.isArray(made) || !made[0])
@@ -223,20 +222,16 @@ export const adminSaveStaff = createServerFn({ method: "POST" })
       id = (made[0] as Row)["id"] as string;
     }
     // replace services, hours and breaks with the edited set
-    await sb
-      .from("staff_services" as never)
+    await (await staffTable())("staff_services")
       .delete()
       .eq("staff_id", id);
     if (x.services.length)
-      await sb
-        .from("staff_services" as never)
+      await (await staffTable())("staff_services")
         .insert(x.services.map((s) => ({ staff_id: id, service_id: s })) as never);
-    await sb
-      .from("staff_working_hours" as never)
+    await (await staffTable())("staff_working_hours")
       .delete()
       .eq("staff_id", id);
-    await sb
-      .from("staff_working_hours" as never)
+    await (await staffTable())("staff_working_hours")
       .insert(
         x.hours.map((h) => ({
           staff_id: id,
@@ -246,13 +241,11 @@ export const adminSaveStaff = createServerFn({ method: "POST" })
           end_minute: Math.max(h.end, h.start + 5),
         })) as never,
       );
-    await sb
-      .from("staff_breaks" as never)
+    await (await staffTable())("staff_breaks")
       .delete()
       .eq("staff_id", id);
     if (x.breaks.length)
-      await sb
-        .from("staff_breaks" as never)
+      await (await staffTable())("staff_breaks")
         .insert(
           x.breaks.map((b) => ({
             staff_id: id,
@@ -280,9 +273,10 @@ async function clashes(staffId: string, from: string, to: string, start?: number
     .select("*")
     .gte("date", from)
     .lte("date", to)
-    .neq("status", "cancelled")
-    .eq("staff_id" as never, staffId as never);
+    .neq("status", "cancelled");
+  const { staffIdOf } = await import("./staff-store.server");
   return ((data ?? []) as Row[])
+    .filter((b) => staffIdOf(b) === staffId)
     .filter(
       (b) =>
         !["cancelled", "no-show", "completed"].includes(
@@ -322,8 +316,7 @@ export const adminAddLeave = createServerFn({ method: "POST" })
     const sb = await admin(data.pin);
     const hit = await clashes(data.staffId, data.start, data.end);
     if (hit.length && !data.confirm) return { ok: false as const, clashes: hit };
-    const { error } = await sb
-      .from("staff_leave" as never)
+    const { error } = await (await staffTable())("staff_leave")
       .insert({
         staff_id: data.staffId,
         start_date: data.start,
@@ -331,8 +324,7 @@ export const adminAddLeave = createServerFn({ method: "POST" })
         reason: data.reason,
       } as never);
     if (error) return { ok: false as const, error: "Couldn't save the leave." };
-    const { data: s } = await sb
-      .from("staff" as never)
+    const { data: s } = await (await staffTable())("staff")
       .select("name")
       .eq("id", data.staffId)
       .maybeSingle();
@@ -365,8 +357,7 @@ export const adminAddStaffBlock = createServerFn({ method: "POST" })
     const sb = await admin(data.pin);
     const hit = await clashes(data.staffId, data.date, data.date, data.start, data.end);
     if (hit.length && !data.confirm) return { ok: false as const, clashes: hit };
-    const { error } = await sb
-      .from("staff_unavailability" as never)
+    const { error } = await (await staffTable())("staff_unavailability")
       .insert({
         staff_id: data.staffId,
         date: data.date,
@@ -375,8 +366,7 @@ export const adminAddStaffBlock = createServerFn({ method: "POST" })
         reason: data.reason,
       } as never);
     if (error) return { ok: false as const, error: "Couldn't save." };
-    const { data: s } = await sb
-      .from("staff" as never)
+    const { data: s } = await (await staffTable())("staff")
       .select("name")
       .eq("id", data.staffId)
       .maybeSingle();
@@ -430,8 +420,7 @@ export const adminClosures = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const sb = await admin(data.pin);
     const today = salonToday();
-    const { data: rows, error } = await sb
-      .from("salon_closures" as never)
+    const { data: rows, error } = await (await staffTable())("salon_closures")
       .select("*")
       .is("reopened_at", null)
       .order("start_date");
@@ -522,7 +511,7 @@ export const adminAddClosure = createServerFn({ method: "POST" })
       rows.push({ start_date: data.start, end_date: data.end, reason: data.reason });
     }
     if (!rows.length) return { ok: false as const, error: "Choose at least one date." };
-    const { error } = await sb.from("salon_closures" as never).insert(rows as never);
+    const { error } = await (await staffTable())("salon_closures").insert(rows as never);
     if (error) return { ok: false as const, error: "Couldn't save the closure." };
     const what =
       data.kind === "dates"
@@ -547,8 +536,7 @@ export const adminReopen = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ pin, id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const sb = await admin(data.pin);
-    const { data: r } = await sb
-      .from("salon_closures" as never)
+    const { data: r } = await (await staffTable())("salon_closures")
       .select("*")
       .eq("id", data.id)
       .maybeSingle();
@@ -560,12 +548,10 @@ export const adminReopen = createServerFn({ method: "POST" })
     const yesterday = y.toISOString().slice(0, 10);
     const began = (row["start_date"] as string) <= yesterday && row["start_minute"] == null;
     const { error } = began
-      ? await sb
-          .from("salon_closures" as never)
+      ? await (await staffTable())("salon_closures")
           .update({ end_date: yesterday } as never)
           .eq("id", data.id)
-      : await sb
-          .from("salon_closures" as never)
+      : await (await staffTable())("salon_closures")
           .update({ reopened_at: new Date().toISOString() } as never)
           .eq("id", data.id);
     if (error) return { ok: false as const, error: "Couldn't reopen." };
