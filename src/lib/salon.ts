@@ -1,5 +1,5 @@
 import { applyContent } from "./site-content";
-import { builtInCategoryPhoto, builtInServicePhoto } from "./service-photos";
+import { builtInCategoryIcon, builtInServiceIcon } from "./service-photos";
 
 // Business, menu and availability data for The Hair By Bhargav Unisex Salon.
 // Service names and prices are taken verbatim from the official Service Menu.
@@ -23,6 +23,8 @@ export type Service = {
   featured?: boolean;
   /** Photo uploaded by the salon in the admin Menu (falls back to an icon). */
   photo?: string;
+  /** The salon's icon for this service (icon only, shown on the tile). */
+  icon?: string;
 };
 
 export type Category = {
@@ -31,6 +33,7 @@ export type Category = {
   blurb?: string;
   services: Service[];
   photo?: string;
+  icon?: string;
 };
 
 export const SLOT_MINUTES = 30;
@@ -377,6 +380,7 @@ export const fromISO = (iso: string) => {
 
 const DAY_INDEX = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const isClosed = (iso: string) => {
+  if (closureOn(iso)) return true;
   const ex = EXCEPTIONS[iso];
   if (ex) return ex.closed;
   const name = DAY_INDEX[fromISO(iso).getDay()];
@@ -481,7 +485,25 @@ export type SalonConfig = {
   womenMenu?: Category[];
   /** Published site wording (see site-content.ts). */
   content?: unknown;
+  /** Stylists guests can choose. */
+  stylists?: Stylist[];
+  /** Whole-day salon closures (end null = until reopened). */
+  closures?: Closure[];
 };
+
+export type Stylist = { id: string; name: string; gender: string; specialties: string; services: string[] };
+export type Closure = { start: string; end: string | null; reason: string };
+
+/** Live stylist list and closures (filled by applyConfig). */
+export const STYLISTS: Stylist[] = [];
+export const CLOSURES: Closure[] = [];
+
+/** The salon closure covering a date, if any. */
+export const closureOn = (iso: string) => CLOSURES.find((c) => c.start <= iso && (!c.end || c.end >= iso)) ?? null;
+
+/** Stylists who can do every one of these services. */
+export const stylistsFor = (serviceIds: string[]) =>
+  STYLISTS.filter((s) => serviceIds.every((id) => s.services.includes(id)));
 
 const DEFAULTS = {
   business: structuredClone(BUSINESS),
@@ -502,6 +524,8 @@ export function defaultConfig(): Required<SalonConfig> {
     menMenu: structuredClone(DEFAULTS.men),
     womenMenu: structuredClone(DEFAULTS.women),
     content: null,
+    stylists: [],
+    closures: [],
   };
 }
 
@@ -511,17 +535,15 @@ function replaceArray<T>(target: T[], next: T[]) {
 
 /** Fills in the salon's built-in photos where the admin hasn't uploaded one. */
 function withPhotos(audience: Audience, menu: Category[]): Category[] {
-  return menu.map((c) => {
-    const catPhoto = c.photo ?? builtInCategoryPhoto(audience, c.title);
-    return {
-      ...c,
-      ...(catPhoto ? { photo: catPhoto } : {}),
-      services: c.services.map((x) => {
-        const photo = x.photo ?? builtInServicePhoto(audience, x.name);
-        return photo ? { ...x, photo } : x;
-      }),
-    };
-  });
+  // admin-uploaded photos stay; everything else uses the salon's icon set
+  return menu.map((c) => ({
+    ...c,
+    icon: builtInCategoryIcon(c.title),
+    services: c.services.map((x) => {
+      const icon = builtInServiceIcon(audience, x.name, c.title);
+      return icon ? { ...x, icon } : x;
+    }),
+  }));
 }
 
 let appliedKey = "";
@@ -543,4 +565,6 @@ export function applyConfig(cfg: SalonConfig | null | undefined) {
   ACCEPTING_BOOKINGS = full.accepting;
   MAX_ADVANCE_DAYS = full.maxAdvanceDays;
   applyContent(full.content);
+  replaceArray(STYLISTS, full.stylists);
+  replaceArray(CLOSURES, full.closures);
 }

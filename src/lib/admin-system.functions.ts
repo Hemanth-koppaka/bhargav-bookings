@@ -74,6 +74,8 @@ export const adminSystemHealth = createServerFn({ method: "POST" })
       status: notify ? "ok" : "warn",
       detail: notify ? "Applied." : "Not applied — booking messages are off until it is.",
     });
+    const staff = await table("staff");
+    add({ group: "Database", label: "Stylists & closures update (0008)", status: staff ? "ok" : "warn", detail: staff ? "Applied: per-stylist availability is on." : "Not applied — the salon still books as one chair." });
     const { count: total } = await sb.from("bookings").select("*", { count: "exact", head: true });
     add({
       group: "Database",

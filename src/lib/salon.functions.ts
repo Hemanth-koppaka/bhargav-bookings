@@ -21,6 +21,10 @@ async function assertPin(token: string) {
 
 const last10 = (p: string) => p.replace(/\D/g, "").slice(-10);
 
+/** The stylist rule a booking was made with: its own stylist if chosen, else "any". */
+const bookingChoice = (row: Record<string, unknown>) =>
+  row["staff_choice"] === "specific" && row["staff_id"] ? (row["staff_id"] as string) : "any";
+
 export type BookingRow = {
   reference: string;
   audience: "men" | "women";
@@ -96,6 +100,8 @@ const bookingInput = z.object({
     .optional(),
   /** Agreed to booking messages on WhatsApp/SMS. */
   consent: z.boolean().optional(),
+  /** A chosen stylist; omitted = any available stylist. */
+  staffId: z.string().uuid().optional(),
 });
 
 /** The site address the request came from (for links in messages); "" if unknown. */
@@ -130,6 +136,7 @@ export const createBooking = createServerFn({ method: "POST" })
         source: "online",
         notifyConsent: Boolean(data.consent),
         siteOrigin: await requestOrigin(),
+        staffChoice: data.staffId ?? "any",
       },
       { staff: false, ...(data.photos?.length ? { photos: data.photos } : {}) },
     );
@@ -138,7 +145,13 @@ export const createBooking = createServerFn({ method: "POST" })
     if (!r.ok) return { ok: false as const, error: r.error };
     // the booking is committed; now tell the guest and the salon
     await notify(r.reference, "BOOKING_CONFIRMED", { actor: "guest" });
-    return { ok: true as const, reference: r.reference };
+    // the booking's own snapshot (for the confirmation and calendar export)
+    return {
+      ok: true as const,
+      reference: r.reference,
+      snapshot: { services: r.services, minutes: r.minutes, price: r.price },
+      stylist: r.staffName,
+    };
   });
 
 /** Bookable start times for a day, for the selected services (customer time picker). */
@@ -153,6 +166,8 @@ export const getAvailability = createServerFn({ method: "POST" })
         reference: z.string().max(20).optional(),
         phone: z.string().max(20).optional(),
         token: z.string().max(64).optional(),
+        /** a chosen stylist; omitted = any available */
+        staffId: z.string().uuid().optional(),
       })
       .parse(d),
   )
@@ -161,6 +176,8 @@ export const getAvailability = createServerFn({ method: "POST" })
     const rules = await E.loadRules();
     let q: { minutes: number; buffer: number } = E.quote(data.audience, data.serviceIds) ?? { minutes: 30, buffer: 0 };
     let ignore: string | undefined;
+    let serviceIds = data.serviceIds;
+    let choice = data.staffId ?? "any";
     if (data.reference && (data.phone || data.token)) {
       const sb = await db();
       const { data: r } = await sb.from("bookings").select("*").eq("reference", data.reference).maybeSingle();
@@ -169,9 +186,12 @@ export const getAvailability = createServerFn({ method: "POST" })
         // a booking keeps the length it was made with
         const row = r as Record<string, unknown>;
         q = { minutes: (row["duration_minutes"] as number | null) ?? r.slots * 30, buffer: (row["buffer_minutes"] as number | null) ?? 0 };
+        // and its own services and stylist rule
+        serviceIds = (r.service_ids as string[] | null) ?? serviceIds;
+        choice = bookingChoice(row);
       }
     }
-    return E.availability(data.date, q, rules, ignore ? { ignoreReference: ignore } : {});
+    return E.availability(data.date, q, rules, { ...(ignore ? { ignoreReference: ignore } : {}), serviceIds, choice });
   });
 
 /** Public booking rules the customer screens need (no internal settings). */
@@ -252,8 +272,17 @@ export const findMyBookings = createServerFn({ method: "POST" })
     const bookings = await Promise.all(
       rows.slice(0, 12).map(async (r) => {
         const b = toRow(r);
+        const row = r as Record<string, unknown>;
+        const snap = (row["services_snapshot"] as { name: string; price: number; minutes?: number }[] | null) ?? [];
         return {
           ...b,
+          snapshot: snap.length
+            ? {
+                services: snap.map((x) => ({ name: x.name, price: x.price, minutes: x.minutes ?? 30 })),
+                minutes: (row["duration_minutes"] as number | null) ?? snap.reduce((n, x) => n + (x.minutes ?? 30), 0),
+                price: (row["price_total"] as number | null) ?? snap.reduce((n, x) => n + x.price, 0),
+              }
+            : null,
           meta: {},
           customer: { ...b.customer, phone: maskPhone(b.customer.phone), email: "" },
           token: await manageToken(b.reference),
@@ -339,9 +368,14 @@ export const updateMyBooking = createServerFn({ method: "POST" })
       minutes: (row["duration_minutes"] as number | null) ?? r.slots * 30,
       buffer: (row["buffer_minutes"] as number | null) ?? 0,
     };
-    const check = await E.checkTime(data.date, data.time, held, rules, { ignoreReference: r.reference });
+    const check = await E.checkTime(data.date, data.time, held, rules, {
+      ignoreReference: r.reference,
+      serviceIds: (r.service_ids as string[] | null) ?? [],
+      choice: bookingChoice(row),
+    });
     if (!check.ok) return check;
     const error = await patchBooking(sb, r.reference, { date: data.date, time: data.time }, {
+      ...(check.staffId !== undefined ? { staff_id: check.staffId } : {}),
       history: withHistory(row, { by: "guest", action: "rescheduled", from: { date: r.date, time: r.time }, to: { date: data.date, time: data.time } }),
     });
     if (error) {
@@ -412,6 +446,8 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
             customer: z
               .object({ name: z.string().trim().min(1).max(100), phone: z.string().trim().max(20), email: z.string().trim().max(255) })
               .optional(),
+            /** reassign to a stylist ("any" = whoever is free) */
+            staffId: z.union([z.string().uuid(), z.literal("any")]).optional(),
           })
           .optional(),
       })
@@ -423,10 +459,11 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
     if (data.insert) {
       const i = data.insert;
       const r = await insertBooking(
-        { audience: i.audience, serviceIds: i.serviceIds, date: i.date, time: i.time, customer: i.customer, source: i.source },
+        { audience: i.audience, serviceIds: i.serviceIds, date: i.date, time: i.time, customer: i.customer, source: i.source, staffChoice: i.staffId ?? "any" },
         { staff: true },
       );
       if (!r.ok) throw new Error(r.error);
+      // (stylist chosen or assigned by the engine)
       await E.audit({ action: "booking.create", entity: "booking", entityId: r.reference, summary: `Added ${i.source} booking ${r.reference} for ${i.customer.name}`, after: { date: i.date, time: i.time, services: i.serviceIds } });
       // phone/WhatsApp bookings get a confirmation; walk-ins are already in the chair
       if (i.source !== "walk-in") await notify(r.reference, "BOOKING_CONFIRMED", { actor: "admin" });
@@ -441,21 +478,33 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
     const base: Record<string, unknown> = {};
     const extra: Record<string, unknown> = {};
     const moved = (p.date && p.date !== current.date) || (p.time != null && p.time !== current.time);
+    const restaff = p.staffId !== undefined && (p.staffId === "any" ? row["staff_choice"] !== "any" : p.staffId !== row["staff_id"]);
 
-    if (moved) {
+    if (moved || restaff) {
       // admins can't create clashes either; the booking keeps its booked length
       const held = {
         minutes: (row["duration_minutes"] as number | null) ?? current.slots * 30,
         buffer: (row["buffer_minutes"] as number | null) ?? 0,
       };
+      const choice = p.staffId ?? bookingChoice(row);
       const check = await E.checkTime(p.date ?? current.date, p.time ?? current.time, held, await E.loadRules(), {
         staff: true,
         ignoreReference: current.reference,
+        serviceIds: (current.service_ids as string[] | null) ?? [],
+        choice,
       });
       if (!check.ok) throw new Error(check.error.replace("just booked", "already booked"));
-      base["date"] = p.date ?? current.date;
-      base["time"] = p.time ?? current.time;
-      extra["history"] = withHistory(row, { by: "admin", action: "rescheduled", from: { date: current.date, time: current.time }, to: { date: base["date"], time: base["time"] } });
+      if (check.staffId !== undefined) {
+        extra["staff_id"] = check.staffId;
+        extra["staff_choice"] = choice === "any" ? "any" : "specific";
+      }
+      if (moved) {
+        base["date"] = p.date ?? current.date;
+        base["time"] = p.time ?? current.time;
+        extra["history"] = withHistory(row, { by: "admin", action: "rescheduled", from: { date: current.date, time: current.time }, to: { date: base["date"], time: base["time"] } });
+      } else {
+        extra["history"] = withHistory(row, { by: "admin", action: "stylist changed" });
+      }
     }
     const metaStatus = (p.meta as { status?: string } | undefined)?.status;
     const prevStatus = (current.meta as { status?: string } | null)?.status;

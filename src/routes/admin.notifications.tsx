@@ -197,6 +197,7 @@ function NotificationsScreen() {
             </p>
           </Panel>
 
+          <EmailSettings s={s} info={info} set={set} />
           <ProviderSetup s={s} info={info} setCfg={setCfg} />
           <TestPanel dirty={dirty} />
           <MessageLog />
@@ -268,6 +269,12 @@ function ProviderStatus({ info }: { info: Info }) {
       text: st.cronSecret ? "Ready" : "Not configured",
       detail: `Schedule POST ${origin}/api/notifications/dispatch every 10 minutes (Lovable cron).`,
     },
+    {
+      label: "Email (free)",
+      ok: st.email.configured,
+      text: st.email.configured ? `${st.email.provider} · Ready` : `${st.email.provider} · Not configured`,
+      ...(st.email.missing.length ? { detail: `Missing: ${st.email.missing.join(", ")}.` } : {}),
+    },
   ];
   return (
     <Panel className={cn(!st.connected && "border-amber-600/35 bg-amber-500/[0.05]")}>
@@ -293,6 +300,60 @@ function ProviderStatus({ info }: { info: Info }) {
           </li>
         ))}
       </ul>
+    </Panel>
+  );
+}
+
+/* ── email (free) ─────────────────────────────────────────── */
+
+function EmailSettings({ s, info, set }: { s: NotifySettings; info: Info; set: (p: Partial<NotifySettings>) => void }) {
+  const st = info.status.email;
+  const free = s.email.provider === "brevo" ? "300 emails a day free" : "3,000 emails a month free";
+  return (
+    <Panel>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-[1.35rem]">Email</h2>
+        <span className="flex items-center gap-2 text-[0.8rem]">
+          <Dot on={st.configured} warn={!st.configured} /> {st.configured ? "Ready" : "Not configured"}
+        </span>
+      </div>
+      <p className="mt-1 text-[0.8rem] text-muted-foreground">
+        Free and automatic: confirmations, changes and reminders go to guests who gave an email ({free}).
+      </p>
+      <div className="mt-3 divide-y divide-hairline">
+        <Row title="Emails to guests" hint="Only guests who entered an email address.">
+          <Toggle on={s.customerEmail} onChange={(v) => set({ customerEmail: v })} />
+        </Row>
+        <Row title="Email alerts to the salon" hint="New bookings, moves and cancellations.">
+          <Toggle on={s.adminEmail} onChange={(v) => set({ adminEmail: v })} />
+        </Row>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Field label="Email service">
+          <select
+            className={inputClass}
+            value={s.email.provider}
+            onChange={(e) => set({ email: { ...s.email, provider: e.target.value === "resend" ? "resend" : "brevo" } })}
+          >
+            <option value="brevo">Brevo — works with a Gmail sender</option>
+            <option value="resend">Resend — needs your own domain</option>
+          </select>
+        </Field>
+        <Field label="Salon email" hint="Gets salon alerts and test emails.">
+          <input className={inputClass} value={s.adminEmailAddress} onChange={(e) => set({ adminEmailAddress: e.target.value })} placeholder="salon@example.com" inputMode="email" />
+        </Field>
+        <Field label="Send from (email)" hint={s.email.provider === "brevo" ? "Verify this address in Brevo first." : "An address on your verified domain."}>
+          <input className={inputClass} value={s.email.from} onChange={(e) => set({ email: { ...s.email, from: e.target.value } })} placeholder="bookings@example.com" inputMode="email" />
+        </Field>
+        <Field label="Send from (name)">
+          <input className={inputClass} value={s.email.fromName} onChange={(e) => set({ email: { ...s.email, fromName: e.target.value } })} placeholder="Hair by Bhargav" />
+        </Field>
+      </div>
+      {!st.configured ? (
+        <p className="mt-2 text-[0.75rem] text-muted-foreground">
+          Missing: {st.missing.join(", ")}. The API key is added as a project secret ({s.email.provider === "resend" ? "RESEND_API_KEY" : "BREVO_API_KEY"}), never here.
+        </p>
+      ) : null}
     </Panel>
   );
 }
@@ -438,7 +499,7 @@ function TestPanel({ dirty }: { dirty: boolean }) {
   const [result, setResult] = useState<{ ok: boolean; status: string; detail: string } | null>(
     null,
   );
-  const run = async (kind: "customer" | "admin", channel: "whatsapp" | "sms") => {
+  const run = async (kind: "customer" | "admin", channel: "whatsapp" | "sms" | "email") => {
     setBusy(`${kind}-${channel}`);
     setResult(null);
     try {
@@ -462,6 +523,7 @@ function TestPanel({ dirty }: { dirty: boolean }) {
             ["customer", "sms", "Test guest message · SMS"],
             ["admin", "whatsapp", "Test salon alert · WhatsApp"],
             ["admin", "sms", "Test salon alert · SMS"],
+            ["customer", "email", "Test guest email"],
           ] as const
         ).map(([k, c, label]) => (
           <TinyButton
@@ -573,7 +635,7 @@ function MessageLog() {
               <span className="w-28 shrink-0 font-medium">{l.bookingId}</span>
               <span className="min-w-0 flex-1">
                 {l.recipient === "admin" ? "Salon" : l.recipient === "test" ? "Test" : "Guest"} ·{" "}
-                {l.eventLabel} · {l.channel === "whatsapp" ? "WhatsApp" : "SMS"}
+                {l.eventLabel} · {l.channel === "whatsapp" ? "WhatsApp" : l.channel === "email" ? "Email" : "SMS"}
                 {l.fallback ? " (fallback)" : ""}
                 {l.errorMessage && ["failed", "skipped"].includes(l.status) ? (
                   <span className="block text-[0.75rem] text-muted-foreground">

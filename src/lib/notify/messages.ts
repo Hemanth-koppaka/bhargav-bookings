@@ -15,7 +15,7 @@ export const EVENTS = [
   "NO_SHOW",
 ] as const;
 export type NotifyEvent = (typeof EVENTS)[number];
-export type Channel = "whatsapp" | "sms";
+export type Channel = "whatsapp" | "sms" | "email";
 export type Recipient = "customer" | "admin";
 export type LogStatus =
   "scheduled" | "queued" | "sending" | "sent" | "delivered" | "failed" | "cancelled" | "skipped";
@@ -52,6 +52,8 @@ export type BookingFacts = {
   reference: string;
   customerName: string;
   customerPhone: string; // E.164
+  /** Optional; booking emails go here when given. */
+  customerEmail?: string | undefined;
   date: string; // YYYY-MM-DD
   time: number; // minutes from midnight
   services: string[];

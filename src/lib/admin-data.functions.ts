@@ -43,6 +43,10 @@ export type AdminBooking = {
   createdAt: string;
   cancelReason: string;
   history: { at: string; by: string; action: string; from?: { date: string; time: number }; to?: { date: string; time: number }; reason?: string }[];
+  /** Assigned stylist (multi-stylist salons). */
+  staffId: string | null;
+  staffName: string;
+  staffChosen: boolean;
 };
 
 type Row = Record<string, unknown>;
@@ -85,11 +89,20 @@ function toAdmin(r: Row, menuLookup: (aud: string, id: string) => { name: string
     createdAt: r["created_at"] as string,
     cancelReason: (r["cancel_reason"] as string) ?? "",
     history: (r["history"] as AdminBooking["history"]) ?? [],
+    staffId: (r["staff_id"] as string | null) ?? null,
+    staffName: (r["staff_id"] ? staffNames.get(r["staff_id"] as string) : undefined) ?? "",
+    staffChosen: r["staff_choice"] === "specific",
   };
 }
 
+/** Stylist names, refreshed by lookup() for each request. */
+const staffNames = new Map<string, string>();
+
 async function lookup() {
   const { findService } = await import("./salon");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: st, error } = await supabaseAdmin.from("staff" as never).select("id, name");
+  if (!error) for (const r of (st ?? []) as { id: string; name: string }[]) staffNames.set(r.id, r.name);
   return (aud: string, id: string) => {
     const s = findService(aud as "men" | "women", id);
     return s ? { name: s.name, price: s.price, minutes: s.minutes } : null;
@@ -190,11 +203,27 @@ export const adminDay = createServerFn({ method: "POST" })
       E.loadRules(),
       sb.from("time_blocks" as never).select("*").eq("date", data.date).is("archived_at", null),
     ]);
+    // every active stylist's day (hours, breaks, blocks), for the calendar columns
+    const team = await E.staffDay(data.date, [], { staffMode: true });
     return {
       date: data.date,
       plan,
       interval: rules.slotInterval,
       now: E.salonNow(),
+      team: team
+        ? team.eligible.map((st) => {
+            const w = team.working.find((x) => x.id === st.id);
+            return {
+              id: st.id,
+              name: st.name,
+              working: Boolean(w),
+              start: w?.start ?? null,
+              end: w?.end ?? null,
+              breaks: w?.breaks ?? [],
+              blocks: w?.blocks ?? [],
+            };
+          })
+        : null,
       bookings: (rows ?? []).map((r) => toAdmin(r as Row, L)),
       blocks: ((blocks.error ? [] : blocks.data) as Row[]).map((b) => ({
         id: b["id"] as string,
@@ -300,6 +329,8 @@ export const adminAvailability = createServerFn({ method: "POST" })
         audience: z.enum(["men", "women"]),
         serviceIds: z.array(z.string().max(80)).max(20),
         reference: z.string().max(20).optional(),
+        /** a stylist id, or "any" */
+        staffId: z.string().max(40).optional(),
       })
       .parse(d),
   )
@@ -308,14 +339,21 @@ export const adminAvailability = createServerFn({ method: "POST" })
     const E = await engine();
     const rules = await E.loadRules();
     let q: { minutes: number; buffer: number } = E.quote(data.audience, data.serviceIds) ?? { minutes: 30, buffer: 0 };
+    let choice = data.staffId ?? "any";
     if (data.reference) {
       const { data: r } = await sb.from("bookings").select("*").eq("reference", data.reference).maybeSingle();
       if (r) {
         const row = r as Row;
         q = { minutes: (row["duration_minutes"] as number | null) ?? (row["slots"] as number) * 30, buffer: (row["buffer_minutes"] as number | null) ?? 0 };
+        if (!data.staffId) choice = row["staff_choice"] === "specific" && row["staff_id"] ? (row["staff_id"] as string) : "any";
       }
     }
-    return E.availability(data.date, q, rules, { staff: true, ...(data.reference ? { ignoreReference: data.reference } : {}) });
+    return E.availability(data.date, q, rules, {
+      staff: true,
+      serviceIds: data.serviceIds,
+      choice,
+      ...(data.reference ? { ignoreReference: data.reference } : {}),
+    });
   });
 
 /* ── customers ─────────────────────────────────────────────── */

@@ -26,6 +26,7 @@ import {
   type Recipient,
 } from "./messages";
 import { getProvider, type DeliveryUpdate, type ProviderConfig } from "./provider.server";
+import type { EmailConfig } from "./email.server";
 
 export const MAX_ATTEMPTS = 3;
 
@@ -46,6 +47,11 @@ export type NotifySettings = {
   testPhone: string;
   publicSiteUrl: string;
   providerConfig: ProviderConfig;
+  /** Email (free tier): automatic booking emails to guests who gave an address. */
+  customerEmail: boolean;
+  adminEmail: boolean;
+  adminEmailAddress: string;
+  email: EmailConfig;
 };
 
 type Row = Record<string, unknown>;
@@ -56,10 +62,18 @@ type LogRow = {
   event_type: NotifyEvent;
   recipient_type: Recipient | "test";
   recipient_phone: string;
+  recipient_email?: string;
   channel: Channel;
   status: string;
   attempt_count: number;
-  payload: { vars?: string[]; text?: string; slot?: string; occurrence?: string };
+  payload: {
+    vars?: string[];
+    text?: string;
+    slot?: string;
+    occurrence?: string;
+    subject?: string;
+    html?: string;
+  };
   scheduled_for: string | null;
   next_attempt_at: string | null;
   created_at: string;
@@ -86,6 +100,15 @@ export function settingsFromRow(r: Row): NotifySettings {
     testPhone: (r["test_phone"] as string) || "",
     publicSiteUrl: (r["public_site_url"] as string) || "",
     providerConfig: ((r["provider_config"] as ProviderConfig | null) ?? {}) as ProviderConfig,
+    // columns from migration 0007; absent → email stays off
+    customerEmail: Boolean(r["customer_email_enabled"]),
+    adminEmail: Boolean(r["admin_email_enabled"]),
+    adminEmailAddress: (r["admin_notification_email"] as string) || "",
+    email: {
+      provider: (r["email_provider"] as string) === "resend" ? "resend" : "brevo",
+      from: (r["email_from"] as string) || "",
+      fromName: (r["email_from_name"] as string) || "Hair by Bhargav",
+    },
   };
 }
 
@@ -121,12 +144,13 @@ export function factsFromBooking(
   const snap =
     (r["services_snapshot"] as
       { name: string; price: number; minutes: number; from?: boolean }[] | null) ?? [];
-  const customer = (r["customer"] ?? {}) as { name?: string; phone?: string };
+  const customer = (r["customer"] ?? {}) as { name?: string; phone?: string; email?: string };
   const origin = ((r["site_origin"] as string) || ctx.siteUrl || "").replace(/\/+$/, "");
   return {
     reference: r["reference"] as string,
     customerName: customer.name?.trim() || "Guest",
     customerPhone: toE164(customer.phone ?? ""),
+    customerEmail: (customer.email ?? "").trim(),
     date: r["date"] as string,
     time: r["time"] as number,
     services: snap.map((s) => s.name),
@@ -199,6 +223,7 @@ async function attempt(
   row: LogRow,
   s: NotifySettings,
 ): Promise<{ outcome: Outcome; retryable?: boolean }> {
+  if (row.channel === "email") return attemptEmail(row, s);
   const provider = await getProvider(s.provider);
   const slot = row.payload.slot ?? templateKey(row.recipient_type, row.event_type);
   const can = provider.canSend(row.channel, slot, s.providerConfig);
@@ -248,6 +273,93 @@ async function attempt(
       : null,
   });
   return { outcome: "failed", retryable: retry };
+}
+
+/** Email version of attempt(): same statuses, same retry rules. */
+async function attemptEmail(
+  row: LogRow,
+  s: NotifySettings,
+): Promise<{ outcome: Outcome; retryable?: boolean }> {
+  const name = s.email.provider;
+  const { canSendEmail, sendEmail } = await import("./email.server");
+  const can = canSendEmail(s.email);
+  if (!can.ok) {
+    await patchRow(row.id, { status: "skipped", provider: name, error_code: "NOT_CONFIGURED", error_message: can.reason });
+    return { outcome: "skipped" };
+  }
+  const tries = row.attempt_count + 1;
+  const r = await sendEmail(s.email, {
+    to: row.recipient_email ?? "",
+    subject: row.payload.subject ?? "Hair by Bhargav",
+    html: row.payload.html ?? "",
+    text: row.payload.text ?? "",
+  });
+  if (r.ok) {
+    await patchRow(row.id, {
+      status: "sent",
+      provider: name,
+      provider_message_id: r.messageId,
+      attempt_count: tries,
+      sent_at: new Date().toISOString(),
+      error_code: null,
+      error_message: null,
+      next_attempt_at: null,
+    });
+    return { outcome: "sent" };
+  }
+  const retry = r.retryable && tries < MAX_ATTEMPTS;
+  await patchRow(row.id, {
+    status: "failed",
+    provider: name,
+    attempt_count: tries,
+    error_code: r.code,
+    error_message: r.message,
+    next_attempt_at: retry ? new Date(Date.now() + 5 * 60_000 * 2 ** (tries - 1)).toISOString() : null,
+  });
+  return { outcome: "failed", retryable: retry };
+}
+
+/** One booking email (idempotent like every other message). */
+async function deliverEmail(p: {
+  s: NotifySettings;
+  facts: BookingFacts;
+  event: NotifyEvent;
+  recipient: Recipient;
+  to: string;
+  occurrence?: string | undefined;
+  status?: "queued" | "scheduled";
+  scheduledFor?: Date | undefined;
+}): Promise<void> {
+  const { emailContent } = await import("./email");
+  const c = emailContent(p.recipient, p.event, p.facts);
+  const to = p.to.trim().toLowerCase();
+  const made = await ensureRow({
+    idempotency_key: idempotencyKey({ reference: p.facts.reference, event: p.event, recipient: p.recipient, phone: to, channel: "email", occurrence: p.occurrence }),
+    booking_id: p.facts.reference,
+    event_type: p.event,
+    recipient_type: p.recipient,
+    recipient_phone: "",
+    recipient_email: to,
+    channel: "email",
+    provider: p.s.email.provider,
+    status: p.status ?? "queued",
+    scheduled_for: p.scheduledFor?.toISOString() ?? null,
+    payload: { subject: c.subject, html: c.html, text: c.text, occurrence: p.occurrence ?? null },
+  });
+  if (!made) return;
+  if (p.status === "scheduled") {
+    if (!made.created && made.row.status === "cancelled") {
+      await sb
+        .from("notification_logs" as never)
+        .update({ status: "scheduled", scheduled_for: p.scheduledFor?.toISOString() ?? null, error_message: null } as never)
+        .eq("id", made.row.id)
+        .eq("status", "cancelled");
+    }
+    return;
+  }
+  if (!made.created && made.row.status !== "queued") return; // already handled: never twice
+  if (!(await claim(made.row.id, "queued"))) return;
+  await attemptEmail(made.row, p.s);
 }
 
 type Target = {
@@ -454,6 +566,14 @@ export async function notifyBookingEvent(
         }),
       );
     }
+    // email: automatic and free; booking messages only
+    const { isEmail } = await import("./email");
+    if (customerOn && s.customerEmail && facts.customerEmail && isEmail(facts.customerEmail)) {
+      jobs.push(deliverEmail({ s, facts, event, occurrence, recipient: "customer", to: facts.customerEmail }));
+    }
+    if (adminOn && s.adminEmail && isEmail(s.adminEmailAddress)) {
+      jobs.push(deliverEmail({ s, facts, event, occurrence, recipient: "admin", to: s.adminEmailAddress }));
+    }
     await Promise.all(jobs);
 
     if (event === "BOOKING_CONFIRMED" || event === "BOOKING_RESCHEDULED")
@@ -499,14 +619,24 @@ async function cancelReminders(reference: string, keepOccurrence: string | null)
 async function scheduleReminders(r: Row, s: NotifySettings, facts: BookingFacts, consent: boolean) {
   const occurrence = slotStamp(facts.date, facts.time);
   await cancelReminders(facts.reference, occurrence);
-  if (!isActive(r) || !facts.customerPhone) return;
-  const channels = channelsFor("customer", s, consent);
-  if (!channels.length) return;
+  if (!isActive(r)) return;
   const now = Date.now();
   const plan: [boolean, NotifyEvent, number][] = [
     [s.reminder24h, "BOOKING_REMINDER_24H", 24],
     [s.reminder2h, "BOOKING_REMINDER_2H", 2],
   ];
+  // email reminders (free) for guests who gave an address
+  const { isEmail } = await import("./email");
+  if (s.customerEmail && facts.customerEmail && isEmail(facts.customerEmail)) {
+    for (const [on, event, hours] of plan) {
+      const at = reminderAt(facts.date, facts.time, hours);
+      if (!on || at.getTime() < now + 30 * 60_000) continue;
+      await deliverEmail({ s, facts, event, occurrence, recipient: "customer", to: facts.customerEmail, status: "scheduled", scheduledFor: at });
+    }
+  }
+  if (!facts.customerPhone) return;
+  const channels = channelsFor("customer", s, consent);
+  if (!channels.length) return;
   for (const [on, event, hours] of plan) {
     if (!on) continue;
     const at = reminderAt(facts.date, facts.time, hours);
@@ -573,22 +703,18 @@ export async function dispatchDue(limit = 40) {
       continue;
     }
     // refresh the words from the snapshot (manage link etc.), then send
-    await patchRow(row.id, {
-      payload: {
-        ...row.payload,
-        vars: templateVars("customer", row.event_type, facts),
-        text: messageText("customer", row.event_type, facts),
-      },
-    });
+    const { emailContent } = await import("./email");
+    const payload =
+      row.channel === "email"
+        ? { ...row.payload, ...emailContent("customer", row.event_type, facts) }
+        : {
+            ...row.payload,
+            vars: templateVars("customer", row.event_type, facts),
+            text: messageText("customer", row.event_type, facts),
+          };
+    await patchRow(row.id, { payload });
     if (!(await claim(row.id, "scheduled"))) continue;
-    const fresh = {
-      ...row,
-      payload: {
-        ...row.payload,
-        vars: templateVars("customer", row.event_type, facts),
-        text: messageText("customer", row.event_type, facts),
-      },
-    };
+    const fresh = { ...row, payload };
     const res = await attempt(fresh, s);
     counts.reminders++;
     if (res.outcome !== "sent" && s.fallback && row.channel === "whatsapp") {
@@ -726,7 +852,10 @@ export async function sendTest(
       detail: "Notifications aren't set up in the database yet.",
     };
   const phone = toE164(s.testPhone);
-  if (!phone) return { ok: false, status: "invalid", detail: "Set a test number first." };
+  if (channel === "email" && !s.adminEmailAddress)
+    return { ok: false, status: "invalid", detail: "Set the salon email first (test emails go there)." };
+  if (channel !== "email" && !phone)
+    return { ok: false, status: "invalid", detail: "Set a test number first." };
   const facts: BookingFacts = {
     reference: "HB-TEST",
     customerName: "Test Guest",
@@ -741,6 +870,32 @@ export async function sendTest(
     manageUrl: s.publicSiteUrl ? `${s.publicSiteUrl.replace(/\/+$/, "")}/manage` : "",
   };
   const slot = templateKey(kind, "BOOKING_CONFIRMED");
+  if (channel === "email") {
+    const { emailContent } = await import("./email");
+    const c = emailContent(kind, "BOOKING_CONFIRMED", facts);
+    const madeE = await ensureRow({
+      idempotency_key: `TEST|${kind}|email|${Date.now()}`,
+      booking_id: "HB-TEST",
+      event_type: "BOOKING_CONFIRMED",
+      recipient_type: "test",
+      recipient_phone: "",
+      recipient_email: s.adminEmailAddress,
+      channel: "email",
+      provider: s.email.provider,
+      status: "queued",
+      payload: { subject: `[Test] ${c.subject}`, html: c.html, text: c.text },
+    });
+    if (!madeE || !(await claim(madeE.row.id, "queued")))
+      return { ok: false, status: "error", detail: "Couldn't record the test." };
+    const re = await attemptEmail(madeE.row, s);
+    const { data: d2 } = await sb.from("notification_logs" as never).select("status, error_message").eq("id", madeE.row.id).maybeSingle();
+    const r2 = (d2 ?? {}) as { status?: string; error_message?: string };
+    return {
+      ok: re.outcome === "sent",
+      status: r2.status ?? re.outcome,
+      detail: re.outcome === "sent" ? `Accepted by the email provider — check ${s.adminEmailAddress}.` : (r2.error_message ?? "Not sent."),
+    };
+  }
   const made = await ensureRow({
     idempotency_key: `TEST|${kind}|${channel}|${Date.now()}`,
     booking_id: "HB-TEST",

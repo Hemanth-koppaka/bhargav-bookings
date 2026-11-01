@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAdmin, STATUS_LABEL, type ApptStatus } from "@/lib/admin-store";
-import { formatDuration, fromISO, inr, menuFor, minuteLabel, toISO, type Audience } from "@/lib/salon";
+import { BUSINESS, formatDuration, fromISO, inr, menuFor, minuteLabel, toISO, type Audience } from "@/lib/salon";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -33,10 +33,13 @@ import {
 } from "@/lib/admin-data.functions";
 import { adminUpsertBooking } from "@/lib/salon.functions";
 import { adminSaveBlock } from "@/lib/admin-ops.functions";
+import { adminAddClosure } from "@/lib/admin-staff.functions";
 import { adminSaveException } from "@/lib/admin-content.functions";
 import type { Slot } from "@/lib/availability";
 import { adminReferencePhotos } from "@/lib/photos.functions";
 import { adminNotificationLogs, type NotifyLog } from "@/lib/admin-notify.functions";
+import { messageText, type BookingFacts, type NotifyEvent } from "@/lib/notify/messages";
+import { waLink as whatsapp } from "@/lib/whatsapp-link";
 
 /* ── small shared bits ─────────────────────────────────────── */
 
@@ -198,6 +201,7 @@ type BookingPatch = {
   meta?: Record<string, unknown>;
   cancelReason?: string;
   customer?: { name: string; phone: string; email: string };
+  staffId?: string;
 };
 
 const CANCEL_REASONS = ["Customer requested", "Studio unavailable", "Emergency", "Scheduling conflict", "Other"];
@@ -303,6 +307,12 @@ export function BookingDrawer({
                   </li>
                 ))}
               </ul>
+              {b.staffName ? (
+                <p className="mt-3 text-[0.85rem]">
+                  Stylist: <b className="font-medium">{b.staffName}</b>
+                  <span className="text-muted-foreground"> · {b.staffChosen ? "chosen by guest" : "assigned automatically"}</span>
+                </p>
+              ) : null}
               {b.cancelReason ? <p className="mt-3 text-[0.82rem] text-destructive">Cancelled: {b.cancelReason}</p> : null}
             </section>
 
@@ -351,8 +361,10 @@ export function BookingDrawer({
               <Reschedule
                 booking={b}
                 onCancel={() => setMode("view")}
-                onConfirm={async (date, time) => {
-                  if (await patch({ date, time }, "Booking rescheduled.")) setMode("view");
+                onConfirm={async (date, time, staffId) => {
+                  const restaff = staffId !== (b.staffId ?? "any");
+                  const moved = date !== b.date || time !== b.time;
+                  if (await patch({ ...(moved ? { date, time } : {}), ...(restaff ? { staffId } : {}) }, moved ? "Booking rescheduled." : "Stylist changed.")) setMode("view");
                 }}
                 busy={busy}
               />
@@ -427,6 +439,8 @@ export function BookingDrawer({
             <InternalNote booking={b} busy={busy} onSave={(note) => void patch({ meta: { note } }, "Note saved.")} />
             <PaymentRow booking={b} busy={busy} onSave={(payment, amount) => void patch({ meta: { payment, amount } }, "Payment recorded.")} />
 
+            <WhatsAppSend booking={b} />
+
             <BookingMessages reference={b.reference} version={data?.booking ? b.history.length + b.status : ""} />
 
             {/* history */}
@@ -487,6 +501,55 @@ function RefPhotos({ reference, count }: { reference: string; count: number }) {
   );
 }
 
+/**
+ * Free messaging: opens WhatsApp on this device with the message written out
+ * (from the booking's stored details). The salon taps Send in its own WhatsApp.
+ */
+function WhatsAppSend({ booking: b }: { booking: AdminBooking }) {
+  const facts: BookingFacts = {
+    reference: b.reference,
+    customerName: b.customer.name || "there",
+    customerPhone: b.customer.phone,
+    date: b.date,
+    time: b.time,
+    services: b.services.map((s) => s.name),
+    minutes: b.minutes,
+    price: b.price,
+    priceFrom: false,
+    location: BUSINESS.locationShort || BUSINESS.address,
+    manageUrl: typeof window !== "undefined" ? `${window.location.origin}/manage?ref=${b.reference}` : "",
+  };
+  const moved = b.history.some((h) => h.action === "rescheduled");
+  const options: { event: NotifyEvent; label: string }[] =
+    b.status === "cancelled"
+      ? [{ event: "BOOKING_CANCELLED", label: "Cancellation" }]
+      : [
+          { event: "BOOKING_CONFIRMED", label: "Confirmation" },
+          { event: "BOOKING_REMINDER_24H", label: "Reminder" },
+          ...(moved ? [{ event: "BOOKING_RESCHEDULED" as const, label: "New time" }] : []),
+        ];
+  if (!b.customer.phone) return null;
+  return (
+    <section>
+      <Label>Send on WhatsApp (free)</Label>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((o) => (
+          <a
+            key={o.event}
+            href={whatsapp(b.customer.phone, messageText("customer", o.event, facts))}
+            target="_blank"
+            rel="noreferrer"
+            className={ACTION}
+          >
+            <MessageCircle className="h-4 w-4" /> {o.label}
+          </a>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[0.74rem] text-muted-foreground">Opens WhatsApp with the message ready — just tap Send.</p>
+    </section>
+  );
+}
+
 /** What was sent about this booking, and whether it arrived. */
 function BookingMessages({ reference, version }: { reference: string; version: string }) {
   const { pin } = useAdmin();
@@ -511,7 +574,7 @@ function BookingMessages({ reference, version }: { reference: string; version: s
           <li key={l.id} className="flex items-start gap-2">
             <span className={cn("w-3 shrink-0", MSG_TONE[l.status])}>{icon(l.status)}</span>
             <span className="min-w-0 flex-1">
-              {who(l.recipient)} {l.eventLabel.toLowerCase()} — {l.channel === "whatsapp" ? "WhatsApp" : "SMS"}
+              {who(l.recipient)} {l.eventLabel.toLowerCase()} — {l.channel === "whatsapp" ? "WhatsApp" : l.channel === "email" ? "Email" : "SMS"}
               {l.fallback ? " (fallback)" : ""}
               {l.errorMessage && ["failed", "skipped"].includes(l.status) ? <span className="block text-[0.74rem] text-muted-foreground">{l.errorMessage}</span> : null}
             </span>
@@ -599,6 +662,8 @@ export function TimePicker({
   onDate,
   time,
   onTime,
+  staffId,
+  onStaffId,
 }: {
   audience: Audience;
   serviceIds: string[];
@@ -607,10 +672,14 @@ export function TimePicker({
   onDate: (d: string) => void;
   time: number | null;
   onTime: (t: number | null) => void;
+  /** Stylist: "any" or an id; shown as chips when the salon has stylists. */
+  staffId?: string | undefined;
+  onStaffId?: ((id: string) => void) | undefined;
 }) {
   const { pin } = useAdmin();
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [closed, setClosed] = useState(false);
+  const [team, setTeam] = useState<{ id: string; name: string }[]>([]);
   const key = serviceIds.join(",");
   useEffect(() => {
     if (!key) {
@@ -619,20 +688,42 @@ export function TimePicker({
     }
     let live = true;
     setSlots(null);
-    adminAvailability({ data: { pin, date, audience, serviceIds: key.split(","), ...(reference ? { reference } : {}) } })
+    adminAvailability({
+      data: { pin, date, audience, serviceIds: key.split(","), ...(reference ? { reference } : {}), ...(staffId ? { staffId } : {}) },
+    })
       .then((r) => {
         if (!live) return;
         setClosed(r.closed);
+        setTeam(r.stylists ?? []);
         setSlots(r.slots.filter((s) => s.reason !== "break"));
       })
       .catch(() => live && setSlots([]));
     return () => {
       live = false;
     };
-  }, [pin, date, audience, key, reference]);
+  }, [pin, date, audience, key, reference, staffId]);
 
   return (
     <div>
+      {onStaffId && team.length ? (
+        <div className="mb-3 flex flex-wrap gap-1.5" aria-label="Stylist">
+          {[{ id: "any", name: "Any available" }, ...team].map((t) => {
+            const on = (staffId ?? "any") === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => {
+                  onStaffId(t.id);
+                  onTime(null);
+                }}
+                className={cn("press rounded-full border px-3 py-1 text-[0.8rem]", on ? "border-foreground bg-foreground text-background" : "border-foreground/15")}
+              >
+                {t.name}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       <input
         type="date"
         value={date}
@@ -683,14 +774,15 @@ function Reschedule({
 }: {
   booking: AdminBooking;
   onCancel: () => void;
-  onConfirm: (date: string, time: number) => void;
+  onConfirm: (date: string, time: number, staffId: string) => void;
   busy: boolean;
 }) {
   const [date, setDate] = useState(booking.date);
   const [time, setTime] = useState<number | null>(null);
+  const [staffId, setStaffId] = useState<string>(booking.staffId ?? "any");
   return (
     <section className="rounded-md border border-foreground/25 p-4">
-      <Label>Reschedule</Label>
+      <Label>Reschedule or change stylist</Label>
       <div className="mt-3">
         <TimePicker
           audience={booking.audience}
@@ -700,6 +792,8 @@ function Reschedule({
           onDate={setDate}
           time={time}
           onTime={setTime}
+          staffId={staffId}
+          onStaffId={setStaffId}
         />
       </div>
       {time != null ? (
@@ -708,7 +802,7 @@ function Reschedule({
         </p>
       ) : null}
       <div className="mt-3 flex gap-2">
-        <Action primary disabled={time == null || busy} onClick={() => time != null && onConfirm(date, time)}>
+        <Action primary disabled={time == null || busy} onClick={() => time != null && onConfirm(date, time, staffId)}>
           Confirm move
         </Action>
         <Action onClick={onCancel}>Back</Action>
@@ -862,6 +956,7 @@ export function NewBookingDialog({
   onOpenChange,
   initialDate,
   initialTime,
+  initialStaffId,
   customer: presetCustomer,
   onCreated,
 }: {
@@ -869,6 +964,7 @@ export function NewBookingDialog({
   onOpenChange: (o: boolean) => void;
   initialDate?: string;
   initialTime?: number | null;
+  initialStaffId?: string | undefined;
   customer?: { name: string; phone: string; email: string } | null;
   onCreated?: (reference: string) => void;
 }) {
@@ -877,6 +973,7 @@ export function NewBookingDialog({
   const [ids, setIds] = useState<string[]>([]);
   const [date, setDate] = useState(initialDate ?? salonToday());
   const [time, setTime] = useState<number | null>(initialTime ?? null);
+  const [staffId, setStaffId] = useState<string>(initialStaffId ?? "any");
   const [source, setSource] = useState<(typeof SOURCES)[number]["key"]>("walk-in");
   const [cust, setCust] = useState({ name: "", phone: "", email: "" });
   const [q, setQ] = useState("");
@@ -889,12 +986,13 @@ export function NewBookingDialog({
     if (!open) return;
     setDate(initialDate ?? salonToday());
     setTime(initialTime ?? null);
+    setStaffId(initialStaffId ?? "any");
     setIds([]);
     setError("");
     setCust(presetCustomer ?? { name: "", phone: "", email: "" });
     setQ("");
     first.current = true;
-  }, [open, initialDate, initialTime, presetCustomer]);
+  }, [open, initialDate, initialTime, initialStaffId, presetCustomer]);
 
   useEffect(() => {
     const term = q.trim();
@@ -923,7 +1021,15 @@ export function NewBookingDialog({
         data: {
           pin,
           reference: "new",
-          insert: { audience, serviceIds: ids, date, time, customer: { name: cust.name.trim(), phone: cust.phone.trim(), email: cust.email.trim() }, source },
+          insert: {
+            audience,
+            serviceIds: ids,
+            date,
+            time,
+            customer: { name: cust.name.trim(), phone: cust.phone.trim(), email: cust.email.trim() },
+            source,
+            ...(staffId !== "any" ? { staffId } : {}),
+          },
         },
       })) as { reference?: string };
       toast.success(`Booked ${cust.name.trim()} for ${minuteLabel(time)}.`);
@@ -1033,7 +1139,7 @@ export function NewBookingDialog({
           <div>
             <Label>Date & time</Label>
             <div className="mt-2">
-              <TimePicker audience={audience} serviceIds={ids} date={date} onDate={setDate} time={time} onTime={setTime} />
+              <TimePicker audience={audience} serviceIds={ids} date={date} onDate={setDate} time={time} onTime={setTime} staffId={staffId} onStaffId={setStaffId} />
             </div>
           </div>
 
@@ -1215,7 +1321,9 @@ export function CloseDayDialog({
   const close = async () => {
     setBusy(true);
     try {
-      await adminSaveException({ data: { pin, date, open: false, from: null, to: null, note: reason } });
+      // a salon closure (blocks every stylist); older databases fall back to a closed date
+      const r = await adminAddClosure({ data: { pin, kind: "days", start: date, end: date, reason } }).catch(() => null);
+      if (!r?.ok) await adminSaveException({ data: { pin, date, open: false, from: null, to: null, note: reason } });
       toast.success(`${dateLabel(date)} closed.`);
       onSaved?.();
       onOpenChange(false);

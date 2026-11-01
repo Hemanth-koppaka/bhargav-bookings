@@ -23,6 +23,9 @@ import {
   inr,
   minuteLabel,
   SLOT_MINUTES,
+  STYLISTS,
+  closureOn,
+  stylistsFor,
   toISO,
 } from "@/lib/salon";
 
@@ -59,7 +62,8 @@ function TimeScreen() {
   }, [draft.date, hydrated]);
 
   const days = useMemo(() => calendarDays(56, now), [now]);
-  const day = useDayAvailability(draft.date, draft.audience, draft.serviceIds);
+  const rawDay = useDayAvailability(draft.date, draft.audience, draft.serviceIds);
+  const day = forStylist(rawDay, draft.staffId);
   const slots = day.data?.slots ?? [];
   const selectedBreaks = day.data?.breaks ?? [];
 
@@ -69,7 +73,7 @@ function TimeScreen() {
 
   return (
     <>
-      <DesktopTime days={days} day={day} />
+      <DesktopTime days={days} day={day} rawDay={rawDay} />
       <div className="md:hidden">
         <Page>
           <StepHeader back="/services" step={3} />
@@ -94,16 +98,21 @@ function TimeScreen() {
                     <div className="text-[0.95rem]">{longDate(draft.date)}</div>
                     <div className="text-[0.75rem] text-muted-foreground">
                       {day.data?.closed
-                        ? "Salon closed"
+                        ? closureOn(draft.date)?.reason
+                          ? `Salon is closed on this date · ${closureOn(draft.date)!.reason}`
+                          : "Salon is closed on this date"
                         : day.data
                           ? `Open ${minuteLabel(day.data.open)} – ${minuteLabel(day.data.close)}${breakNote}`
                           : ""}
                     </div>
                   </div>
                 </div>
+                {!day.data?.closed ? <StylistPicker day={rawDay} /> : null}
                 <SlotGroups day={day} />
                 {slots.length > 0 && slots.every((x) => !x.available) ? (
-                  <p className="mt-6 text-sm text-muted-foreground">No slots left on this day. Please try another date.</p>
+                  <p className="mt-6 text-sm text-muted-foreground">
+                    {draft.staffId ? "This stylist has no free times on this day. Try any available stylist or another date." : "No slots left on this day. Please try another date."}
+                  </p>
                 ) : null}
               </div>
             ) : (
@@ -135,6 +144,81 @@ function TimeScreen() {
 }
 
 type DayState = { data: DayAvailability | null; loading: boolean; error: string };
+
+/**
+ * The day as seen for the chosen stylist: a time is free only if that stylist
+ * is free for the whole service ("any" keeps the salon-wide picture, where a
+ * time is free if at least one qualified stylist is).
+ */
+function forStylist(day: DayState, staffId: string | null | undefined): DayState {
+  if (!staffId || !day.data) return day;
+  return {
+    ...day,
+    data: {
+      ...day.data,
+      slots: day.data.slots.map((x) =>
+        x.available && x.staff && !x.staff.includes(staffId) ? { ...x, available: false, reason: "booked" as const } : x,
+      ),
+    },
+  };
+}
+
+/** Choose a stylist: "Any available" or a named stylist, with live Available / Busy for the picked time. */
+function StylistPicker({ day }: { day: DayState }) {
+  const { draft, update } = useBooking();
+  const team = day.data?.stylists ?? stylistsFor(draft.serviceIds).map((s) => ({ id: s.id, name: s.name, gender: s.gender, order: 0 }));
+  const chosen = draft.staffId ?? null;
+  // a stylist who can't do the chosen services is dropped back to "any"
+  useEffect(() => {
+    if (chosen && team.length && !team.some((t) => t.id === chosen)) update({ staffId: null });
+  }, [chosen, team, update]);
+  if (team.length < 1) return null;
+  const slot = draft.time != null ? day.data?.slots.find((x) => x.minute === draft.time) : undefined;
+  const status = (id: string) => (slot ? (slot.staff?.includes(id) ? "Available" : "Busy") : null);
+  const pick = (id: string | null) => {
+    haptic();
+    // keep the time if the new choice is free then; otherwise ask for a new time
+    const keep = !slot || !id || Boolean(slot.staff?.includes(id));
+    update(keep ? { staffId: id } : { staffId: id, time: null });
+  };
+  const chip = (on: boolean) =>
+    "press flex min-h-14 min-w-0 flex-col justify-center rounded-md border px-3.5 py-2 text-left transition-colors " +
+    (on ? "border-foreground bg-foreground text-background" : "border-foreground/12 bg-card hover:border-foreground/45");
+  return (
+    <section className="mt-6" aria-label="Choose stylist">
+      <div className="flex items-center gap-4">
+        <h2 className="shrink-0 font-sans text-[0.72rem] font-normal uppercase tracking-[0.3em] lg:text-[0.78rem]">Stylist</h2>
+        <span className="h-px flex-1 bg-hairline" />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <button aria-pressed={!chosen} onClick={() => pick(null)} className={chip(!chosen)}>
+          <span className="truncate text-[0.95rem]">Any available</span>
+          <span className={"text-[0.72rem] " + (!chosen ? "text-background/65" : "text-muted-foreground")}>
+            {slot ? (slot.available ? "Available" : "Busy") : "First free stylist"}
+          </span>
+        </button>
+        {team.map((t) => {
+          const on = chosen === t.id;
+          const st = status(t.id);
+          return (
+            <button key={t.id} aria-pressed={on} onClick={() => pick(t.id)} className={chip(on)}>
+              <span className="truncate text-[0.95rem]">{t.name}</span>
+              <span
+                className={
+                  "flex items-center gap-1.5 text-[0.72rem] " +
+                  (on ? "text-background/65" : st === "Busy" ? "text-foreground/40" : "text-muted-foreground")
+                }
+              >
+                {st ? <span className={"h-1.5 w-1.5 rounded-full " + (st === "Available" ? "bg-emerald-600" : "bg-foreground/30")} /> : null}
+                {st ?? (STYLISTS.find((x) => x.id === t.id)?.specialties || "Stylist")}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 /** Live availability for the chosen day and services, straight from the booking engine. */
 function useDayAvailability(date: string | null, audience: string | null, serviceIds: string[]): DayState {
@@ -451,9 +535,11 @@ const longDate = (iso: string) =>
 function DesktopTime({
   days,
   day,
+  rawDay,
 }: {
   days: { iso: string; date: Date; selectable: boolean }[];
   day: DayState;
+  rawDay: DayState;
 }) {
   const slots = day.data?.slots ?? [];
   const { draft, totalMinutes, totalPrice, hasFromPricing, selected } = useBooking();
@@ -490,6 +576,11 @@ function DesktopTime({
           <div className="mt-7 max-w-2xl">
             <MonthCalendar days={days} onPicked={toSlots} />
           </div>
+          {draft.date && !rawDay.data?.closed ? (
+            <div className="max-w-2xl">
+              <StylistPicker day={rawDay} />
+            </div>
+          ) : null}
         </div>
 
         <div
@@ -499,7 +590,7 @@ function DesktopTime({
           {!draft.date ? (
             <EmptySlots text="Pick a day on the calendar to see its free times." />
           ) : slots.length === 0 ? (
-            <EmptySlots text="The salon is closed on this day. Please pick another date." />
+            <EmptySlots text={closureOn(draft.date)?.reason ? `Salon is closed on this date (${closureOn(draft.date)!.reason}).` : "Salon is closed on this date. Please pick another date."} />
           ) : (
             <div key={draft.date} className="slide-in lg:-mt-5">
               <SlotGroups day={day} />

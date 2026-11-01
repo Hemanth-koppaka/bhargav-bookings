@@ -31,6 +31,8 @@ export type Draft = {
   draftId?: string;
   /** Optional reference photos already uploaded (deleted after the visit). */
   photos?: RefPhoto[];
+  /** Chosen stylist id; null/absent = any available stylist. */
+  staffId?: string | null;
 };
 
 export type Booking = {
@@ -44,6 +46,16 @@ export type Booking = {
   createdAt: string;
   /** Manage key from a lookup by booking ID or phone (the phone isn't sent back). */
   token?: string;
+  /** What was booked, as stored by the salon (never re-read from today's menu). */
+  snapshot?: BookingSnapshot | undefined;
+  /** The stylist assigned when the booking was confirmed. */
+  stylist?: string | null | undefined;
+};
+
+export type BookingSnapshot = {
+  services: { name: string; price: number; minutes: number }[];
+  minutes: number;
+  price: number;
 };
 
 const EMPTY: Draft = {
@@ -181,11 +193,14 @@ export function BookingProvider({ children }: { children: ReactNode }) {
                 ...(booking.customer.notes ? { notes: booking.customer.notes } : {}),
               },
               consent: booking.customer.consent !== false,
+              ...(draft.staffId ? { staffId: draft.staffId } : {}),
               ...(draft.photos?.length ? { photos: draft.photos.map((x) => x.path) } : {}),
             },
           });
           if (!res.ok) return { error: res.error };
           booking.reference = res.reference; // issued by the salon (HB-2026-00124)
+          if ("snapshot" in res && res.snapshot) booking.snapshot = res.snapshot;
+          if ("stylist" in res) booking.stylist = res.stylist ?? null;
         } catch {
           return { error: "We couldn't reach the salon. Check your connection and try again." };
         }
@@ -205,6 +220,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
             status: r.status,
             createdAt: r.createdAt,
             token: r.token,
+            ...(r.snapshot ? { snapshot: r.snapshot } : {}),
           }));
           const refs = new Set(found.map((f) => f.reference));
           setBookings((b) => [...found, ...b.filter((x) => !refs.has(x.reference))]);

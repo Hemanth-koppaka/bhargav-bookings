@@ -56,3 +56,20 @@ The details step has a "Send my booking confirmation, changes and reminders on
 WhatsApp/SMS" box (ticked by default). Without it the guest gets no WhatsApp;
 SMS goes only if guest SMS is switched on. This covers booking messages only;
 marketing consent is separate (`customers.marketing_consent`) and never implied.
+
+## Free options (no paid messaging needed)
+
+- **Add to calendar** (confirmation + Manage booking): Google Calendar,
+  Apple Calendar, Outlook or a `.ics` file, with a 1-hour reminder where the
+  calendar app honours it. All times are Asia/Kolkata. Code: `src/lib/calendar.ts`.
+- **One-tap WhatsApp**: guests tap "Confirm on WhatsApp" to send their booking
+  to the salon's number; staff tap Confirmation / Reminder / New time in a
+  booking's panel to message the guest. Nothing is sent automatically or paid.
+- **Email (automatic, free tier)**: confirmations, changes and 24 h / 2 h
+  reminders to guests who give an email, plus optional salon alerts.
+  1. Create a free Brevo account (300 emails/day) and verify a sender address
+     (a Gmail address works), or use Resend with your own domain.
+  2. Add the API key as a project secret: `BREVO_API_KEY` or `RESEND_API_KEY`.
+  3. Admin → Notifications → Email: choose the service, enter the sender
+     address and the salon email, save, then **Test guest email**.
+  Database: migration 0007 adds the email settings.

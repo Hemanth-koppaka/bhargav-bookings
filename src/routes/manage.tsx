@@ -4,6 +4,7 @@ import { CalendarDays, ChevronRight, Clock, Search } from "lucide-react";
 import { GhostAction, PrimaryAction } from "@/components/screen";
 import { InfoPage, InfoTitle, SectionLabel } from "@/components/info-page";
 import { ScrollStrip, prettyPhone } from "@/components/desktop";
+import { AddToCalendar } from "@/components/add-to-calendar";
 import { auth, useBooking, servicesOf, type Booking, type ChangeResult } from "@/lib/booking-store";
 import { getAvailability, getPublicRules } from "@/lib/salon.functions";
 import type { DayAvailability } from "@/lib/engine.server";
@@ -290,8 +291,10 @@ function BookingPanel({
   onBack: () => void;
 }) {
   const services = servicesOf(booking);
-  const total = services.reduce((n, s) => n + s.price, 0);
-  const minutesNeeded = services.reduce((n, s) => n + (s.minutes ?? s.slots * 30), 0);
+  // the booking's own snapshot wins over today's menu
+  const total = booking.snapshot?.price ?? services.reduce((n, s) => n + s.price, 0);
+  const minutesNeeded =
+    booking.snapshot?.minutes ?? services.reduce((n, s) => n + (s.minutes ?? s.slots * 30), 0);
   const cancelled = booking.status === "cancelled";
 
   const [mode, setMode] = useState<"view" | "reschedule" | "confirm-cancel">("view");
@@ -385,12 +388,12 @@ function BookingPanel({
 
       <div className="mt-8 rounded-md border border-hairline bg-card p-5 lg:p-6">
         <ul className="space-y-2">
-          {services.map((x) => (
-            <li key={x.id} className="flex items-baseline justify-between gap-4">
+          {(booking.snapshot?.services ?? services).map((x, i) => (
+            <li key={`${x.name}-${i}`} className="flex items-baseline justify-between gap-4">
               <span className="text-[1rem]">{x.name}</span>
               <span className="text-[0.9rem] text-muted-foreground">
                 {inr(x.price)}
-                {x.from ? "+" : ""}
+                {"from" in x && x.from ? "+" : ""}
               </span>
             </li>
           ))}
@@ -409,6 +412,9 @@ function BookingPanel({
           <span className="font-display text-[1.8rem] leading-none">{inr(total)}</span>
         </div>
       </div>
+
+      {/* free reminders through the guest's own calendar; offered again after any change */}
+      {mode === "view" ? <AddToCalendar booking={booking} tone="light" className="mt-6" /> : null}
 
       {cancelled ? null : mode === "view" ? (
         <ChangeWindow booking={booking}>

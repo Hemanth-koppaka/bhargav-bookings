@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CinematicKit } from "@/components/cinematic-kit";
 import { useCallback, useEffect, useState } from "react";
-import { CalendarPlus, Check, Copy, Download, MapPin } from "lucide-react";
+import { Check, Copy, Download, MapPin, MessageCircle } from "lucide-react";
+import { guestToSalonText, waLink } from "@/lib/whatsapp-link";
+import { AddToCalendar } from "@/components/add-to-calendar";
 import { LogoReveal } from "@/components/motion";
 import { useBooking, servicesOf, type Booking } from "@/lib/booking-store";
 import { BUSINESS, formatDuration, formatLongDate, fromISO, minuteLabel } from "@/lib/salon";
@@ -28,49 +30,6 @@ export const Route = createFileRoute("/confirmed")({
 });
 
 /* ── helpers ─────────────────────────────────────────────── */
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function icsStamp(date: string, minutes: number) {
-  const parts = date.split("-").map(Number);
-  const d = new Date(
-    parts[0] ?? 1970,
-    (parts[1] ?? 1) - 1,
-    parts[2] ?? 1,
-    Math.floor(minutes / 60),
-    minutes % 60,
-  );
-  return (
-    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
-    `T${pad(d.getHours())}${pad(d.getMinutes())}00`
-  );
-}
-
-function downloadIcs(booking: Booking, title: string) {
-  const minutes = servicesOf(booking).reduce((n, s) => n + (s.minutes ?? s.slots * 30), 0) || 30;
-  const ics = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//Hair by Bhargav//Booking//EN",
-    "BEGIN:VEVENT",
-    `UID:${booking.reference}@hairbybhargav`,
-    `DTSTART:${icsStamp(booking.date, booking.time)}`,
-    `DTEND:${icsStamp(booking.date, booking.time + minutes)}`,
-    `SUMMARY:${title} — Hair by Bhargav`,
-    `LOCATION:${BUSINESS.address.replace(/,/g, "\\,")}`,
-    `DESCRIPTION:Reference ${booking.reference}`,
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].join("\r\n");
-  const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `hair-by-bhargav-${booking.reference}.ics`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 function loadImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -363,6 +322,7 @@ function ConfirmedScreen() {
                   <div className="my-6 h-px bg-gradient-to-r from-[#C9A96A]/40 via-[#C9A96A]/15 to-transparent" />
                   <dl className="space-y-4">
                     <Row label="Service" value={serviceLine} />
+                    {booking.stylist ? <Row label="Stylist" value={booking.stylist} /> : null}
                     <Row label="Guest" value={booking.customer.name} />
                     <Row label="Studio" value="Hair by Bhargav" sub={BUSINESS.address} />
                   </dl>
@@ -381,13 +341,31 @@ function ConfirmedScreen() {
 
           {/* 5 — actions */}
           <div className="mt-8 space-y-3" style={{ ...reveal(stage >= FINAL, 16, 900), pointerEvents: stage >= FINAL ? "auto" : "none" }}>
-            <button
-              onClick={() => downloadIcs(booking, serviceLine)}
-              className="press sheen flex min-h-14 w-full items-center justify-center gap-3 rounded-sm bg-[#C9A96A] px-6 text-[0.7rem] uppercase tracking-[0.22em] text-[#0B0B0B] hover:opacity-90"
+            {/* free reminders: the guest's own calendar app reminds them */}
+            <AddToCalendar booking={booking} tone="dark" />
+            {/* free: opens WhatsApp with the booking written out, to the salon's number */}
+            <a
+              href={waLink(
+                BUSINESS.phones[0] ?? "",
+                guestToSalonText({
+                  reference: booking.reference,
+                  name: booking.customer.name,
+                  date: booking.date,
+                  time: booking.time,
+                  services: booking.snapshot?.services.map((s) => s.name) ?? services.map((s) => s.name),
+                  minutes: booking.snapshot?.minutes ?? (totalMinutes || 30),
+                  price: booking.snapshot?.price ?? services.reduce((n, s) => n + s.price, 0),
+                  priceFrom: services.some((s) => s.from),
+                  manageUrl: typeof window !== "undefined" ? `${window.location.origin}/manage?ref=${booking.reference}` : "",
+                }),
+              )}
+              target="_blank"
+              rel="noreferrer"
+              className="press flex min-h-13 w-full items-center justify-center gap-3 rounded-sm border border-[#E8E1D8]/28 px-6 text-[0.66rem] uppercase tracking-[0.2em] text-[#E8E1D8] hover:border-[#E8E1D8]/70"
             >
-              <CalendarPlus className="h-4 w-4" strokeWidth={1.25} />
-              Add to calendar
-            </button>
+              <MessageCircle className="h-4 w-4" strokeWidth={1.25} />
+              Confirm on WhatsApp
+            </a>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={onSave}

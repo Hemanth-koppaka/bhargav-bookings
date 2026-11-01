@@ -18,7 +18,7 @@ import {
 import { useBooking } from "@/lib/booking-store";
 import { haptic } from "@/lib/utils";
 import { ServiceGlyph, serviceKind } from "@/components/service-icons";
-import { BUSINESS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
+import { BUSINESS, STYLISTS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
 
 export const Route = createFileRoute("/review")({
   head: () => ({
@@ -127,6 +127,7 @@ function ReviewScreen() {
                     <div className="mt-0.5 flex items-center justify-between gap-3 text-[0.88rem] text-muted-foreground">
                       <span>
                         {minuteLabel(draft.time)} · {formatDuration(totalMinutes)}
+                        {STYLISTS.length ? ` · ${stylistLabel(draft.staffId)}` : ""}
                       </span>
                       <Link to="/time" className="text-[0.8rem] text-bronze underline underline-offset-4">
                         Change time
@@ -221,6 +222,10 @@ function PhotoStrip() {
   );
 }
 
+/** "with Bhargav" or "any available stylist" (assigned when the booking is confirmed). */
+const stylistLabel = (id: string | null | undefined) =>
+  id ? `with ${STYLISTS.find((x) => x.id === id)?.name ?? "your stylist"}` : "any available stylist";
+
 function Card({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="rounded-md border border-hairline bg-card">
@@ -305,6 +310,7 @@ function DesktopReview({
                   </div>
                   <div className="mt-1 flex items-center gap-4 text-[1.1rem] text-muted-foreground">
                     {minuteLabel(draft.time)} · {formatDuration(totalMinutes)}
+                        {STYLISTS.length ? ` · ${stylistLabel(draft.staffId)}` : ""}
                     <Link to="/time" className="text-[0.9rem] text-bronze underline underline-offset-4">
                       Change time
                     </Link>
