@@ -5,6 +5,7 @@ import { ArrowRight, Phone } from "lucide-react";
 import { BUSINESS, hoursFor, isClosed, minuteLabel, toISO } from "@/lib/salon";
 import { LogoReveal } from "@/components/motion";
 import { CallButton, InfoStrip } from "@/components/desktop";
+import { SoundToggle } from "@/components/sound-toggle";
 import founder from "@/assets/founder.jpg.asset.json";
 
 export const Route = createFileRoute("/")({
@@ -259,13 +260,17 @@ function MobileHome() {
           <span data-hero-logo className="after-intro-logo inline-flex">
             <LogoReveal className="h-10" />
           </span>
-          <a
-            href={`tel:${BUSINESS.phones[0]}`}
-            aria-label="Call the studio"
-            className="press inline-flex h-11 w-11 items-center justify-center rounded-full border border-foreground/15 hover:border-foreground/40"
-          >
-            <Phone className="h-4 w-4" strokeWidth={1.25} />
-          </a>
+          <div className="flex items-center gap-2">
+            <SoundToggle />
+            <a
+              href={`tel:${BUSINESS.phones[0]}`}
+              aria-label="Call the studio"
+              data-sfx="contact"
+              className="press inline-flex h-11 w-11 items-center justify-center rounded-full border border-foreground/15 hover:border-foreground/40"
+            >
+              <Phone className="h-4 w-4" strokeWidth={1.25} />
+            </a>
+          </div>
         </header>
       </div>
 
@@ -307,6 +312,8 @@ function MobileHome() {
           <div className="mt-[clamp(1rem,2.5svh,1.5rem)] space-y-2.5">
             <Link
               to="/book"
+              data-sfx="primary"
+              data-sfx-hover=""
               className="label-caps press sheen group flex min-h-14 w-full items-center justify-between gap-4 rounded-sm bg-foreground px-6 text-background hover:bg-foreground/88"
             >
               <span>{CONTENT.home.ctaLabel}</span>
@@ -360,7 +367,10 @@ function DesktopHome() {
             </Link>
           ))}
         </nav>
-        <CallButton />
+        <div className="flex items-center gap-4">
+          <SoundToggle className="lg:h-14 lg:w-14" />
+          <CallButton />
+        </div>
       </header>
 
       <main className="grid flex-1 grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] items-center gap-12 px-12 py-8 xl:gap-20 xl:px-24">
@@ -379,6 +389,8 @@ function DesktopHome() {
           <div className="mt-10 flex items-center gap-4">
             <Link
               to="/book"
+              data-sfx="primary"
+              data-sfx-hover=""
               className="press sheen group flex h-[4.25rem] items-center gap-5 whitespace-nowrap rounded-sm bg-foreground px-8 text-[1.05rem] text-background hover:bg-foreground/88 xl:px-10"
             >
               {CONTENT.home.ctaLabel}

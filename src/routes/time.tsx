@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Coffee, Sun, Sunrise, Sunset } from "lucide-react";
 import { haptic } from "@/lib/utils";
+import { sfx } from "@/lib/sfx";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import {
   selectionImage,
@@ -177,6 +178,7 @@ function StylistPicker({ day }: { day: DayState }) {
   const status = (id: string) => (slot ? (slot.staff?.includes(id) ? "Available" : "Busy") : null);
   const pick = (id: string | null) => {
     haptic();
+    if (id !== chosen) sfx.selection();
     // keep the time if the new choice is free then; otherwise ask for a new time
     const keep = !slot || !id || Boolean(slot.staff?.includes(id));
     update(keep ? { staffId: id } : { staffId: id, time: null });
@@ -272,10 +274,12 @@ function DayStrip({ days }: { days: { iso: string; date: Date; selectable: boole
           <button
             key={d.iso}
             disabled={!d.selectable}
+            data-sfx-off=""
             aria-pressed={on}
             aria-label={d.date.toDateString() + (d.selectable ? "" : " (closed)")}
             onClick={() => {
               haptic();
+              if (!on) sfx.dateSelect();
               update({ date: d.iso, time: null });
             }}
             className={
@@ -365,9 +369,11 @@ function SlotGroups({ day }: { day: DayState }) {
                   <button
                     key={x.minute}
                     disabled={!x.available}
+                    data-sfx-off=""
                     aria-pressed={on}
                     onClick={() => {
                       haptic();
+                      if (!on) sfx.timeSelect();
                       update({ time: x.minute });
                     }}
                     className={
@@ -446,6 +452,7 @@ function MonthCalendar({
 
   const pick = (iso: string) => {
     haptic();
+    if (iso !== draft.date) sfx.dateSelect();
     update({ date: iso, time: null });
     onPicked?.();
   };
@@ -462,13 +469,13 @@ function MonthCalendar({
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button type="button" aria-label="Previous month" disabled={!canPrev} onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))} className={nav}>
+          <button type="button" aria-label="Previous month" data-sfx="nav" disabled={!canPrev} onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))} className={nav}>
             <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
           </button>
           <div key={view.getTime()} aria-live="polite" className="tick-in min-w-40 text-center font-display text-[1.15rem] uppercase tracking-[0.16em] xl:text-[1.25rem]">
             {view.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
           </div>
-          <button type="button" aria-label="Next month" disabled={!canNext} onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))} className={nav}>
+          <button type="button" aria-label="Next month" data-sfx="nav" disabled={!canNext} onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))} className={nav}>
             <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
           </button>
         </div>
@@ -498,6 +505,7 @@ function MonthCalendar({
               key={iso}
               type="button"
               disabled={!open}
+              data-sfx-off=""
               aria-pressed={on}
               aria-label={d.toDateString() + (closed ? " (closed)" : !inWindow ? " (unavailable)" : "")}
               onClick={() => pick(iso)}

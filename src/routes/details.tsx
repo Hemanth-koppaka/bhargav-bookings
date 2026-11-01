@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Lock, MessageCircle, ShieldCheck } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
+import { sfx } from "@/lib/sfx";
 import { ReferencePhotos } from "@/components/reference-photos";
 import {
   selectionImage,
@@ -72,6 +73,7 @@ function DetailsScreen() {
     setAttempt((n) => n + 1);
     if (!valid) {
       haptic(20);
+      sfx.error();
       return;
     }
     const customer: Customer = {

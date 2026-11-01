@@ -13,6 +13,7 @@ import {
   type CalendarBooking,
 } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
+import { sfx } from "@/lib/sfx";
 
 type Option = "google" | "apple" | "outlook" | "ics";
 const LABEL: Record<Option, string> = {
@@ -135,8 +136,10 @@ export function AddToCalendar({
       }
       if (!cancelled) remember();
       setOpen(false);
+      sfx.calendarDone();
     } catch {
       setFailed(true);
+      sfx.error();
     }
   };
 
@@ -146,8 +149,10 @@ export function AddToCalendar({
       download(icsFileName(cal), buildIcs(cal, { cancelled }));
       if (!cancelled) remember();
       setFailed(false);
+      sfx.calendarDone();
     } catch {
       setFailed(true);
+      sfx.error();
     }
   };
 
@@ -184,6 +189,7 @@ export function AddToCalendar({
     <div ref={wrap} className={cn("relative", className)}>
       <button
         onClick={() => setOpen((v) => !v)}
+        data-sfx="calendar"
         aria-expanded={open}
         aria-haspopup="menu"
         className={cn(
@@ -222,6 +228,7 @@ export function AddToCalendar({
             <button
               key={o}
               role="menuitem"
+              data-sfx="secondary"
               onClick={() => choose(o)}
               className={cn(
                 "flex w-full items-center justify-between px-5 py-3.5 text-left text-[0.95rem] transition-colors",

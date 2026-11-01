@@ -81,6 +81,7 @@ export async function loadConfig() {
     maxAdvanceDays: booking["maxAdvanceDays"] ?? legacyData["maxAdvanceDays"] ?? 56,
     // published wording only; drafts stay in the console
     content: set["content"] ?? null,
+    sound: set["sound"] ?? null,
     exceptions: Object.fromEntries(
       (exc.data ?? []).map((e) => [
         e.date,

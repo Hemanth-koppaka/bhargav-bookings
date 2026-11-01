@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock, Plus, Search, ShoppingBag, X } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
+import { sfx } from "@/lib/sfx";
 import { useRewindBack } from "@/components/scissors-line";
 import { SIGNATURE_MARK, isSignature } from "@/lib/service-photos";
 import { ServiceGlyph, ServiceIconTile, categoryKind, serviceKind } from "@/components/service-icons";
@@ -54,6 +55,19 @@ function ServicesScreen() {
   const search = useServiceSearch(menu, query);
   const listHasPhotos = (search ?? category?.services ?? []).some((x) => x.photo);
 
+  // each category has its own note; staying on the same one stays silent
+  const goCategory = (id: string) => {
+    if (id !== category?.id || search) sfx.categoryChange(Math.max(0, menu.findIndex((c) => c.id === id)));
+    setActive(id);
+    setQuery("");
+  };
+  // a soft response when results appear: never per keystroke (throttled in the engine)
+  const hits = search?.length ?? 0;
+  useEffect(() => {
+    if (search && hits > 0) sfx.searchResult();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hits, Boolean(search)]);
+
   useEffect(() => {
     const el = chipRow.current?.querySelector<HTMLElement>('[aria-selected="true"]');
     el?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
@@ -68,10 +82,7 @@ function ServicesScreen() {
       <DesktopServices
         menu={menu}
         category={category}
-        onCategory={(id) => {
-          setActive(id);
-          setQuery("");
-        }}
+        onCategory={goCategory}
         query={query}
         onQuery={setQuery}
         search={search}
@@ -101,10 +112,7 @@ function ServicesScreen() {
                       key={c.id}
                       role="tab"
                       aria-selected={on}
-                      onClick={() => {
-                        setActive(c.id);
-                        setQuery("");
-                      }}
+                      onClick={() => goCategory(c.id)}
                       className={
                         "press inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-[0.82rem] tracking-[0.02em] " +
                         (on
@@ -156,6 +164,7 @@ function ServicesScreen() {
                       <button
                         onClick={() => {
                           haptic();
+                          sfx.serviceSelect(!on);
                           toggleService(x.id);
                         }}
                         aria-pressed={on}
@@ -403,7 +412,10 @@ function DesktopServices({
               return (
                 <li key={x.id} className="hairline-b">
                   <button
-                    onClick={() => toggleService(x.id)}
+                    onClick={() => {
+                      sfx.serviceSelect(!on);
+                      toggleService(x.id);
+                    }}
                     aria-pressed={on}
                     className={
                       "group -mx-3 flex w-[calc(100%+1.5rem)] items-center gap-5 px-3 py-3.5 text-left transition-colors duration-300 " +
@@ -543,6 +555,7 @@ function SearchBox({
   className?: string;
   hint?: string;
 }) {
+  const focused = useRef(false);
   return (
     <label className={"group relative block " + (className ?? "")}>
       <span className="sr-only">Search services</span>
@@ -554,6 +567,12 @@ function SearchBox({
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={() => {
+          // one barely-there activation on the first focus only
+          if (focused.current) return;
+          focused.current = true;
+          sfx.searchFocus();
+        }}
         onKeyDown={(e) => {
           if (e.key === "Escape") onChange("");
         }}
@@ -639,7 +658,11 @@ function SortMenu({ value, onChange }: { value: SortKey; onChange: (k: SortKey) 
       <span className="text-[0.62rem] leading-none text-muted-foreground">Sort by</span>
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value as SortKey)}
+        onPointerDown={() => sfx.filterOpen()}
+        onChange={(e) => {
+          sfx.filterPick();
+          onChange(e.target.value as SortKey);
+        }}
         className="mt-1 cursor-pointer appearance-none bg-transparent pr-1 text-[0.9rem] leading-none outline-none"
         aria-label="Sort services"
       >

@@ -80,6 +80,8 @@ export function BookCTA({ children = "Book an appointment", className }: { child
   return (
     <Link
       to="/book"
+      data-sfx="primary"
+      data-sfx-hover=""
       className={cn(
         "label-caps press sheen group flex min-h-14 w-full items-center justify-between gap-4 rounded-sm bg-foreground px-6 text-background hover:bg-foreground/88 lg:min-h-16",
         className,
