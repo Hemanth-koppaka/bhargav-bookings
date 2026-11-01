@@ -5,6 +5,8 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   BarChart3,
+  CalendarOff,
+  Contact,
   BellRing,
   HeartPulse,
   History,
@@ -37,6 +39,8 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
       { to: "/admin/appointments", label: "Bookings", icon: ListChecks },
       { to: "/admin/customers", label: "Customers", icon: Users },
+      { to: "/admin/staff", label: "Staff", icon: Contact },
+      { to: "/admin/closures", label: "Closures", icon: CalendarOff },
     ],
   },
   {
@@ -235,6 +239,8 @@ export function AdminShell({
               </div>
               <div className="mt-2 grid grid-cols-3 gap-2">
                 {[
+                  { to: "/admin/staff", label: "Staff", icon: Contact },
+                  { to: "/admin/closures", label: "Closures", icon: CalendarOff },
                   { to: "/admin/services", label: "Services", icon: Scissors },
                   { to: "/admin/content", label: "Site content", icon: FileText },
                   { to: "/admin/rules", label: "Booking rules", icon: SlidersHorizontal },

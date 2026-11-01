@@ -3,7 +3,15 @@
 // which times are bookable. Every customer and admin booking goes through
 // here, and the database trigger is the final guard against races.
 import { supabaseAdmin as sb } from "@/integrations/supabase/client.server";
-import { computeSlots, type DayPlan, type Range, type Slot } from "./availability";
+import {
+  computeSlots,
+  computeStaffSlots,
+  type DayPlan,
+  type Range,
+  type Slot,
+  type StaffDay,
+  type StaffSlot,
+} from "./availability";
 import { breaksFor, findService, hoursFor, isClosed, type Audience, type Service } from "./salon";
 
 export type BookingRules = {
@@ -93,13 +101,114 @@ export async function dayPlan(date: string): Promise<DayPlan> {
   const blocks = rows
     .filter((r) => r.kind !== "break")
     .map((r) => ({ start: r.start_minute, end: r.end_minute, label: r.reason || "Blocked" }));
+  // salon closures: whole days (ranges, or until reopened) or a few hours
+  const closure = await salonClosureOn(date);
   return {
-    closed: isClosed(date),
+    closed: isClosed(date) || closure.fullDay,
     open: hours.open,
     close: hours.close,
     breaks: [...weekly, ...oneDayBreaks].sort((a, b) => a.start - b.start),
-    blocks,
+    blocks: [...blocks, ...closure.hours],
+    ...(closure.reason ? { note: closure.reason } : {}),
   };
+}
+
+/** Salon closures affecting a date (table from the staff migration; none before it). */
+export async function salonClosureOn(date: string): Promise<{ fullDay: boolean; hours: Range[]; reason: string }> {
+  const { data, error } = await sb
+    .from("salon_closures" as never)
+    .select("*")
+    .lte("start_date", date)
+    .is("reopened_at", null);
+  if (error) return { fullDay: false, hours: [], reason: "" };
+  const rows = ((data ?? []) as Record<string, unknown>[]).filter(
+    (r) => !r["end_date"] || (r["end_date"] as string) >= date,
+  );
+  const full = rows.find((r) => r["start_minute"] == null);
+  return {
+    fullDay: Boolean(full),
+    hours: rows
+      .filter((r) => r["start_minute"] != null)
+      .map((r) => ({ start: r["start_minute"] as number, end: r["end_minute"] as number, label: (r["reason"] as string) || "Closed" })),
+    reason: ((full ?? rows[0])?.["reason"] as string) ?? "",
+  };
+}
+
+/* ── stylists ─────────────────────────────────────────────────── */
+
+export type Stylist = { id: string; name: string; gender: string; order: number };
+
+/**
+ * Each eligible stylist's day: working window, breaks, temporary blocks and
+ * their own appointments. Eligible = active, bookable (unless staff mode),
+ * and able to do EVERY chosen service. Returns null before the staff
+ * migration (the old single-chair rules then apply).
+ */
+export async function staffDay(
+  date: string,
+  serviceIds: string[],
+  options: { ignoreReference?: string | undefined; staffMode?: boolean | undefined } = {},
+): Promise<{ eligible: Stylist[]; working: StaffDay[] } | null> {
+  const { data: staff, error } = await sb.from("staff" as never).select("*").eq("active", true).is("archived_at", null).order("display_order");
+  if (error) return null;
+  const all = ((staff ?? []) as Record<string, unknown>[]).filter((r) => options.staffMode || r["bookable"]);
+  if (!all.length) return { eligible: [], working: [] };
+  const ids = all.map((r) => r["id"] as string);
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const [svc, hours, breaks, leave, unavail, bookings] = await Promise.all([
+    serviceIds.length ? sb.from("staff_services" as never).select("*").in("service_id", serviceIds as never) : Promise.resolve({ data: [] }),
+    sb.from("staff_working_hours" as never).select("*").eq("day_of_week", dow),
+    sb.from("staff_breaks" as never).select("*"),
+    sb.from("staff_leave" as never).select("*").lte("start_date", date).gte("end_date", date).is("archived_at", null),
+    sb.from("staff_unavailability" as never).select("*").eq("date", date).is("archived_at", null),
+    sb.from("bookings").select("*").eq("date", date).neq("status", "cancelled"),
+  ]);
+  type R = Record<string, unknown>;
+  const can = new Map<string, Set<string>>();
+  for (const r of (svc.data ?? []) as R[]) {
+    const k = r["staff_id"] as string;
+    if (!can.has(k)) can.set(k, new Set());
+    can.get(k)!.add(r["service_id"] as string);
+  }
+  const eligible = all
+    .filter((r) => serviceIds.every((id) => can.get(r["id"] as string)?.has(id)))
+    .map((r): Stylist => ({ id: r["id"] as string, name: r["name"] as string, gender: (r["gender"] as string) || "", order: (r["display_order"] as number) ?? 0 }));
+  const onLeave = new Set(((leave.data ?? []) as R[]).map((r) => r["staff_id"] as string));
+  const working: StaffDay[] = [];
+  for (const st of eligible) {
+    if (onLeave.has(st.id)) continue;
+    const h = ((hours.data ?? []) as R[]).find((r) => r["staff_id"] === st.id);
+    if (!h || !h["is_working"]) continue;
+    const mine = <T extends R>(rows: T[]) => rows.filter((r) => r["staff_id"] === st.id);
+    working.push({
+      id: st.id,
+      name: st.name,
+      start: h["start_minute"] as number,
+      end: h["end_minute"] as number,
+      breaks: mine((breaks.data ?? []) as R[])
+        .filter((r) => r["day_of_week"] == null || r["day_of_week"] === dow)
+        .map((r) => ({ start: r["start_minute"] as number, end: r["end_minute"] as number, label: (r["label"] as string) || "Break" })),
+      blocks: mine((unavail.data ?? []) as R[]).map((r) => ({ start: r["start_minute"] as number, end: r["end_minute"] as number, label: (r["reason"] as string) || "Unavailable" })),
+      busy: ((bookings.data ?? []) as R[])
+        .filter((r) => r["staff_id"] === st.id && r["reference"] !== options.ignoreReference && isLive(r))
+        .map((r) => ({ start: r["time"] as number, end: (r["ends_at_minute"] as number | null) ?? (r["time"] as number) + (r["slots"] as number) * 30 })),
+    });
+  }
+  void ids;
+  return { eligible, working };
+}
+
+const isLive = (r: Record<string, unknown>) => {
+  const st = (r["meta"] as { status?: string } | null)?.status;
+  return r["status"] !== "cancelled" && st !== "cancelled" && st !== "no-show" && !r["archived_at"];
+};
+
+/** Fair pick for "any available": the free stylist with the fewest booked minutes that day. */
+export function pickStylist(free: string[], working: StaffDay[], eligible: Stylist[]): string | null {
+  if (!free.length) return null;
+  const load = (id: string) => (working.find((w) => w.id === id)?.busy ?? []).reduce((n, b) => n + (b.end - b.start), 0);
+  const order = (id: string) => eligible.find((e) => e.id === id)?.order ?? 0;
+  return [...free].sort((a, b) => load(a) - load(b) || order(a) - order(b))[0] ?? null;
 }
 
 /** Occupied ranges from active bookings on a date (each including its buffer). */
@@ -165,9 +274,11 @@ export type DayAvailability = {
   close: number;
   interval: number;
   breaks: Range[];
-  slots: Slot[];
+  slots: (Slot & { staff?: string[] })[];
   bookable: boolean;
   message?: string;
+  /** Stylists who can do the chosen services (multi-stylist salons). */
+  stylists?: Stylist[];
 };
 
 /** Everything the time picker needs for one day. */
@@ -175,7 +286,14 @@ export async function availability(
   date: string,
   q: Pick<Quote, "minutes" | "buffer">,
   rules: BookingRules,
-  options: { ignoreReference?: string; staff?: boolean } = {},
+  options: {
+    ignoreReference?: string;
+    staff?: boolean;
+    /** Chosen services: enables per-stylist availability. */
+    serviceIds?: string[];
+    /** "any" (default) or a stylist id. */
+    choice?: string;
+  } = {},
 ): Promise<DayAvailability> {
   const plan = await dayPlan(date);
   const now = salonNow();
@@ -200,15 +318,23 @@ export async function availability(
   if (date < now.iso)
     return { ...base, slots: [], bookable: false, message: "That date has passed." };
   if (guestLimit) return { ...base, slots: [], bookable: false, message: guestLimit };
-  const slots = computeSlots({
+  const common = {
     plan,
     interval: rules.slotInterval,
     duration: q.minutes,
     buffer: q.buffer,
-    busy: await busyOn(date, options.ignoreReference),
     now: date === now.iso ? now.minute : null,
     notice: options.staff ? 0 : rules.minNoticeMinutes,
-  });
+  };
+  const team = options.serviceIds?.length
+    ? await staffDay(date, options.serviceIds, { ignoreReference: options.ignoreReference, staffMode: options.staff })
+    : null;
+  if (team) {
+    const slots: StaffSlot[] = computeStaffSlots({ ...common, staff: team.working, choice: options.choice || "any", allowOverrun: true });
+    const message = !team.eligible.length ? "No stylist offers this combination of services. Please book them separately." : undefined;
+    return { ...base, slots, bookable: slots.some((s) => s.available), stylists: team.eligible, ...(message ? { message } : {}) };
+  }
+  const slots = computeSlots({ ...common, busy: await busyOn(date, options.ignoreReference) });
   return { ...base, slots, bookable: slots.some((s) => s.available) };
 }
 
@@ -227,8 +353,8 @@ export async function checkTime(
   time: number,
   q: Pick<Quote, "minutes" | "buffer">,
   rules: BookingRules,
-  options: { ignoreReference?: string; staff?: boolean } = {},
-): Promise<{ ok: true } | { ok: false; error: string }> {
+  options: { ignoreReference?: string; staff?: boolean; serviceIds?: string[]; choice?: string; exclude?: string[] } = {},
+): Promise<{ ok: true; staffId?: string | null } | { ok: false; error: string }> {
   const day = await availability(date, q, rules, options);
   if (day.closed) return { ok: false, error: "The studio is closed that day." };
   if (day.message) return { ok: false, error: day.message };
@@ -236,7 +362,20 @@ export async function checkTime(
   if (!slot)
     return { ok: false, error: "That time is outside opening hours. Please choose another time." };
   if (!slot.available)
-    return { ok: false, error: REASON_TEXT[slot.reason ?? "blocked"] ?? REASON_TEXT["blocked"]! };
+    return {
+      ok: false,
+      error:
+        options.choice && options.choice !== "any" && slot.reason === "booked"
+          ? "That stylist is booked at this time. Please choose another time or any available stylist."
+          : (REASON_TEXT[slot.reason ?? "blocked"] ?? REASON_TEXT["blocked"]!),
+    };
+  if (day.stylists && "staff" in slot && slot.staff) {
+    const free = slot.staff.filter((id) => !options.exclude?.includes(id));
+    if (!free.length) return { ok: false, error: REASON_TEXT["booked"]! };
+    if (options.choice && options.choice !== "any") return { ok: true, staffId: options.choice };
+    const team = await staffDay(date, options.serviceIds ?? [], { ignoreReference: options.ignoreReference, staffMode: options.staff });
+    return { ok: true, staffId: team ? pickStylist(free, team.working, team.eligible) : free[0] ?? null };
+  }
   return { ok: true };
 }
 

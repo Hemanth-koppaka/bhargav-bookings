@@ -67,6 +67,8 @@ export type NewBooking = {
   notifyConsent?: boolean;
   /** Site the guest booked on, for the "Manage your booking" link. */
   siteOrigin?: string;
+  /** "any" (default) or a stylist id chosen by the guest. */
+  staffChoice?: string;
 };
 
 /**
@@ -84,6 +86,8 @@ export async function insertBooking(
       price: number;
       minutes: number;
       services: { name: string; price: number; minutes: number }[];
+      staffId: string | null;
+      staffName: string | null;
     }
   | { ok: false; error: string }
 > {
@@ -104,7 +108,9 @@ export async function insertBooking(
       ok: false,
       error: "One of the selected services is no longer offered. Please choose again.",
     };
-  const check = await E.checkTime(b.date, b.time, q, rules, { staff: options.staff });
+  const choice = b.staffChoice && b.staffChoice !== "any" ? b.staffChoice : "any";
+  const checkOpts = { staff: options.staff, serviceIds: b.serviceIds, choice };
+  let check = await E.checkTime(b.date, b.time, q, rules, checkOpts);
   if (!check.ok) return check;
 
   const { reference, bookingNo } = await nextReference(sb);
@@ -139,12 +145,24 @@ export async function insertBooking(
     notify_consent_at: b.notifyConsent ? new Date().toISOString() : null,
     site_origin: b.siteOrigin ?? "",
   };
-  let { error } = await sb.from("bookings").insert({ ...extended, ...notifyCols } as never);
-  if (error && !E.isSlotTaken(error) && /column/i.test(error.message)) {
-    ({ error } = await sb.from("bookings").insert(extended as never)); // notifications migration not applied yet
-  }
-  if (error && !E.isSlotTaken(error) && /column/i.test(error.message)) {
-    ({ error } = await sb.from("bookings").insert(row as never)); // migration not applied yet
+  const insert = async (staffId: string | null | undefined) => {
+    // newest columns first; older shapes if a migration isn't applied yet
+    const staffCols = staffId !== undefined ? { staff_id: staffId, staff_choice: choice === "any" ? "any" : "specific" } : {};
+    let r = await sb.from("bookings").insert({ ...extended, ...notifyCols, ...staffCols } as never);
+    if (r.error && !E.isSlotTaken(r.error) && /column/i.test(r.error.message)) r = await sb.from("bookings").insert({ ...extended, ...notifyCols } as never);
+    if (r.error && !E.isSlotTaken(r.error) && /column/i.test(r.error.message)) r = await sb.from("bookings").insert(extended as never);
+    if (r.error && !E.isSlotTaken(r.error) && /column/i.test(r.error.message)) r = await sb.from("bookings").insert(row as never);
+    return r.error;
+  };
+  let error = await insert(check.staffId);
+  // "any available": if that stylist was taken a moment ago, try the next free one
+  const tried: string[] = [];
+  for (let n = 0; error && E.isSlotTaken(error) && choice === "any" && check.ok && check.staffId && n < 3; n++) {
+    tried.push(check.staffId);
+    const again = await E.checkTime(b.date, b.time, q, rules, { ...checkOpts, exclude: tried });
+    if (!again.ok || !again.staffId) break;
+    check = again;
+    error = await insert(check.staffId);
   }
   if (error) {
     if (photoLib) await photoLib.deleteBookingPhotos(reference).catch(() => {});
@@ -164,12 +182,20 @@ export async function insertBooking(
         () => undefined,
       );
   }
+  const staffId = check.ok ? (check.staffId ?? null) : null;
+  let staffName: string | null = null;
+  if (staffId) {
+    const { data: st } = await sb.from("staff" as never).select("name").eq("id", staffId).maybeSingle();
+    staffName = ((st as { name?: string } | null)?.name as string) ?? null;
+  }
   return {
     ok: true,
     reference,
     price: q.price,
     minutes: q.minutes,
     services: q.snapshot.map((x) => ({ name: x.name, price: x.price, minutes: x.minutes })),
+    staffId,
+    staffName,
   };
 }
 

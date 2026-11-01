@@ -380,6 +380,7 @@ export const fromISO = (iso: string) => {
 
 const DAY_INDEX = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const isClosed = (iso: string) => {
+  if (closureOn(iso)) return true;
   const ex = EXCEPTIONS[iso];
   if (ex) return ex.closed;
   const name = DAY_INDEX[fromISO(iso).getDay()];
@@ -484,7 +485,25 @@ export type SalonConfig = {
   womenMenu?: Category[];
   /** Published site wording (see site-content.ts). */
   content?: unknown;
+  /** Stylists guests can choose. */
+  stylists?: Stylist[];
+  /** Whole-day salon closures (end null = until reopened). */
+  closures?: Closure[];
 };
+
+export type Stylist = { id: string; name: string; gender: string; specialties: string; services: string[] };
+export type Closure = { start: string; end: string | null; reason: string };
+
+/** Live stylist list and closures (filled by applyConfig). */
+export const STYLISTS: Stylist[] = [];
+export const CLOSURES: Closure[] = [];
+
+/** The salon closure covering a date, if any. */
+export const closureOn = (iso: string) => CLOSURES.find((c) => c.start <= iso && (!c.end || c.end >= iso)) ?? null;
+
+/** Stylists who can do every one of these services. */
+export const stylistsFor = (serviceIds: string[]) =>
+  STYLISTS.filter((s) => serviceIds.every((id) => s.services.includes(id)));
 
 const DEFAULTS = {
   business: structuredClone(BUSINESS),
@@ -505,6 +524,8 @@ export function defaultConfig(): Required<SalonConfig> {
     menMenu: structuredClone(DEFAULTS.men),
     womenMenu: structuredClone(DEFAULTS.women),
     content: null,
+    stylists: [],
+    closures: [],
   };
 }
 
@@ -544,4 +565,6 @@ export function applyConfig(cfg: SalonConfig | null | undefined) {
   ACCEPTING_BOOKINGS = full.accepting;
   MAX_ADVANCE_DAYS = full.maxAdvanceDays;
   applyContent(full.content);
+  replaceArray(STYLISTS, full.stylists);
+  replaceArray(CLOSURES, full.closures);
 }

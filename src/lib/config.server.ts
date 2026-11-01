@@ -112,6 +112,31 @@ export async function loadConfig() {
       };
     });
   }
+  // stylists guests can choose (multi-stylist) and whole-day salon closures
+  const [st, ss, cl] = await Promise.all([
+    sb.from("staff" as never).select("id, name, gender, specialties, bookable, active, archived_at, display_order").order("display_order"),
+    sb.from("staff_services" as never).select("staff_id, service_id"),
+    sb.from("salon_closures" as never).select("start_date, end_date, start_minute, reason, reopened_at"),
+  ]);
+  if (!st.error) {
+    const can = new Map<string, string[]>();
+    for (const r of (ss.data ?? []) as { staff_id: string; service_id: string }[])
+      can.set(r.staff_id, [...(can.get(r.staff_id) ?? []), r.service_id]);
+    config["stylists"] = ((st.data ?? []) as Record<string, unknown>[])
+      .filter((r) => r["active"] && r["bookable"] && !r["archived_at"])
+      .map((r) => ({
+        id: r["id"],
+        name: r["name"],
+        gender: r["gender"] ?? "",
+        specialties: r["specialties"] ?? "",
+        services: can.get(r["id"] as string) ?? [],
+      }));
+  }
+  if (!cl.error) {
+    config["closures"] = ((cl.data ?? []) as Record<string, unknown>[])
+      .filter((r) => !r["reopened_at"] && r["start_minute"] == null && (!r["end_date"] || (r["end_date"] as string) >= today))
+      .map((r) => ({ start: r["start_date"], end: r["end_date"] ?? null, reason: r["reason"] ?? "" }));
+  }
   const men = menu("men");
   const women = menu("women");
   if (men.length) config["menMenu"] = men;

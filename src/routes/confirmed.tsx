@@ -322,6 +322,7 @@ function ConfirmedScreen() {
                   <div className="my-6 h-px bg-gradient-to-r from-[#C9A96A]/40 via-[#C9A96A]/15 to-transparent" />
                   <dl className="space-y-4">
                     <Row label="Service" value={serviceLine} />
+                    {booking.stylist ? <Row label="Stylist" value={booking.stylist} /> : null}
                     <Row label="Guest" value={booking.customer.name} />
                     <Row label="Studio" value="Hair by Bhargav" sub={BUSINESS.address} />
                   </dl>

@@ -67,3 +67,84 @@ export function isBookable(i: AvailabilityInput, minute: number) {
 /** Times that fall entirely inside a break are hidden from guests (shown as a divider instead). */
 export const insideBreak = (plan: DayPlan, minute: number) =>
   plan.breaks.some((b) => minute >= b.start && minute < b.end);
+
+/* ── Multi-stylist availability ─────────────────────────────────────────
+ * A time is bookable when the salon is open AND at least one eligible
+ * stylist (or the chosen stylist) is free for the WHOLE service: working,
+ * not on a break, not blocked, and with no overlapping appointment. One
+ * stylist being booked never blocks the others. */
+
+export type StaffDay = {
+  id: string;
+  name: string;
+  /** Working window that day (stylists not working that day are left out). */
+  start: number;
+  end: number;
+  breaks: Range[]; // their breaks (lunch etc.)
+  blocks: Range[]; // temporary unavailability
+  busy: Range[]; // their active appointments (incl. buffers)
+};
+
+export type StaffSlot = Slot & { staff: string[] };
+
+export type StaffAvailabilityInput = Omit<AvailabilityInput, "busy"> & {
+  /** Eligible stylists for the chosen services who work that day. */
+  staff: StaffDay[];
+  /** "any" or a stylist id (only that stylist is considered). */
+  choice: "any" | string;
+  /** A service may start before the stylist's day ends and run past it. */
+  allowOverrun?: boolean;
+};
+
+/** Why one stylist can't take a start time (null = free for the whole service). */
+export function staffReason(
+  s: StaffDay,
+  m: number,
+  serviceEnd: number,
+  heldEnd: number,
+  allowOverrun: boolean,
+): SlotReason | null {
+  if (m < s.start || m >= s.end || (!allowOverrun && serviceEnd > s.end)) return "closing";
+  if (s.breaks.some((b) => overlaps(b, m, serviceEnd))) return "break";
+  if (s.blocks.some((b) => overlaps(b, m, heldEnd))) return "blocked";
+  if (s.busy.some((b) => overlaps(b, m, heldEnd))) return "booked";
+  return null;
+}
+
+export function computeStaffSlots(i: StaffAvailabilityInput): StaffSlot[] {
+  const { plan } = i;
+  if (plan.closed || plan.close <= plan.open || i.interval <= 0) return [];
+  const allowOverrun = i.allowOverrun ?? true;
+  const pool = i.choice === "any" ? i.staff : i.staff.filter((s) => s.id === i.choice);
+  const out: StaffSlot[] = [];
+  const need = Math.max(1, i.duration);
+  for (let m = plan.open; m < plan.close; m += i.interval) {
+    const serviceEnd = m + need;
+    const heldEnd = serviceEnd + Math.max(0, i.buffer);
+    let reason: SlotReason | null = null;
+    // salon-wide first: these block every stylist
+    if (i.now != null && m < i.now) reason = "past";
+    else if (i.now != null && m < i.now + i.notice) reason = "notice";
+    else if (plan.breaks.some((b) => overlaps(b, m, serviceEnd))) reason = "break";
+    else if (plan.blocks.some((b) => overlaps(b, m, heldEnd))) reason = "blocked";
+    else if (!allowOverrun && serviceEnd > plan.close) reason = "closing";
+    if (reason) {
+      out.push({ minute: m, available: false, reason, staff: [] });
+      continue;
+    }
+    const free: string[] = [];
+    const why: SlotReason[] = [];
+    for (const s of pool) {
+      const r = staffReason(s, m, serviceEnd, heldEnd, allowOverrun);
+      if (r === null) free.push(s.id);
+      else why.push(r);
+    }
+    if (free.length) out.push({ minute: m, available: true, reason: null, staff: free });
+    else {
+      // the most useful explanation: booked > break > blocked > not working
+      const r = (["booked", "break", "blocked", "closing"] as const).find((x) => why.includes(x)) ?? "closing";
+      out.push({ minute: m, available: false, reason: pool.length ? r : "closing", staff: [] });
+    }
+  }
+  return out;
+}

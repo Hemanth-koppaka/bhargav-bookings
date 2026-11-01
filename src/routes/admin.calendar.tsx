@@ -56,7 +56,7 @@ function CalendarScreen() {
   const [view, setView] = useState<View>("day");
   const [date, setDate] = useState(salonToday());
   const [drawer, setDrawer] = useState<string | null>(null);
-  const [newAt, setNewAt] = useState<{ date: string; time: number | null } | null>(null);
+  const [newAt, setNewAt] = useState<{ date: string; time: number | null; staffId?: string | undefined } | null>(null);
   const [blockOpen, setBlockOpen] = useState(false);
   const [version, setVersion] = useState(0);
   const refresh = () => setVersion((v) => v + 1);
@@ -121,7 +121,7 @@ function CalendarScreen() {
       </div>
 
       {view === "day" ? (
-        <DayView key={`${date}-${version}`} date={date} onOpen={setDrawer} onBook={(t) => setNewAt({ date, time: t })} onChanged={refresh} />
+        <DayView key={`${date}-${version}`} date={date} onOpen={setDrawer} onBook={(t, staffId) => setNewAt({ date, time: t, staffId })} onChanged={refresh} />
       ) : view === "week" ? (
         <WeekView
           key={`${weekStart(date)}-${version}`}
@@ -149,6 +149,7 @@ function CalendarScreen() {
         onOpenChange={(o) => !o && setNewAt(null)}
         initialDate={newAt?.date ?? date}
         initialTime={newAt?.time ?? null}
+        initialStaffId={newAt?.staffId}
         onCreated={refresh}
       />
       <BlockTimeDialog open={blockOpen} onOpenChange={setBlockOpen} initialDate={date} onSaved={refresh} />
@@ -168,7 +169,7 @@ function DayView({
 }: {
   date: string;
   onOpen: (ref: string) => void;
-  onBook: (time: number) => void;
+  onBook: (time: number, staffId?: string) => void;
   onChanged: () => void;
 }) {
   const { pin } = useAdmin();
@@ -231,9 +232,38 @@ function DayView({
     }
   };
 
+  // one column per stylist (and one for any booking without a stylist)
+  type Col = { id: string; staffId: string | undefined; name: string; note: string; off: { start: number; end: number }[]; breaks: { start: number; end: number; label?: string }[]; blocks: { start: number; end: number; label?: string }[]; bookings: AdminBooking[] };
+  const team = data.team ?? [];
+  const columns: Col[] = team.length
+    ? team.map((t) => ({
+        id: t.id,
+        staffId: t.id,
+        name: t.name,
+        note: t.working && t.start != null && t.end != null ? `${minuteLabel(t.start)}–${minuteLabel(t.end)}` : "Off today",
+        off: !t.working || t.start == null || t.end == null ? [{ start, end }] : [...(t.start > start ? [{ start, end: t.start }] : []), ...(t.end < end ? [{ start: t.end, end }] : [])],
+        breaks: t.breaks,
+        blocks: t.blocks,
+        bookings: visible.filter((b) => b.staffId === t.id),
+      }))
+    : [{ id: "all", staffId: undefined, name: "", note: "", off: [], breaks: [], blocks: [], bookings: visible }];
+  const orphans = team.length ? visible.filter((b) => !b.staffId || !team.some((t) => t.id === b.staffId)) : [];
+  if (orphans.length) columns.push({ id: "none", staffId: undefined, name: "No stylist", note: "Assign from the booking", off: [], breaks: [], blocks: [], bookings: orphans });
+
   return (
     <>
-      <div className="overflow-hidden rounded-md border border-hairline bg-card">
+      <div className="overflow-x-auto rounded-md border border-hairline bg-card">
+        {team.length ? (
+          <div className="sticky top-0 z-30 flex border-b border-hairline bg-card">
+            <div className="w-16 shrink-0" />
+            {columns.map((c) => (
+              <div key={c.id} className="min-w-[9rem] flex-1 border-l border-hairline px-3 py-2 first:border-l-0">
+                <div className="truncate text-[0.88rem] font-medium">{c.name}</div>
+                <div className="text-[0.7rem] text-muted-foreground">{c.note} · {c.bookings.length} booked</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="relative flex" style={{ height }}>
           {/* hour rail */}
           <div className="relative w-16 shrink-0 border-r border-hairline">
@@ -243,79 +273,89 @@ function DayView({
               </span>
             ))}
           </div>
-          <div className="relative flex-1">
-            {hours.map((m) => (
-              <span key={m} className="absolute inset-x-0 border-t border-hairline" style={{ top: y(m) }} />
-            ))}
-            {/* empty time: click to book there */}
-            <button
-              aria-label="Book a time"
-              className="absolute inset-0 cursor-copy"
-              onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                onBook(Math.max(start, snap(start + (e.clientY - r.top) / PX_PER_MIN - interval / 2)));
-              }}
-            />
-            {plan.breaks.map((r, i) => (
-              <div
-                key={`b${i}`}
-                className="pointer-events-none absolute inset-x-0 flex items-center justify-center bg-[repeating-linear-gradient(135deg,transparent_0_6px,rgb(0_0_0/0.035)_6px_12px)] text-[0.68rem] uppercase tracking-[0.2em] text-muted-foreground"
-                style={{ top: y(r.start), height: (r.end - r.start) * PX_PER_MIN }}
-              >
-                {r.label || "Break"}
-              </div>
-            ))}
-            {data.blocks.map((r) => (
-              <div
-                key={r.id}
-                className="pointer-events-none absolute inset-x-0 flex items-center justify-center bg-foreground/[0.06] text-[0.72rem] text-muted-foreground"
-                style={{ top: y(r.start), height: (r.end - r.start) * PX_PER_MIN }}
-              >
-                {r.kind === "break" ? r.reason || "Break" : `Blocked · ${r.reason || "Unavailable"}`}
-              </div>
-            ))}
-            {nowLine != null ? (
-              <div className="pointer-events-none absolute inset-x-0 z-20 flex items-center" style={{ top: y(nowLine) }}>
-                <span className="-ml-1 h-2 w-2 rounded-full bg-bronze" />
-                <span className="h-px flex-1 bg-bronze" />
-              </div>
-            ) : null}
-            {visible.map((b) => {
-              const dragging = drag?.ref === b.reference;
-              const top = y(b.time) + (dragging ? drag.dy : 0);
-              const ghost = dragging ? snap(b.time + drag.dy / PX_PER_MIN) : null;
-              return (
+          {columns.map((col) => (
+            <div key={col.id} className="relative min-w-[9rem] flex-1 border-l border-hairline first:border-l-0">
+              {hours.map((m) => (
+                <span key={m} className="absolute inset-x-0 border-t border-hairline" style={{ top: y(m) }} />
+              ))}
+              {/* empty time: click to book there (with this stylist) */}
+              <button
+                aria-label={`Book a time${col.staffId ? ` with ${col.name}` : ""}`}
+                className="absolute inset-0 cursor-copy"
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  onBook(Math.max(start, snap(start + (e.clientY - r.top) / PX_PER_MIN - interval / 2)), col.staffId);
+                }}
+              />
+              {/* outside this stylist's hours */}
+              {col.off.map((r, i) => (
+                <div key={`o${i}`} className="pointer-events-none absolute inset-x-0 bg-foreground/[0.05]" style={{ top: y(r.start), height: (r.end - r.start) * PX_PER_MIN }} />
+              ))}
+              {[...plan.breaks, ...col.breaks].map((r, i) => (
                 <div
-                  key={b.reference}
-                  onPointerDown={(e) => onDown(e, b)}
-                  onPointerMove={onMove}
-                  onPointerUp={() => (drag ? onUp(b) : onOpen(b.reference))}
-                  onPointerCancel={() => {
-                    origin.current = null;
-                    setDrag(null);
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => e.key === "Enter" && onOpen(b.reference)}
-                  className={cn(
-                    "absolute right-2 left-2 z-10 overflow-hidden rounded-md border px-3 py-1.5 text-left shadow-sm transition-shadow select-none",
-                    BLOCK_TONE[b.status],
-                    movable(b) ? "cursor-grab touch-none" : "cursor-pointer",
-                    dragging && "z-30 cursor-grabbing shadow-lg ring-2 ring-bronze/40",
-                  )}
-                  style={{ top, height: Math.max(26, b.minutes * PX_PER_MIN - 2) }}
+                  key={`b${i}`}
+                  className="pointer-events-none absolute inset-x-0 flex items-center justify-center bg-[repeating-linear-gradient(135deg,transparent_0_6px,rgb(0_0_0/0.035)_6px_12px)] text-[0.64rem] uppercase tracking-[0.18em] text-muted-foreground"
+                  style={{ top: y(r.start), height: (r.end - r.start) * PX_PER_MIN }}
                 >
-                  <div className="flex items-baseline justify-between gap-2 text-[0.82rem]">
-                    <span className="truncate font-medium">{b.customer.name}</span>
-                    <span className="shrink-0 tabular-nums opacity-70">
-                      {dragging && ghost != null ? `→ ${minuteLabel(ghost)}` : `${minuteLabel(b.time)} – ${minuteLabel(b.end)}`}
-                    </span>
-                  </div>
-                  {b.minutes >= 30 ? <div className="truncate text-[0.75rem] opacity-70">{b.services.map((s) => s.name).join(" · ")}</div> : null}
+                  {r.label || "Break"}
                 </div>
-              );
-            })}
-          </div>
+              ))}
+              {[
+                ...data.blocks.map((r) => ({ start: r.start, end: r.end, label: r.kind === "break" ? r.reason || "Break" : `Blocked · ${r.reason || "Unavailable"}` })),
+                ...plan.blocks.filter((r) => !data.blocks.some((x) => x.start === r.start && x.end === r.end)).map((r) => ({ start: r.start, end: r.end, label: r.label || "Closed" })),
+                ...col.blocks.map((r) => ({ start: r.start, end: r.end, label: r.label || "Unavailable" })),
+              ].map((r, i) => (
+                <div
+                  key={`k${i}`}
+                  className="pointer-events-none absolute inset-x-0 flex items-center justify-center bg-foreground/[0.07] px-1 text-center text-[0.68rem] text-muted-foreground"
+                  style={{ top: y(r.start), height: (r.end - r.start) * PX_PER_MIN }}
+                >
+                  {r.label}
+                </div>
+              ))}
+              {nowLine != null ? (
+                <div className="pointer-events-none absolute inset-x-0 z-20 flex items-center" style={{ top: y(nowLine) }}>
+                  <span className="-ml-1 h-2 w-2 rounded-full bg-bronze" />
+                  <span className="h-px flex-1 bg-bronze" />
+                </div>
+              ) : null}
+              {col.bookings.map((b) => {
+                const dragging = drag?.ref === b.reference;
+                const top = y(b.time) + (dragging ? drag.dy : 0);
+                const ghost = dragging ? snap(b.time + drag.dy / PX_PER_MIN) : null;
+                return (
+                  <div
+                    key={b.reference}
+                    onPointerDown={(e) => onDown(e, b)}
+                    onPointerMove={onMove}
+                    onPointerUp={() => (drag ? onUp(b) : onOpen(b.reference))}
+                    onPointerCancel={() => {
+                      origin.current = null;
+                      setDrag(null);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === "Enter" && onOpen(b.reference)}
+                    className={cn(
+                      "absolute right-1.5 left-1.5 z-10 overflow-hidden rounded-md border px-2.5 py-1.5 text-left shadow-sm transition-shadow select-none",
+                      BLOCK_TONE[b.status],
+                      movable(b) ? "cursor-grab touch-none" : "cursor-pointer",
+                      dragging && "z-30 cursor-grabbing shadow-lg ring-2 ring-bronze/40",
+                    )}
+                    style={{ top, height: Math.max(26, b.minutes * PX_PER_MIN - 2) }}
+                  >
+                    <div className="flex items-baseline justify-between gap-2 text-[0.8rem]">
+                      <span className="truncate font-medium">{b.customer.name}</span>
+                      <span className="shrink-0 tabular-nums opacity-70">
+                        {dragging && ghost != null ? `→ ${minuteLabel(ghost)}` : minuteLabel(b.time)}
+                      </span>
+                    </div>
+                    {b.minutes >= 30 ? <div className="truncate text-[0.72rem] opacity-70">{b.services.map((s) => s.name).join(" · ")}</div> : null}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
       <p className="mt-2 text-[0.75rem] text-muted-foreground">
