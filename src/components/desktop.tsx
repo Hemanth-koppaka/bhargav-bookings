@@ -11,7 +11,8 @@ import { ScissorsLine, useRewindBack } from "@/components/scissors-line";
 export const STEPS = ["Who", "Services", "Time", "Details", "Confirm"] as const;
 
 export const AUDIENCE_IMAGE: Record<Audience, { src: string; pos: string }> = {
-  men: { src: "/team/bhargav.webp", pos: "50% 18%" },
+  // top-aligned so the head is never cropped, whatever the panel's shape
+  men: { src: "/team/bhargav.webp", pos: "50% 0%" },
   women: { src: "/services/women-panel.webp", pos: "50% 20%" },
 };
 
@@ -206,6 +207,33 @@ export function DesktopCTA({
 }
 
 /** Dark editorial image panel used on the right of several steps. */
+/** Shown while Bhargav's Signature is chosen: the HB mark on warm ivory, no photo. */
+export function SignaturePanel({ mark, className }: { mark: string; className?: string }) {
+  return (
+    <aside
+      className={cn(
+        "relative flex flex-col overflow-hidden bg-[radial-gradient(120%_80%_at_50%_35%,#fbf7f0_0%,#efe5d6_60%,#e4d6c2_100%)] text-ink",
+        className,
+      )}
+    >
+      <div className="soft-fade flex flex-1 items-center justify-center px-10">
+        <img src={mark} alt="Hair by Bhargav" className="photo-pop w-[58%] max-w-[18rem] object-contain drop-shadow-[0_18px_30px_rgba(60,40,20,0.18)]" />
+      </div>
+      <div className="stagger p-10 xl:p-12">
+        <div className="text-[0.7rem] uppercase tracking-[0.32em] text-bronze">Bhargav's Signature</div>
+        <div className="mt-4 font-display text-[clamp(2.6rem,4vw,3.75rem)] leading-[1.02]">
+          Styled by
+          <br />
+          <span className="italic text-bronze">Bhargav</span>.
+        </div>
+        <div className="mt-5 max-w-xs text-[0.7rem] uppercase leading-loose tracking-[0.3em] text-ink/70">
+          Consultation, cut, beard, wash and styling.
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 export function ImagePanel({
   src,
   pos = "50% 30%",
@@ -228,7 +256,7 @@ export function ImagePanel({
         <img
           src={src}
           alt=""
-          className="absolute inset-0 h-full w-full object-cover opacity-80 cine-drift"
+          className="absolute inset-0 h-full w-full object-cover opacity-80 cine-drift-top"
           style={{ objectPosition: pos }}
           decoding="async"
         />

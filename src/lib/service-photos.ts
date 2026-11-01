@@ -64,8 +64,22 @@ const CATEGORY_ICONS: Record<string, string> = {
 const catKey = (title: string) => key("", title).slice(1);
 
 export const builtInCategoryIcon = (title: string) => CATEGORY_ICONS[catKey(title)] ?? I("cat-other");
+/** Icons for families of services, matched by how the name starts. */
+const PREFIX_ICONS: [RegExp, (audience: string) => string][] = [
+  [/^threading\b/i, () => I("svc-facial-hair")],
+  [/^waxing\b/i, () => I("svc-waxing")],
+  [/^straightening|^smoothening/i, () => I("svc-straightening")],
+  [/^keratin|^botox/i, () => I("svc-keratin")],
+  [/^treatment\b/i, (a) => I(a === "women" ? "svc-treatment-women" : "svc-treatment-men")],
+];
+
 export const builtInServiceIcon = (audience: string, name: string, categoryTitle?: string) =>
-  SERVICE_ICONS[key(audience, name)] ?? (categoryTitle ? builtInCategoryIcon(categoryTitle) : undefined);
+  SERVICE_ICONS[key(audience, name)] ??
+  PREFIX_ICONS.find(([re]) => re.test(name.trim()))?.[1](audience) ??
+  (categoryTitle ? builtInCategoryIcon(categoryTitle) : undefined);
+
+/** Bhargav's Signature mark (HB crown), used for the Signature panel. */
+export const SIGNATURE_MARK = I("svc-signature");
 
 /** Bhargav's portrait (also used wherever the founder is shown on a booking). */
 export const BHARGAV_PORTRAIT = "/team/bhargav-portrait.webp";
