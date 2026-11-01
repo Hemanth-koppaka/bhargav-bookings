@@ -60,6 +60,8 @@ export interface NotificationProvider {
 
 export async function getProvider(name: string): Promise<NotificationProvider> {
   switch (name) {
+    case "meta":
+      return (await import("./meta.server")).meta;
     case "msg91":
     default:
       return (await import("./msg91.server")).msg91;

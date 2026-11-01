@@ -40,6 +40,7 @@ import { Route as AdminSystemRouteImport } from './routes/admin.system'
 import { Route as ApiPhotoSweepRouteImport } from './routes/api/photo-sweep'
 import { Route as ApiNotificationsDispatchRouteImport } from './routes/api/notifications/dispatch'
 import { Route as ApiNotificationsWebhookRouteImport } from './routes/api/notifications/webhook'
+import { Route as ApiNotificationsWhatsappRouteImport } from './routes/api/notifications/whatsapp'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -197,6 +198,12 @@ const ApiNotificationsWebhookRoute = ApiNotificationsWebhookRouteImport.update({
   path: '/api/notifications/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiNotificationsWhatsappRoute =
+  ApiNotificationsWhatsappRouteImport.update({
+    id: '/api/notifications/whatsapp',
+    path: '/api/notifications/whatsapp',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -230,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/api/notifications/dispatch': typeof ApiNotificationsDispatchRoute
   '/api/notifications/webhook': typeof ApiNotificationsWebhookRoute
+  '/api/notifications/whatsapp': typeof ApiNotificationsWhatsappRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -262,6 +270,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/api/notifications/dispatch': typeof ApiNotificationsDispatchRoute
   '/api/notifications/webhook': typeof ApiNotificationsWebhookRoute
+  '/api/notifications/whatsapp': typeof ApiNotificationsWhatsappRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -296,6 +305,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/api/notifications/dispatch': typeof ApiNotificationsDispatchRoute
   '/api/notifications/webhook': typeof ApiNotificationsWebhookRoute
+  '/api/notifications/whatsapp': typeof ApiNotificationsWhatsappRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/api/notifications/dispatch'
     | '/api/notifications/webhook'
+    | '/api/notifications/whatsapp'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -363,6 +374,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/api/notifications/dispatch'
     | '/api/notifications/webhook'
+    | '/api/notifications/whatsapp'
   id:
     | '__root__'
     | '/'
@@ -396,6 +408,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/api/notifications/dispatch'
     | '/api/notifications/webhook'
+    | '/api/notifications/whatsapp'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -416,6 +429,7 @@ export interface RootRouteChildren {
   ApiPhotoSweepRoute: typeof ApiPhotoSweepRoute
   ApiNotificationsDispatchRoute: typeof ApiNotificationsDispatchRoute
   ApiNotificationsWebhookRoute: typeof ApiNotificationsWebhookRoute
+  ApiNotificationsWhatsappRoute: typeof ApiNotificationsWhatsappRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -637,6 +651,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiNotificationsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/notifications/whatsapp': {
+      id: '/api/notifications/whatsapp'
+      path: '/api/notifications/whatsapp'
+      fullPath: '/api/notifications/whatsapp'
+      preLoaderRoute: typeof ApiNotificationsWhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -694,6 +715,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPhotoSweepRoute: ApiPhotoSweepRoute,
   ApiNotificationsDispatchRoute: ApiNotificationsDispatchRoute,
   ApiNotificationsWebhookRoute: ApiNotificationsWebhookRoute,
+  ApiNotificationsWhatsappRoute: ApiNotificationsWhatsappRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

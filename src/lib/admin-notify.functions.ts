@@ -104,10 +104,14 @@ export const adminNotifySettings = createServerFn({ method: "POST" })
       settingsJson: JSON.stringify(s),
       status: {
         provider: st.provider,
+        providerKey: s.provider,
         connected: st.connected,
         whatsapp: st.whatsapp,
         sms: st.sms,
-        webhookSecret: Boolean(process.env["MSG91_WEBHOOK_SECRET"]),
+        webhookSecret:
+          s.provider === "meta"
+            ? Boolean(process.env["WHATSAPP_APP_SECRET"] && process.env["WHATSAPP_VERIFY_TOKEN"])
+            : Boolean(process.env["MSG91_WEBHOOK_SECRET"]),
         cronSecret: Boolean(process.env["LOVABLE_CRON_SECRET"]),
         email: (await import("./notify/email.server")).emailStatus(s.email),
       },
@@ -123,7 +127,7 @@ const phone = z
   .refine((p) => p === "" || isE164(p), "Enter a valid mobile number, e.g. +91 98765 43210");
 
 const settingsInput = z.object({
-  provider: z.enum(["msg91"]),
+  provider: z.enum(["msg91", "meta"]),
   customerWhatsapp: z.boolean(),
   customerSms: z.boolean(),
   adminWhatsapp: z.boolean(),

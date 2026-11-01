@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CinematicKit } from "@/components/cinematic-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Copy, Download, MapPin, MessageCircle } from "lucide-react";
+import { Check, ChevronDown, Copy, Download, MapPin, MessageCircle } from "lucide-react";
 import { guestToSalonText, waLink } from "@/lib/whatsapp-link";
 import { AddToCalendar } from "@/components/add-to-calendar";
 import { sfx } from "@/lib/sfx";
+import { prettyPhone } from "@/components/desktop";
 import { LogoReveal } from "@/components/motion";
 import { useBooking, servicesOf, type Booking } from "@/lib/booking-store";
 import { BUSINESS, formatDuration, formatLongDate, fromISO, minuteLabel } from "@/lib/salon";
@@ -42,14 +43,17 @@ function loadImage(src: string) {
   });
 }
 
-async function saveConfirmationImage(booking: Booking, serviceLine: string) {
+/** Draws the confirmation card and returns it as a PNG (null if the browser can't). */
+async function renderConfirmationImage(booking: Booking, serviceLine: string): Promise<Blob | null> {
+  // the card's typefaces must be ready, or the canvas falls back to defaults
+  await document.fonts?.ready.catch(() => {});
   const W = 1080;
   const H = 1350;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return null;
 
   ctx.fillStyle = "#0B0B0B";
   ctx.fillRect(0, 0, W, H);
@@ -130,14 +134,49 @@ async function saveConfirmationImage(booking: Booking, serviceLine: string) {
   ctx.font = "300 34px 'Cormorant Garamond', Georgia, serif";
   ctx.fillText("— Bhargav", W / 2, H - 130);
 
-  const blob: Blob | null = await new Promise((r) => canvas.toBlob(r, "image/png"));
-  if (!blob) return;
+  try {
+    return await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+  } catch {
+    return null; // e.g. a tainted canvas
+  }
+}
+
+const framed = () => {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+};
+
+/**
+ * Phones: the share sheet ("Save Image" puts it in Photos).
+ * Computers: a normal download. If neither is possible (or we're inside a
+ * preview frame that blocks downloads), the card opens on screen to save by hand.
+ */
+async function deliverImage(blob: Blob, name: string): Promise<"shared" | "downloaded" | "manual" | "cancelled"> {
+  const file = new File([blob], name, { type: "image/png" });
+  const touch = window.matchMedia?.("(pointer: coarse)").matches;
+  if (touch && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: "Hair by Bhargav: booking confirmed" });
+      return "shared";
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return "cancelled";
+      // otherwise fall through to download / manual
+    }
+  }
+  if (framed()) return "manual";
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `hair-by-bhargav-${booking.reference}.png`;
+  a.download = name;
+  a.rel = "noopener";
+  document.body.appendChild(a); // Firefox and Safari need it in the page
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000); // Safari reads it after click
+  return "downloaded";
 }
 
 /* ── screen ──────────────────────────────────────────────── */
@@ -194,8 +233,75 @@ function ConfirmedScreen() {
 
   const [copied, setCopied] = useState(false);
 
-  const onSave = useCallback(() => {
-    if (booking) void saveConfirmationImage(booking, serviceLine);
+  // The card is drawn ahead of time, so a tap shares/downloads instantly
+  // (phones only allow the share sheet straight after the tap).
+  const card = useRef<Blob | null>(null);
+  const [preview, setPreview] = useState<{ url: string; note: string } | null>(null);
+  const [saveNote, setSaveNote] = useState("");
+  const [waNote, setWaNote] = useState("");
+
+  // If the actions (calendar, WhatsApp, save) sit below the fold, point to them:
+  // a small arrow that fades on scroll, when tapped, or after a few seconds.
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const [scrollHint, setScrollHint] = useState(false);
+  useEffect(() => {
+    if (stage < FINAL || film !== "off") return;
+    const el = actionsRef.current;
+    if (!el) return;
+    const below = () => el.getBoundingClientRect().top > window.innerHeight - 56;
+    const show = window.setTimeout(() => setScrollHint(below()), 900);
+    const hide = window.setTimeout(() => setScrollHint(false), 9000);
+    const onScroll = () => {
+      if (!below() || window.scrollY > 40) setScrollHint(false);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.clearTimeout(show);
+      window.clearTimeout(hide);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [stage, film, hydrated, Boolean(booking)]);
+  const toActions = () => {
+    setScrollHint(false);
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    actionsRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "end" });
+  };
+  useEffect(() => {
+    if (!booking || stage < FINAL) return;
+    let live = true;
+    void renderConfirmationImage(booking, serviceLine).then((b) => {
+      if (live) card.current = b;
+    });
+    return () => {
+      live = false;
+    };
+  }, [booking, serviceLine, stage]);
+  useEffect(() => () => {
+    if (preview) URL.revokeObjectURL(preview.url);
+  }, [preview]);
+
+  const onSave = useCallback(async () => {
+    if (!booking) return;
+    setSaveNote("");
+    const blob = card.current ?? (await renderConfirmationImage(booking, serviceLine));
+    if (!blob) {
+      sfx.error();
+      setSaveNote("Couldn't create the image on this browser. A screenshot works too.");
+      return;
+    }
+    card.current = blob;
+    const name = `hair-by-bhargav-${booking.reference}.png`;
+    const how = await deliverImage(blob, name);
+    if (how === "shared" || how === "cancelled") return;
+    if (how === "downloaded") {
+      sfx.calendarDone();
+      setSaveNote("Saved to your downloads.");
+      return;
+    }
+    setPreview({
+      url: URL.createObjectURL(blob),
+      note: "Press and hold the image (or right-click it) and choose Save Image.",
+    });
   }, [booking, serviceLine]);
 
   if (!hydrated) {
@@ -356,7 +462,7 @@ function ConfirmedScreen() {
           </div>
 
           {/* 5 — actions */}
-          <div className="mt-8 space-y-3" style={{ ...reveal(stage >= FINAL, 16, 900), pointerEvents: stage >= FINAL ? "auto" : "none" }}>
+          <div ref={actionsRef} className="mt-8 scroll-mb-6 space-y-3" style={{ ...reveal(stage >= FINAL, 16, 900), pointerEvents: stage >= FINAL ? "auto" : "none" }}>
             {/* free reminders: the guest's own calendar app reminds them */}
             <AddToCalendar booking={booking} tone="dark" />
             {/* free: opens WhatsApp with the booking written out, to the salon's number */}
@@ -376,8 +482,25 @@ function ConfirmedScreen() {
                 }),
               )}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               data-sfx="contact"
+              onClick={(e) => {
+                setWaNote("");
+                // Inside an embedding frame (e.g. the editor preview) the browser blocks
+                // WhatsApp's page. Copy the message instead and say so; the live site opens WhatsApp.
+                if (!framed()) return;
+                e.preventDefault();
+                const msg = new URL(e.currentTarget.href).searchParams.get("text") ?? "";
+                setWaNote("WhatsApp can't open inside this preview window. On the live site this button opens WhatsApp directly.");
+                // copy the message too, so it can be pasted in WhatsApp by hand
+                void navigator.clipboard?.writeText(msg).then(
+                  () =>
+                    setWaNote(
+                      `WhatsApp can't open inside this preview window (it works on the live site). Your booking message is copied. Paste it in WhatsApp to ${prettyPhone(BUSINESS.phones[0] ?? "")}.`,
+                    ),
+                  () => {},
+                );
+              }}
               className="press flex min-h-13 w-full items-center justify-center gap-3 rounded-sm border border-[#E8E1D8]/28 px-6 text-[0.66rem] uppercase tracking-[0.2em] text-[#E8E1D8] hover:border-[#E8E1D8]/70"
             >
               <MessageCircle className="h-4 w-4" strokeWidth={1.25} />
@@ -385,7 +508,8 @@ function ConfirmedScreen() {
             </a>
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={onSave}
+                onClick={() => void onSave()}
+                data-sfx="secondary"
                 className="press flex min-h-13 items-center justify-center gap-2.5 rounded-sm border border-[#E8E1D8]/28 px-4 text-[0.66rem] uppercase tracking-[0.2em] text-[#E8E1D8] hover:border-[#E8E1D8]/70"
               >
                 <Download className="h-4 w-4" strokeWidth={1.25} />
@@ -401,6 +525,11 @@ function ConfirmedScreen() {
                 Directions
               </a>
             </div>
+            {saveNote || waNote ? (
+              <p role="status" className="text-center text-[0.78rem] leading-relaxed text-[#E8E1D8]/70">
+                {waNote || saveNote}
+              </p>
+            ) : null}
             <div className="flex items-center justify-center gap-6 pt-1">
               <Link
                 to="/manage"
@@ -418,6 +547,47 @@ function ConfirmedScreen() {
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        aria-hidden={!scrollHint}
+        tabIndex={scrollHint ? 0 : -1}
+        onClick={(e) => {
+          e.stopPropagation();
+          toActions();
+        }}
+        className={
+          "fixed inset-x-0 bottom-5 z-40 mx-auto flex w-max items-center gap-2 rounded-full border border-[#C9A96A]/40 bg-[#141210]/90 px-4 py-2.5 text-[0.62rem] uppercase tracking-[0.22em] text-[#E8E1D8] shadow-[0_12px_30px_-12px_rgba(0,0,0,0.8)] backdrop-blur transition-all duration-700 " +
+          (scrollHint ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0")
+        }
+      >
+        Calendar · WhatsApp · Save
+        <ChevronDown className="h-4 w-4 text-[#C9A96A] motion-safe:animate-bounce" strokeWidth={1.5} />
+      </button>
+
+      {preview ? (
+        <div
+          role="dialog"
+          aria-label="Your confirmation image"
+          className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-black/85 p-5"
+          onClick={() => setPreview(null)}
+        >
+          <img
+            src={preview.url}
+            alt="Hair by Bhargav booking confirmation"
+            className="max-h-[78svh] w-auto max-w-full rounded-sm shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <p className="max-w-sm text-center text-[0.82rem] text-[#E8E1D8]/80">{preview.note}</p>
+          <button
+            type="button"
+            onClick={() => setPreview(null)}
+            className="press rounded-sm border border-[#E8E1D8]/30 px-5 py-2 text-[0.66rem] uppercase tracking-[0.2em] text-[#E8E1D8]"
+          >
+            Close
+          </button>
+        </div>
+      ) : null}
 
       {film !== "off" ? (
         <div

@@ -198,7 +198,7 @@ function NotificationsScreen() {
           </Panel>
 
           <EmailSettings s={s} info={info} set={set} />
-          <ProviderSetup s={s} info={info} setCfg={setCfg} />
+          <ProviderSetup s={s} info={info} setCfg={setCfg} setProvider={(provider) => set({ provider })} />
           <TestPanel dirty={dirty} />
           <MessageLog />
         </div>
@@ -241,7 +241,12 @@ function ProviderStatus({ info }: { info: Info }) {
       text: st.connected ? `${st.provider} · Connected` : `${st.provider} · Not configured`,
       ...(st.connected
         ? {}
-        : { detail: "Add the MSG91_AUTH_KEY secret to the project (server secrets)." }),
+        : {
+            detail:
+              st.providerKey === "meta"
+                ? "Add the WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID secrets to the project (server secrets)."
+                : "Add the MSG91_AUTH_KEY secret to the project (server secrets).",
+          }),
     },
     {
       label: "WhatsApp",
@@ -261,7 +266,10 @@ function ProviderStatus({ info }: { info: Info }) {
       label: "Delivery reports",
       ok: st.webhookSecret,
       text: st.webhookSecret ? "Ready" : "Not configured",
-      detail: `In MSG91, set the delivery-report webhook to ${origin}/api/notifications/webhook?key=<MSG91_WEBHOOK_SECRET>`,
+      detail:
+        st.providerKey === "meta"
+          ? `In Meta (App → WhatsApp → Configuration), set the callback URL to ${origin}/api/notifications/whatsapp, use your WHATSAPP_VERIFY_TOKEN as the verify token, and subscribe to "messages". Add WHATSAPP_APP_SECRET so reports are verified.`
+          : `In MSG91, set the delivery-report webhook to ${origin}/api/notifications/webhook?key=<MSG91_WEBHOOK_SECRET>`,
     },
     {
       label: "Reminder schedule",
@@ -364,11 +372,14 @@ function ProviderSetup({
   s,
   info,
   setCfg,
+  setProvider,
 }: {
   s: NotifySettings;
   info: Info;
   setCfg: (p: Partial<NotifySettings["providerConfig"]>) => void;
+  setProvider: (p: string) => void;
 }) {
+  const isMeta = s.provider === "meta";
   const [open, setOpen] = useState<string | null>(null);
   const cfg = s.providerConfig;
   const setTemplate = (slot: string, channel: "whatsapp" | "sms", v: string) =>
@@ -380,13 +391,30 @@ function ProviderSetup({
     });
   return (
     <Panel>
-      <h2 className="font-display text-[1.35rem]">MSG91 setup</h2>
-      <p className="mt-1 text-[0.8rem] text-muted-foreground">
-        Not secret, so it lives here. The API key stays in the server secrets and is never shown in
-        the console.
+      <h2 className="font-display text-[1.35rem]">{isMeta ? "WhatsApp (Meta) setup" : "MSG91 setup"}</h2>
+      <Field
+        label="Provider"
+        hint={
+          isMeta
+            ? "Sends straight from your own WhatsApp Business number through Meta's WhatsApp Cloud API. WhatsApp only (no SMS). Meta charges per message."
+            : "MSG91 sends WhatsApp and DLT SMS for India. MSG91 charges per message."
+        }
+      >
+        <select
+          className={inputClass}
+          value={isMeta ? "meta" : "msg91"}
+          onChange={(e) => setProvider(e.target.value)}
+        >
+          <option value="meta">Meta WhatsApp Cloud API (direct)</option>
+          <option value="msg91">MSG91 (WhatsApp + SMS)</option>
+        </select>
+      </Field>
+      <p className="mt-2 text-[0.8rem] text-muted-foreground">
+        Not secret, so it lives here. The API keys stay in the server secrets and are never shown
+        in the console.
       </p>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        <Field label="WhatsApp sender number" hint="The business number connected in MSG91.">
+        <Field label="WhatsApp sender number" hint={isMeta ? "Your WhatsApp Business number (for reference)." : "The business number connected in MSG91."}>
           <input
             className={inputClass}
             value={cfg.whatsappNumber ?? ""}
@@ -403,22 +431,25 @@ function ProviderSetup({
             placeholder="en"
           />
         </Field>
-        <Field label="SMS variable name" hint="var → var1, var2… (match your DLT flow).">
-          <input
-            className={inputClass}
-            value={cfg.smsVarPrefix ?? ""}
-            onChange={(e) => setCfg({ smsVarPrefix: e.target.value })}
-            placeholder="var"
-          />
-        </Field>
+        {isMeta ? null : (
+          <Field label="SMS variable name" hint="var → var1, var2… (match your DLT flow).">
+            <input
+              className={inputClass}
+              value={cfg.smsVarPrefix ?? ""}
+              onChange={(e) => setCfg({ smsVarPrefix: e.target.value })}
+              placeholder="var"
+            />
+          </Field>
+        )}
       </div>
 
       <div className="mt-5 text-[0.62rem] uppercase tracking-[0.2em] text-muted-foreground">
         Templates
       </div>
       <p className="mt-1 text-[0.78rem] text-muted-foreground">
-        Register each template with MSG91 (WhatsApp templates need Meta approval; SMS needs a DLT
-        template). Use the variables in the order shown.
+        {isMeta
+          ? "Create each template in WhatsApp Manager (category: Utility) and type its exact name here once Meta approves it. Use the variables {{1}}, {{2}}… in the order shown."
+          : "Register each template with MSG91 (WhatsApp templates need Meta approval; SMS needs a DLT template). Use the variables in the order shown."}
       </p>
       <ul className="mt-2 divide-y divide-hairline rounded-md border border-hairline">
         {info.slots.map((t) => {
@@ -447,13 +478,15 @@ function ProviderSetup({
                   placeholder="WhatsApp template name"
                   aria-label={`${t.label} WhatsApp template`}
                 />
-                <input
-                  className={cn(inputClass, "py-2 text-[0.85rem]")}
-                  value={v.sms ?? ""}
-                  onChange={(e) => setTemplate(t.slot, "sms", e.target.value)}
-                  placeholder="SMS template id (DLT)"
-                  aria-label={`${t.label} SMS template`}
-                />
+                {isMeta ? null : (
+                  <input
+                    className={cn(inputClass, "py-2 text-[0.85rem]")}
+                    value={v.sms ?? ""}
+                    onChange={(e) => setTemplate(t.slot, "sms", e.target.value)}
+                    placeholder="SMS template id (DLT)"
+                    aria-label={`${t.label} SMS template`}
+                  />
+                )}
               </div>
               {isOpen ? (
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
