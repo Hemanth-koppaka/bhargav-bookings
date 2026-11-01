@@ -1,6 +1,6 @@
-// Built-in photos for services and categories (from the salon's own work).
-// Matched by audience + service name so they work with any database ids.
-// A photo uploaded in Admin → Menu always takes priority.
+// Built-in icons for services and categories (the salon's own icon set) and
+// Bhargav's portraits. Matched by audience + name so they work with any
+// database ids. A photo uploaded in Admin → Services always takes priority.
 
 const key = (audience: string, name: string) =>
   `${audience}:${name
@@ -9,28 +9,63 @@ const key = (audience: string, name: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim()}`;
 
-const SERVICES: Record<string, string> = {
-  [key("men", "Basic Haircut")]: "/services/men-haircut.webp",
-  [key("men", "Beard Trim")]: "/services/men-beard.webp",
-  [key("men", "Shave")]: "/services/men-shave.webp",
-  [key("men", "Bhargav's Signature")]: "/team/bhargav-portrait.webp",
-  [key("women", "Bhargav's Signature")]: "/team/bhargav-portrait.webp",
-  [key("men", "Kids (U-14)")]: "/services/men-kids.webp",
-  [key("men", "Kids")]: "/services/men-kids.webp",
-  [key("men", "Wash and Blast Dry")]: "/services/men-wash-blowdry.webp",
-  [key("men", "Highlights")]: "/services/men-highlights.webp",
-  [key("men", "Global Colour")]: "/services/men-global-colour.webp",
-  [key("women", "Highlights")]: "/services/women-highlights.webp",
+// The salon's own icon set (public/icons): one per service where the design has
+// one, otherwise the category's icon. Shown icon-only on the existing tiles.
+const I = (n: string) => `/icons/${n}.webp`;
+const SERVICE_ICONS: Record<string, string> = {
+  [key("men", "Basic Haircut")]: I("svc-basic-haircut"),
+  [key("men", "Beard Trim")]: I("svc-beard-trim"),
+  [key("men", "Shave")]: I("svc-shave"),
+  [key("men", "Bhargav's Signature")]: I("svc-signature"),
+  [key("men", "Kids (U-14)")]: I("svc-kids-boy"),
+  [key("men", "Kids")]: I("svc-kids-boy"),
+  [key("men", "Wash and Blast Dry")]: I("svc-wash-blast"),
+  [key("men", "Wash & Blast Dry")]: I("svc-wash-blast"),
+  [key("men", "Root Touchup (Ammonia)")]: I("svc-root-ammonia"),
+  [key("men", "Root Touchup (Ammonia Free)")]: I("svc-root-ammonia-free"),
+  [key("men", "Beard / Moustache Colour")]: I("svc-beard-colour"),
+  [key("men", "Highlights")]: I("svc-highlights"),
+  [key("men", "Global Colour")]: I("svc-global"),
+  [key("women", "Fringe Cut / Bangs")]: I("svc-fringe"),
+  [key("women", "Cut & Styling")]: I("svc-cut-styling"),
+  [key("women", "Bhargav's Signature")]: I("svc-signature-w"),
+  [key("women", "Blow Dry Straight")]: I("svc-blowdry-straight"),
+  [key("women", "Blow Dry Curls")]: I("svc-blowdry-curls"),
+  [key("women", "Ironing / Tonging")]: I("svc-ironing"),
+  [key("women", "Kids (U-14)")]: I("svc-kids-girl"),
+  [key("women", "Wash & Blast Dry")]: I("svc-wash-blast-w"),
+  [key("women", "Wash, Conditioning & Blow Dry")]: I("svc-wash-condition"),
+  [key("women", "Root Touchup (Ammonia)")]: I("svc-root-ammonia"),
+  [key("women", "Root Touchup (Ammonia Free)")]: I("svc-root-ammonia-free"),
+  [key("women", "Global (Ammonia)")]: I("svc-global"),
+  [key("women", "Global (Ammonia Free)")]: I("svc-global"),
+  [key("women", "Highlights")]: I("svc-highlights"),
+  [key("women", "Advance Colour")]: I("svc-advance-colour"),
 };
 
-// Categories use the line icons (as in the menu design); an admin-uploaded
-// photo still takes priority.
-const CATEGORIES: Record<string, string> = {};
+/** Category icons, matched by title (any audience). */
+const CATEGORY_ICONS: Record<string, string> = {
+  hairstyles: I("cat-hairstyles"),
+  colours: I("cat-colours"),
+  colors: I("cat-colours"),
+  "hair care": I("cat-hair-care"),
+  "hair treatments": I("cat-hair-treatments"),
+  "glow and radiance": I("cat-glow"),
+  "beauty services": I("cat-beauty"),
+  reflexology: I("cat-reflexology"),
+  maquillage: I("cat-makeup"),
+  makeup: I("cat-makeup"),
+  "pre bridal groom packages": I("cat-bridal"),
+  "pre bridal and groom packages": I("cat-bridal"),
+  kids: I("cat-kids"),
+  other: I("cat-other"),
+  "other services": I("cat-other"),
+};
+const catKey = (title: string) => key("", title).slice(1);
 
-export const builtInServicePhoto = (audience: string, name: string) =>
-  SERVICES[key(audience, name)];
-export const builtInCategoryPhoto = (audience: string, title: string) =>
-  CATEGORIES[key(audience, title)];
+export const builtInCategoryIcon = (title: string) => CATEGORY_ICONS[catKey(title)] ?? I("cat-other");
+export const builtInServiceIcon = (audience: string, name: string, categoryTitle?: string) =>
+  SERVICE_ICONS[key(audience, name)] ?? (categoryTitle ? builtInCategoryIcon(categoryTitle) : undefined);
 
 /** Bhargav's portrait (also used wherever the founder is shown on a booking). */
 export const BHARGAV_PORTRAIT = "/team/bhargav-portrait.webp";

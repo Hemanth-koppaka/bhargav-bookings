@@ -263,6 +263,7 @@ export function ServiceIconTile({
   active,
   size = "md",
   photo,
+  icon,
   framed,
   className,
 }: {
@@ -270,12 +271,29 @@ export function ServiceIconTile({
   active?: boolean | undefined;
   size?: "sm" | "md" | "lg" | "thumb";
   photo?: string | undefined;
+  /** The salon's own icon (transparent image), shown icon-only on the tile. */
+  icon?: string | undefined;
   /** Give icons the same footprint as photos, so mixed lists stay aligned. */
   framed?: boolean | undefined;
   className?: string;
 }) {
   const box =
     size === "sm" ? "h-14 w-14" : size === "lg" ? "h-24 w-32" : size === "thumb" ? "h-16 w-16" : "h-[4.5rem] w-24";
+  if (!photo && icon) {
+    return (
+      <span
+        className={cn(
+          "relative flex shrink-0 items-center justify-center overflow-hidden rounded-md transition-colors duration-300",
+          active ? "bg-[#f3ece1] ring-1 ring-ink/70" : "bg-champagne/16",
+          active && "photo-pop",
+          box,
+          className,
+        )}
+      >
+        <img src={icon} alt="" loading="lazy" decoding="async" className="h-[82%] w-[82%] object-contain" draggable={false} />
+      </span>
+    );
+  }
   if (!photo && framed) {
     return (
       <span

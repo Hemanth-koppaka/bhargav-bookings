@@ -111,7 +111,13 @@ function ServicesScreen() {
                           : "border-foreground/15 bg-card text-foreground/75 hover:border-foreground/40")
                       }
                     >
+                      {c.icon ? (
+                      <span className="-ml-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f3ece1]">
+                        <img src={c.icon} alt="" className="h-5 w-5 object-contain" />
+                      </span>
+                    ) : (
                       <ServiceGlyph kind={categoryKind(c.id)} active={on} className="h-4 w-4" />
+                    )}
                       {c.title}
                       {count > 0 ? (
                         <span
@@ -159,7 +165,7 @@ function ServicesScreen() {
                             : "border-foreground/8 bg-card/60 hover:border-foreground/25")
                         }
                       >
-                        <ServiceIconTile kind={serviceKind(x)} photo={x.photo} framed={listHasPhotos} active={on} size="sm" />
+                        <ServiceIconTile kind={serviceKind(x)} photo={x.photo} icon={x.icon} framed={listHasPhotos} active={on} size="sm" />
                         <span className="min-w-0 flex-1">
                           <span className="block text-[clamp(0.9rem,3.9vw,1rem)] leading-snug [text-wrap:balance]">{x.name}</span>
                           {x.category ? (
@@ -304,6 +310,7 @@ function DesktopServices({
                     <ServiceIconTile
                       kind={categoryKind(c.id)}
                       photo={c.photo}
+                      icon={c.icon}
                       active={on}
                       size="sm"
                       className={on ? "bg-background/10" : ""}
@@ -350,7 +357,13 @@ function DesktopServices({
                         : "border-foreground/12 bg-card text-foreground/80 hover:border-foreground/40")
                     }
                   >
-                    <ServiceGlyph kind={categoryKind(c.id)} active={on} className="h-[18px] w-[18px]" />
+                    {c.icon ? (
+                      <span className="-ml-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f3ece1]">
+                        <img src={c.icon} alt="" className="h-5 w-5 object-contain" />
+                      </span>
+                    ) : (
+                      <ServiceGlyph kind={categoryKind(c.id)} active={on} className="h-[18px] w-[18px]" />
+                    )}
                     {c.title}
                     {count > 0 ? (
                       <span
@@ -396,7 +409,7 @@ function DesktopServices({
                       (on ? "bg-champagne/16" : "hover:bg-foreground/[0.025]")
                     }
                   >
-                    <ServiceIconTile kind={serviceKind(x)} photo={x.photo} framed active={on} size="thumb" />
+                    <ServiceIconTile kind={serviceKind(x)} photo={x.photo} icon={x.icon} framed active={on} size="thumb" />
                     <span className="min-w-0 flex-1">
                       <span className="block font-display text-[1.3rem] leading-tight">{x.name}</span>
                       {x.category ? (
@@ -467,7 +480,7 @@ function DesktopServices({
 
       <DesktopBar>
         {selected[0] ? (
-          <ServiceIconTile key={selected[0].id} kind={serviceKind(selected[0])} photo={selected[0].photo} framed size="thumb" className="pop-in" />
+          <ServiceIconTile key={selected[0].id} kind={serviceKind(selected[0])} photo={selected[0].photo} icon={selected[0].icon} framed size="thumb" className="pop-in" />
         ) : (
           <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-foreground/12">
             <ShoppingBag className="h-6 w-6" strokeWidth={1.1} />
