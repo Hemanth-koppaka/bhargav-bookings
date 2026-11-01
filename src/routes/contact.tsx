@@ -68,6 +68,7 @@ function ContactScreen() {
             <a
               href={href}
               {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
+              data-sfx={href.startsWith("tel:") || href.includes("wa.me") ? "contact" : "secondary"}
               className="press group flex items-center gap-4 rounded-md border border-hairline bg-card p-4 hover:border-foreground/30 lg:p-5"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-champagne/18 text-bronze transition-colors duration-300 group-hover:bg-bronze group-hover:text-ivory">

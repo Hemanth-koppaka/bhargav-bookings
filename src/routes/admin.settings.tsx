@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AdminShell, Panel, TinyButton, inputClass } from "@/components/admin";
 import { useAdmin } from "@/lib/admin-store";
+import { SoundSettingsPanel } from "@/components/admin-sound";
 import { adminSaveBusinessHours } from "@/lib/salon.functions";
 import { BUSINESS, WEEK, type WeekDay } from "@/lib/salon";
 
@@ -395,6 +396,8 @@ function SettingsScreen() {
           ))}
         </div>
       </Panel>
+
+      <SoundSettingsPanel />
 
       <div className="mt-6">
         <TinyButton tone="danger" onClick={() => signOut()}>

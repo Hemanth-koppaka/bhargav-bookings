@@ -56,6 +56,7 @@ function BookEntry() {
                   haptic();
                   choose(o.key);
                 }}
+                data-sfx="primary"
                 className="press group relative min-h-[120px] w-full flex-1 overflow-hidden rounded-xl bg-ink text-left text-ivory shadow-[0_18px_36px_-24px_color-mix(in_oklab,var(--ink)_80%,transparent)]"
               >
                 <img
@@ -111,6 +112,8 @@ function DesktopBookEntry({ choose }: { choose: (a: Audience) => void }) {
             <button
               key={o.key}
               onClick={() => choose(o.key)}
+              data-sfx="primary"
+              data-sfx-hover=""
               className="press group relative overflow-hidden rounded-xl bg-ink text-left text-ivory transition-shadow duration-500 hover:shadow-[0_40px_80px_-40px_color-mix(in_oklab,var(--ink)_85%,transparent)] shadow-[0_24px_48px_-28px_color-mix(in_oklab,var(--ink)_70%,transparent)]"
             >
               <img

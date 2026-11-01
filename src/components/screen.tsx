@@ -108,6 +108,7 @@ export function PrimaryAction({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      data-sfx="primary"
       className="label-caps press sheen group flex min-h-14 w-full items-center justify-between gap-4 rounded-sm bg-foreground px-6 py-4.5 text-background hover:bg-foreground/88 disabled:cursor-not-allowed disabled:bg-foreground/25"
     >
       <span>{children}</span>

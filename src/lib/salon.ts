@@ -1,4 +1,6 @@
 import { applyContent } from "./site-content";
+import { sfx } from "./sfx/engine";
+import type { SoundSettings } from "./sfx/tokens";
 import { builtInCategoryIcon, builtInServiceIcon } from "./service-photos";
 
 // Business, menu and availability data for The Hair By Bhargav Unisex Salon.
@@ -489,6 +491,8 @@ export type SalonConfig = {
   stylists?: Stylist[];
   /** Whole-day salon closures (end null = until reopened). */
   closures?: Closure[];
+  /** Interface sound settings from the console. */
+  sound?: Partial<SoundSettings> | null;
 };
 
 export type Stylist = { id: string; name: string; gender: string; specialties: string; services: string[] };
@@ -526,6 +530,7 @@ export function defaultConfig(): Required<SalonConfig> {
     content: null,
     stylists: [],
     closures: [],
+    sound: null,
   };
 }
 
@@ -567,6 +572,7 @@ export function applyConfig(cfg: SalonConfig | null | undefined) {
   applyContent(full.content);
   replaceArray(STYLISTS, full.stylists);
   replaceArray(CLOSURES, full.closures);
+  sfx.applySalon(full.sound);
 }
 
 /** The 10-digit Indian mobile inside any typed form (+91…, 0…, spaces). */

@@ -6,8 +6,9 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  useRouterState,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -15,6 +16,7 @@ import { BookingProvider } from "../lib/booking-store";
 import { AdminProvider } from "../lib/admin-store";
 import { getSalonConfig } from "../lib/salon.functions";
 import { applyConfig } from "../lib/salon";
+import { sfx } from "../lib/sfx";
 
 function NotFoundComponent() {
   return (
@@ -134,6 +136,40 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+// The booking journey in order: moving forward plays the cinematic step
+// transition, moving back plays the soft "shhh—click".
+const FLOW: Record<string, number> = {
+  "/": 0,
+  "/book": 1,
+  "/services": 2,
+  "/time": 3,
+  "/details": 4,
+  "/review": 5,
+};
+
+/** Installs interface sound once and gives every route change its sound. */
+function SoundDirector() {
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  const prev = useRef<string | null>(null);
+  useEffect(() => sfx.install(), []);
+  useEffect(() => {
+    const from = prev.current;
+    prev.current = path;
+    if (from === null || from === path || path.startsWith("/admin")) return;
+    const a = FLOW[from];
+    const b = FLOW[path];
+    if (a !== undefined && b !== undefined) {
+      if (b > a) sfx.transition();
+      else sfx.back();
+    } else if (path === "/") {
+      sfx.back(); // leaving an info page for home
+    } else if (b !== undefined) {
+      sfx.transition(); // stepping into the booking flow from an info page
+    }
+  }, [path]);
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const { configJson } = Route.useLoaderData();
@@ -145,6 +181,7 @@ function RootComponent() {
         <AdminProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
+          <SoundDirector />
         </AdminProvider>
       </BookingProvider>
     </QueryClientProvider>

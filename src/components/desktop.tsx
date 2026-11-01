@@ -157,6 +157,7 @@ export function CallButton({ withNumber = true }: { withNumber?: boolean }) {
   return (
     <a
       href={`tel:${phone}`}
+      data-sfx="contact"
       className="group flex shrink-0 items-center gap-4"
       aria-label="Call the studio"
     >
@@ -198,6 +199,8 @@ export function DesktopCTA({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      data-sfx="primary"
+      data-sfx-hover=""
       className={cn(
         "press sheen group flex h-16 shrink-0 items-center justify-center gap-4 rounded-sm bg-foreground px-8 md:min-w-[13rem] lg:h-[4.25rem] lg:min-w-[19rem] lg:px-10 text-[1.05rem] tracking-[0.02em] text-background hover:bg-foreground/88 disabled:bg-foreground/30",
         className,

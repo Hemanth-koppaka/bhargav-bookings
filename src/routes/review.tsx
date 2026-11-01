@@ -17,6 +17,7 @@ import {
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
 import { haptic } from "@/lib/utils";
+import { sfx } from "@/lib/sfx";
 import { ServiceGlyph, serviceKind } from "@/components/service-icons";
 import { BUSINESS, STYLISTS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
 
@@ -72,10 +73,12 @@ function ReviewScreen() {
     setSaving(false);
     if ("error" in res) {
       haptic(30);
+      sfx.error();
       setSaveError(res.error);
       return;
     }
     haptic(15);
+    sfx.ambience(); // the room breathes in as the confirmation film begins
     navigate({ to: "/confirmed", search: { ref: res.booking.reference, seq: 1 } });
   };
 

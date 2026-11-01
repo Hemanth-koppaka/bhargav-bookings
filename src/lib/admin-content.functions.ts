@@ -233,3 +233,32 @@ export const adminSaveBusiness = createServerFn({ method: "POST" })
     await audit({ action: "studio.update", entity: "studio", summary: "Updated studio details", before: cur?.value ?? null, after: value });
     return { ok: true };
   });
+
+/** Interface sound for the whole site: on/off, master volume (0–1) and preset. */
+export const adminSaveSound = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z
+      .object({
+        pin,
+        sound: z.object({
+          enabled: z.boolean(),
+          volume: z.number().min(0).max(1),
+          preset: z.enum(["luxury", "minimal", "silent"]),
+        }),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const sb = await assertPin(data.pin);
+    const { data: cur } = await sb.from("site_settings").select("value").eq("key", "sound").maybeSingle();
+    const { error } = await sb.from("site_settings").upsert({ key: "sound", value: data.sound });
+    if (error) throw new Error("Couldn't save sound settings");
+    await audit({
+      action: "settings.sound",
+      entity: "settings",
+      summary: `Interface sound: ${data.sound.enabled ? `${data.sound.preset}, ${Math.round(data.sound.volume * 100)}%` : "off"}`,
+      before: cur?.value ?? null,
+      after: data.sound,
+    });
+    return { ok: true };
+  });

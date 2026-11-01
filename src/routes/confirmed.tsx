@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CinematicKit } from "@/components/cinematic-kit";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Copy, Download, MapPin, MessageCircle } from "lucide-react";
 import { guestToSalonText, waLink } from "@/lib/whatsapp-link";
 import { AddToCalendar } from "@/components/add-to-calendar";
+import { sfx } from "@/lib/sfx";
 import { LogoReveal } from "@/components/motion";
 import { useBooking, servicesOf, type Booking } from "@/lib/booking-store";
 import { BUSINESS, formatDuration, formatLongDate, fromISO, minuteLabel } from "@/lib/salon";
@@ -171,6 +172,21 @@ function ConfirmedScreen() {
     return () => timers.forEach(window.clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cinematic, film === "on"]);
+
+  // sound follows the picture: soft impact + bloom as the logo appears,
+  // a quiet press as the seal stamps the card
+  const heard = useRef(0);
+  useEffect(() => {
+    if (!cinematic || film === "on") return;
+    if (stage >= 1 && heard.current < 1) {
+      heard.current = 1;
+      sfx.bookingConfirm();
+    }
+    if (stage >= 3 && stage < FINAL && heard.current < 3) {
+      heard.current = 3;
+      sfx.seal();
+    }
+  }, [stage, cinematic, film]);
 
   const services = booking ? servicesOf(booking) : [];
   const serviceLine = services.map((s) => s.name).join(" · ") || "Appointment";
@@ -361,6 +377,7 @@ function ConfirmedScreen() {
               )}
               target="_blank"
               rel="noreferrer"
+              data-sfx="contact"
               className="press flex min-h-13 w-full items-center justify-center gap-3 rounded-sm border border-[#E8E1D8]/28 px-6 text-[0.66rem] uppercase tracking-[0.2em] text-[#E8E1D8] hover:border-[#E8E1D8]/70"
             >
               <MessageCircle className="h-4 w-4" strokeWidth={1.25} />
