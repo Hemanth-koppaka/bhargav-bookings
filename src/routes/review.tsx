@@ -96,7 +96,7 @@ function ReviewScreen() {
             <div className="stagger mt-6 space-y-3">
               <Card title="Appointment" action={<EditLink to="/services" />}>
                 <div className="flex gap-4">
-                  <Thumb src={img.src} pos={img.pos} className="h-20 w-20" />
+                  <Thumb src={img.src} pos={img.pos} fit={img.fit} className="h-20 w-20" />
                   <div className="min-w-0 flex-1">
                     <ul className="space-y-1">
                       {selected.map((x) => (
@@ -280,7 +280,7 @@ function DesktopReview({
           <div className="mt-6 space-y-3.5">
             <Card title="Appointment details" action={<EditLink to="/services" />}>
               <div className="flex items-center gap-7">
-                <Thumb src={img.src} pos={img.pos} className="h-24 w-24" />
+                <Thumb src={img.src} pos={img.pos} fit={img.fit} className="h-24 w-24" />
                 <div className="min-w-0 flex-1">
                   <ul className="space-y-1">
                     {selected.map((x) => (

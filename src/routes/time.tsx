@@ -604,7 +604,7 @@ function DesktopTime({
 
       <DesktopBar>
         <div className="flex min-w-0 flex-1 items-center gap-6">
-          <Thumb src={img.src} pos={img.pos} className="hidden h-20 w-20 xl:block" />
+          <Thumb src={img.src} pos={img.pos} fit={img.fit} className="hidden h-20 w-20 xl:block" />
           <div className="min-w-0">
             <div className="truncate font-display text-[1.6rem] leading-tight">
               {selected.length > 1 ? `${first?.name} + ${selected.length - 1} more` : first?.name}
