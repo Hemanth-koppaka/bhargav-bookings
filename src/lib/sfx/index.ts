@@ -3,7 +3,7 @@ import { useSyncExternalStore } from "react";
 import { sfx } from "./engine";
 
 export { sfx } from "./engine";
-export type { SfxKind, SoundName } from "./engine";
+export type { ScoreControl, SfxKind, SoundName } from "./engine";
 export { DEFAULT_SOUND, SFX, type SoundPreset, type SoundSettings } from "./tokens";
 
 /** The guest's on/off and whether the salon has sound on at all (re-renders on change). */

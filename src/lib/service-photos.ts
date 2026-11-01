@@ -63,13 +63,23 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 const catKey = (title: string) => key("", title).slice(1);
 
-export const builtInCategoryIcon = (title: string) => CATEGORY_ICONS[catKey(title)] ?? I("cat-other");
+export const builtInCategoryIcon = (title: string) =>
+  CATEGORY_ICONS[catKey(title)] ?? I("cat-other");
 /** Icons for families of services, matched by how the name starts. */
 const PREFIX_ICONS: [RegExp, (audience: string) => string][] = [
   [/^threading\b/i, () => I("svc-facial-hair")],
   [/^waxing\b/i, () => I("svc-waxing")],
   [/^straightening|^smoothening/i, () => I("svc-straightening")],
-  [/^keratin|^botox/i, () => I("svc-keratin")],
+  [/^keratin/i, () => I("svc-keratin")],
+  [/^botox/i, () => I("svc-botox")],
+  [/rejuvenat/i, () => I("svc-rejuvenation")],
+  // Glow & Radiance
+  [/clean ?up\b/i, () => I("svc-clean-up")],
+  [/facial\b/i, () => I("svc-facial")],
+  [/\bpack\b|d-?tan/i, () => I("svc-face-pack")],
+  // Reflexology
+  [/polish|scrub/i, () => I("svc-polish")],
+  [/massage/i, () => I("svc-massage")],
   [/^treatment\b/i, (a) => I(a === "women" ? "svc-treatment-women" : "svc-treatment-men")],
 ];
 

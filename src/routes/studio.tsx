@@ -1,7 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowUpRight, Armchair, Car, DoorClosed, Droplets, Palette, Scissors, Snowflake, Sofa } from "lucide-react";
+import {
+  ArrowUpRight,
+  Armchair,
+  Car,
+  DoorClosed,
+  Droplets,
+  Palette,
+  Scissors,
+  Snowflake,
+  Sofa,
+} from "lucide-react";
 import { BookCTA, InfoPage, InfoTitle, SectionLabel } from "@/components/info-page";
-import portrait from "@/assets/portrait.jpg.asset.json";
 import { BUSINESS } from "@/lib/salon";
 
 export const Route = createFileRoute("/studio")({
@@ -39,7 +48,8 @@ function StudioScreen() {
   return (
     <InfoPage
       label="Studio"
-      image={portrait.url}
+      image="/studio/chairs-1600.webp"
+      imagePos="45% 50%"
       panelEyebrow="KPHB Phase 9"
       panelTitle={
         <>
@@ -57,6 +67,42 @@ function StudioScreen() {
         The <span className="italic text-bronze">studio.</span>
       </InfoTitle>
 
+      {/* the real studio: styling floor and wash lounge */}
+      <div className="stagger mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+        <figure className="lg:hidden">
+          <img
+            src="/studio/chairs-800.webp"
+            srcSet="/studio/chairs-800.webp 800w, /studio/chairs-1600.webp 1600w"
+            sizes="(min-width: 640px) 50vw, 100vw"
+            width={800}
+            height={450}
+            alt="The styling floor: four chairs facing lit arched mirrors"
+            loading="lazy"
+            decoding="async"
+            className="aspect-[16/10] w-full rounded-md bg-muted object-cover"
+          />
+          <figcaption className="mt-2 text-[0.72rem] uppercase tracking-[0.22em] text-muted-foreground">
+            Styling floor · four chairs
+          </figcaption>
+        </figure>
+        <figure>
+          <img
+            src="/studio/wash-800.webp"
+            srcSet="/studio/wash-800.webp 800w, /studio/wash-1600.webp 1600w"
+            sizes="(min-width: 1024px) 40vw, (min-width: 640px) 50vw, 100vw"
+            width={800}
+            height={533}
+            alt="The wash lounge: two leather shampoo chairs"
+            loading="lazy"
+            decoding="async"
+            className="aspect-[16/10] w-full rounded-md bg-muted object-cover lg:aspect-[16/8]"
+          />
+          <figcaption className="mt-2 text-[0.72rem] uppercase tracking-[0.22em] text-muted-foreground">
+            Wash lounge
+          </figcaption>
+        </figure>
+      </div>
+
       <div className="mt-10">
         <SectionLabel>Inside</SectionLabel>
         <ul className="stagger mt-5 grid grid-cols-2 gap-2.5">
@@ -67,7 +113,11 @@ function StudioScreen() {
                 key={f}
                 className="flex items-center gap-3 rounded-md border border-hairline bg-card px-4 py-4 text-[0.9rem] lg:text-[0.95rem]"
               >
-                <Icon className="h-[18px] w-[18px] shrink-0 text-bronze" strokeWidth={1.25} aria-hidden />
+                <Icon
+                  className="h-[18px] w-[18px] shrink-0 text-bronze"
+                  strokeWidth={1.25}
+                  aria-hidden
+                />
                 {f}
               </li>
             );
@@ -86,7 +136,9 @@ function StudioScreen() {
             className="h-48 w-full border-0 bg-muted grayscale lg:h-56"
           />
           <div className="flex items-start justify-between gap-4 p-4 lg:p-5">
-            <address className="text-[0.92rem] not-italic leading-relaxed">{BUSINESS.address}</address>
+            <address className="text-[0.92rem] not-italic leading-relaxed">
+              {BUSINESS.address}
+            </address>
             <a
               href={maps}
               target="_blank"
