@@ -241,7 +241,7 @@ export function SignaturePanel({ className }: { className?: string }) {
           <img
             src={BHARGAV_FULL}
             alt="Bhargav at the studio"
-            className="absolute inset-0 h-full w-full object-cover object-[50%_16%] cine-drift-top sepia-[0.32] saturate-[0.85] contrast-[1.03] brightness-[1.04]"
+            className="absolute inset-0 h-full w-full object-cover object-[50%_26%] cine-drift-top sepia-[0.32] saturate-[0.85] contrast-[1.03] brightness-[1.04]"
             decoding="async"
           />
         </span>
