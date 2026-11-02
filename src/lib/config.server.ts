@@ -156,6 +156,11 @@ export async function loadConfig() {
         services: can.get(r["id"] as string) ?? [],
       }));
   }
+  // each service's stylist rule (e.g. Bhargav's Signature → Bhargav), for the screens
+  {
+    const { resolveRules } = await import("./service-rules.server");
+    config["serviceRules"] = resolveRules(store, (set["service_rules"] ?? {}) as never, [menu("men"), menu("women")] as never);
+  }
   if (!cl.error) {
     config["closures"] = ((cl.data ?? []) as Record<string, unknown>[])
       .filter(

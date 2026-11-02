@@ -150,8 +150,18 @@ export async function insertBooking(
     // newest columns first; older shapes if a migration isn't applied yet
     const staffCols = staffId !== undefined ? { staff_id: staffId, staff_choice: choice === "any" ? "any" : "specific" } : {};
     // the stylist is also kept in meta, which every database version has
+    // the stylist (id and name) is kept with the booking, so later changes to
+    // the team or the service's stylist rule never rewrite history
+    let staffNameNow: string | null = null;
+    if (staffId) {
+      const { stable } = await import("./staff-store.server");
+      const { data: st } = await stable("staff").select("name").eq("id", staffId).maybeSingle();
+      staffNameNow = ((st as { name?: string } | null)?.name as string) ?? null;
+    }
     const withMeta = <T extends Record<string, unknown>>(x: T) =>
-      staffId !== undefined ? { ...x, meta: metaWithStaff(x["meta"], staffId, choice === "any" ? "any" : "specific") } : x;
+      staffId !== undefined
+        ? { ...x, meta: { ...metaWithStaff(x["meta"], staffId, choice === "any" ? "any" : "specific"), ...(staffNameNow ? { staff_name: staffNameNow } : {}) } }
+        : x;
     let r = await sb.from("bookings").insert(withMeta({ ...extended, ...notifyCols, ...staffCols }) as never);
     if (r.error && !E.isSlotTaken(r.error) && /column/i.test(r.error.message)) r = await sb.from("bookings").insert(withMeta({ ...extended, ...notifyCols }) as never);
     if (r.error && !E.isSlotTaken(r.error) && /column/i.test(r.error.message)) r = await sb.from("bookings").insert(withMeta(extended) as never);

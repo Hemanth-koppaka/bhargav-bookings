@@ -1,6 +1,7 @@
 import { applyContent } from "./site-content";
 import { sfx } from "./sfx/engine";
 import type { SoundSettings } from "./sfx/tokens";
+import type { ServiceRule } from "./service-rules";
 import { CATEGORY_ICON_BY_ID, SERVICE_ICON_BY_ID } from "./service-icons";
 
 // Business, menu and availability data for The Hair By Bhargav Unisex Salon.
@@ -497,6 +498,8 @@ export type SalonConfig = {
   closures?: Closure[];
   /** Interface sound settings from the console. */
   sound?: Partial<SoundSettings> | null;
+  /** Services with a preferred stylist (e.g. Bhargav's Signature → Bhargav). */
+  serviceRules?: Record<string, ServiceRule>;
 };
 
 export type Stylist = {
@@ -542,6 +545,7 @@ export function defaultConfig(): Required<SalonConfig> {
     stylists: [],
     closures: [],
     sound: null,
+    serviceRules: {},
   };
 }
 
@@ -591,7 +595,12 @@ export function applyConfig(cfg: SalonConfig | null | undefined) {
   replaceArray(STYLISTS, full.stylists);
   replaceArray(CLOSURES, full.closures);
   sfx.applySalon(full.sound);
+  for (const k of Object.keys(SERVICE_RULES)) delete SERVICE_RULES[k];
+  Object.assign(SERVICE_RULES, full.serviceRules ?? {});
 }
+
+/** Live stylist rules per service (filled by applyConfig). */
+export const SERVICE_RULES: Record<string, ServiceRule> = {};
 
 /** The 10-digit Indian mobile inside any typed form (+91…, 0…, spaces). */
 export const mobileDigits = (p: string) => {
