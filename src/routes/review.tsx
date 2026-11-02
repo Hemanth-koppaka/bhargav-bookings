@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { CONTENT } from "@/lib/site-content";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowUpRight, CalendarDays, Lock, MapPin, Pencil, X } from "lucide-react";
+import { ArrowUpRight, Lock, MapPin, Pencil, X } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import {
   selectionImage,
@@ -109,7 +109,7 @@ function ReviewScreen() {
         confirm={confirm}
         saving={saving}
         saveError={saveError}
-        pledge={<AttendancePledge checked={pledged} onChange={setPledged} nudge={nudge} />}
+        pledge={<AttendancePledge checked={pledged} onChange={setPledged} nudge={nudge} fromPricing={hasFromPricing} />}
       />
       <div className="md:hidden">
         <Page>
@@ -200,11 +200,7 @@ function ReviewScreen() {
                 </div>
               </Card>
 
-              <div className="flex gap-3 rounded-md bg-champagne/15 px-4 py-3.5 text-[0.82rem] leading-relaxed">
-                <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.25} />
-                <PolicyNote fromPricing={hasFromPricing} />
-              </div>
-              <AttendancePledge checked={pledged} onChange={setPledged} nudge={nudge} />
+              <AttendancePledge checked={pledged} onChange={setPledged} nudge={nudge} fromPricing={hasFromPricing} />
             </div>
           </Screen>
 
@@ -413,10 +409,6 @@ function DesktopReview({
               </div>
             </Card>
 
-            <div className="flex items-center gap-5 rounded-sm bg-champagne/15 px-7 py-4 text-[0.95rem]">
-              <CalendarDays className="h-5 w-5 shrink-0" strokeWidth={1.25} />
-              <PolicyNote fromPricing={hasFromPricing} />
-            </div>
             {pledge}
           </div>
         </main>
@@ -442,26 +434,6 @@ function DesktopReview({
 }
 
 /** The salon's published booking policies; "Manage booking" becomes a link. */
-function PolicyNote({ fromPricing }: { fromPricing: boolean }) {
-  const { changes, payment, lateness } = CONTENT.policies;
-  const [before, after] = changes.includes("Manage booking") ? changes.split("Manage booking", 2) : [changes, null];
-  return (
-    <span>
-      {before}
-      {after !== null ? (
-        <>
-          <Link to="/manage" className="underline underline-offset-4">
-            Manage booking
-          </Link>
-          {after}
-        </>
-      ) : null}{" "}
-      {payment.replace(/\.$/, "")}
-      {fromPricing ? " — prices marked + are confirmed in the chair" : ""}.{lateness ? ` ${lateness}` : ""}
-    </span>
-  );
-}
-
 /**
  * The salon's request, asked before confirming: come on time, or tell us in
  * advance so the chair can go to someone else. Confirming needs the tick.
@@ -470,11 +442,15 @@ function AttendancePledge({
   checked,
   onChange,
   nudge,
+  fromPricing,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   nudge: number;
+  /** Some prices are "from" prices (marked +). */
+  fromPricing?: boolean;
 }) {
+  const { payment, lateness } = CONTENT.policies;
   const deadline = useChangeDeadline();
   return (
     <section
@@ -496,7 +472,9 @@ function AttendancePledge({
         <Link to="/manage" className="underline underline-offset-4">
           Manage booking
         </Link>{" "}
-        up to <strong className="font-medium">{deadline} before</strong> your appointment.
+        up to <strong className="font-medium">{deadline} before</strong> your appointment.{" "}
+        {payment.replace(/\.$/, "")}
+        {fromPricing ? "; prices marked + are confirmed in the chair" : ""}.{lateness ? ` ${lateness}` : ""}
       </p>
       <label className="mt-4 flex cursor-pointer items-start gap-3">
         <input
