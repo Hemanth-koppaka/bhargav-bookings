@@ -15,7 +15,7 @@ import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@
 import { haptic } from "@/lib/utils";
 import { sfx } from "@/lib/sfx";
 import { useRewindBack } from "@/components/scissors-line";
-import { SIGNATURE_MARK, isSignature } from "@/lib/service-photos";
+import { isSignature } from "@/lib/service-photos";
 import {
   ServiceGlyph,
   ServiceIconTile,

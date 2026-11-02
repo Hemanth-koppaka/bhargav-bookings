@@ -265,6 +265,7 @@ export function SignaturePanel({ className }: { className?: string }) {
   );
 }
 
+/** Dark editorial image panel used on the right of several steps. */
 export function ImagePanel({
   src,
   pos = "50% 30%",
