@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
 import { ScissorsLine, useRewindBack } from "@/components/scissors-line";
-import { SIGNATURE_MARK, isSignature } from "@/lib/service-photos";
+import { BHARGAV_FULL, SIGNATURE_EMBLEM_HD, SIGNATURE_MARK, isSignature } from "@/lib/service-photos";
 
 export const STEPS = ["Who", "Services", "Time", "Details", "Confirm"] as const;
 

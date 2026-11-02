@@ -589,7 +589,7 @@ function DesktopServices({
         </div>
 
         {selected.some(isSignature) ? (
-          <SignaturePanel className="hidden lg:flex" mark={SIGNATURE_MARK} />
+          <SignaturePanel className="hidden lg:flex" />
         ) : (
           <ImagePanel
             className="hidden lg:block"
