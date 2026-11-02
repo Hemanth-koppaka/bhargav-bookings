@@ -56,6 +56,7 @@ function ServicesScreen() {
     useBooking();
   const navigate = useNavigate();
   const [active, setActive] = useState<string | null>(null);
+  const multiHint = useMultiHint(selected.length);
   const chipRow = useRef<HTMLDivElement>(null);
   const popularity = usePopularity();
 
@@ -120,6 +121,7 @@ function ServicesScreen() {
   return (
     <>
       <DesktopServices
+        hint={multiHint}
         menu={menu}
         category={category}
         onCategory={goCategory}
@@ -131,7 +133,10 @@ function ServicesScreen() {
         <Page>
           <StepHeader back="/book" step={2} />
           <Screen className="px-5">
-            <StepIntro eyebrow={men ? "Men's services" : "Women's services"}>
+            <StepIntro
+              eyebrow={men ? "Men's services" : "Women's services"}
+              sub="Choose one or more. Add as many services as you like."
+            >
               Select your <span className="italic text-bronze">services.</span>
             </StepIntro>
 
@@ -285,6 +290,7 @@ function ServicesScreen() {
 
           {selected.length ? (
             <StickyBar>
+              <MultiHint hint={multiHint} className="mb-3" />
               <div className="fade-rise mb-3 flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/12">
@@ -329,7 +335,56 @@ function ServicesScreen() {
   );
 }
 
+/*
+ * "You can choose more than one service." Many guests don't realise, so the
+ * first time someone adds a service, a quiet note says so (once per device,
+ * gone after a few seconds, on tap, or when they add a second service).
+ */
+const MULTI_HINT_KEY = "hb.hint.multi";
+function useMultiHint(count: number) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (count !== 1) return setShow(false);
+    let seen = false;
+    try {
+      seen = localStorage.getItem(MULTI_HINT_KEY) === "1";
+    } catch {
+      /* storage unavailable: show it this once */
+    }
+    if (seen) return;
+    setShow(true);
+    try {
+      localStorage.setItem(MULTI_HINT_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    const t = window.setTimeout(() => setShow(false), 7000);
+    return () => window.clearTimeout(t);
+  }, [count]);
+  return { show, hide: () => setShow(false) };
+}
+
+function MultiHint({ hint, className }: { hint: { show: boolean; hide: () => void }; className?: string }) {
+  if (!hint.show) return null;
+  return (
+    <button
+      type="button"
+      onClick={hint.hide}
+      className={
+        "fade-rise flex w-full items-center gap-3 rounded-md border border-bronze/30 bg-champagne/25 px-4 py-2.5 text-left text-[0.85rem] leading-snug " +
+        (className ?? "")
+      }
+    >
+      <Plus className="h-4 w-4 shrink-0 text-bronze" strokeWidth={1.5} />
+      <span>
+        <span className="font-medium">Added.</span> You can choose more than one service. Add as many as you like.
+      </span>
+    </button>
+  );
+}
+
 function DesktopServices({
+  hint,
   menu,
   category,
   onCategory,
@@ -337,6 +392,7 @@ function DesktopServices({
   onQuery,
   search,
 }: {
+  hint: { show: boolean; hide: () => void };
   menu: Category[];
   category: Category;
   onCategory: (id: string) => void;
@@ -437,6 +493,7 @@ function DesktopServices({
             <h1 className="mt-2 font-display text-[clamp(2.4rem,4.4vw,3.2rem)] leading-[1.02]">
               Select your <span className="italic text-bronze">services.</span>
             </h1>
+            <p className="mt-2 text-[0.9rem] text-muted-foreground">Choose one or more. Add as many services as you like.</p>
             <div
               role="tablist"
               aria-label="Service categories"
@@ -612,6 +669,13 @@ function DesktopServices({
         )}
       </div>
 
+      {hint.show ? (
+        <div className="pointer-events-none relative z-20 -mb-2 flex justify-center px-6">
+          <div className="pointer-events-auto -mt-16 w-full max-w-xl shadow-[0_14px_30px_-18px_rgba(40,25,10,0.5)]">
+            <MultiHint hint={hint} className="bg-card" />
+          </div>
+        </div>
+      ) : null}
       <DesktopBar>
         {selected[0] ? (
           <ServiceIconTile
