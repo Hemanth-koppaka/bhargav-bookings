@@ -5,8 +5,6 @@ import { haptic } from "@/lib/utils";
 import { DesktopStepperHeader, InfoStrip } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
 import type { Audience } from "@/lib/salon";
-import menImg from "@/assets/men.jpg.asset.json";
-import womenImg from "@/assets/women.jpg.asset.json";
 
 export const Route = createFileRoute("/book")({
   head: () => ({
@@ -26,8 +24,8 @@ export const Route = createFileRoute("/book")({
 });
 
 const options: { key: Audience; title: string; sub: string; img: string; pos: string }[] = [
-  { key: "men", title: "Men", sub: "Hair · Beard · Grooming", img: menImg.url, pos: "60% 30%" },
-  { key: "women", title: "Women", sub: "Hair · Colour · Makeover", img: womenImg.url, pos: "45% 25%" },
+  { key: "men", title: "Men", sub: "Hair · Beard · Grooming", img: "/who/men.webp", pos: "47% 32%" },
+  { key: "women", title: "Women", sub: "Hair · Colour · Makeover", img: "/who/women.webp", pos: "52% 30%" },
 ];
 
 function BookEntry() {
