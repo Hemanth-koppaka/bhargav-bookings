@@ -215,27 +215,49 @@ export function DesktopCTA({
   );
 }
 
-/** Dark editorial image panel used on the right of several steps. */
-/** Shown while Bhargav's Signature is chosen: the HB mark on warm ivory, no photo. */
-export function SignaturePanel({ mark, className }: { mark: string; className?: string }) {
+/** Shown while Bhargav's Signature is chosen: an editorial panel — crisp HB crown
+ * emblem on warm ivory, a real studio portrait treated as a photograph, then the words. */
+export function SignaturePanel({ className }: { className?: string }) {
   return (
     <aside
       className={cn(
-        "relative flex flex-col overflow-hidden bg-[radial-gradient(120%_80%_at_50%_35%,#fbf7f0_0%,#efe5d6_60%,#e4d6c2_100%)] text-ink",
+        "relative flex flex-col overflow-hidden bg-[radial-gradient(120%_80%_at_50%_28%,#fbf7f0_0%,#f1e7d8_58%,#e6d8c4_100%)] text-ink",
         className,
       )}
     >
-      <div className="soft-fade flex flex-1 items-center justify-center px-10">
-        <img src={mark} alt="Hair by Bhargav" className="photo-pop w-[58%] max-w-[18rem] object-contain drop-shadow-[0_18px_30px_rgba(60,40,20,0.18)]" />
+      {/* the mark, kept exactly as designed — now served from the high-resolution file */}
+      <div className="soft-fade flex shrink-0 items-center justify-center px-10 pt-11 xl:pt-13">
+        <img
+          src={SIGNATURE_EMBLEM_HD}
+          alt="Hair by Bhargav"
+          className="w-36 object-contain xl:w-40"
+          decoding="async"
+        />
       </div>
-      <div className="stagger p-10 xl:p-12">
+
+      {/* the artist — a real photograph, cropped to its own aspect, graded warm */}
+      <div className="hairline-t hairline-b relative mt-10 min-h-0 flex-1 overflow-hidden">
+        <span className="soft-fade absolute inset-0" key="signature-photo">
+          <img
+            src={BHARGAV_FULL}
+            alt="Bhargav at the studio"
+            className="absolute inset-0 h-full w-full object-cover object-[50%_16%] cine-drift-top"
+            decoding="async"
+          />
+        </span>
+        <span className="pointer-events-none absolute inset-0 bg-[#e9dcc6]/18 mix-blend-multiply" />
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-[#f1e7d8]/70" />
+      </div>
+
+      <div className="stagger shrink-0 px-10 pt-8 pb-11 xl:px-12">
         <div className="text-[0.7rem] uppercase tracking-[0.32em] text-bronze">Bhargav's Signature</div>
-        <div className="mt-4 font-display text-[clamp(2.6rem,4vw,3.75rem)] leading-[1.02]">
+        <span aria-hidden className="mt-5 block h-px w-10 bg-bronze/60" />
+        <div className="mt-5 font-display text-[clamp(2.4rem,3.6vw,3.4rem)] leading-[1.04]">
           Styled by
           <br />
           <span className="italic text-bronze">Bhargav</span>.
         </div>
-        <div className="mt-5 max-w-xs text-[0.7rem] uppercase leading-loose tracking-[0.3em] text-ink/70">
+        <div className="mt-5 max-w-xs text-[0.72rem] uppercase leading-[1.9] tracking-[0.22em] text-ink/70">
           Consultation, cut, beard, wash and styling.
         </div>
       </div>
