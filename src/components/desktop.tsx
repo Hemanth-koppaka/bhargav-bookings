@@ -237,16 +237,16 @@ export function SignaturePanel({ className }: { className?: string }) {
 
       {/* the artist — a real photograph, cropped to its own aspect, graded warm */}
       <div className="hairline-t hairline-b relative mt-10 min-h-0 flex-1 overflow-hidden">
-        <span className="soft-fade absolute inset-0" key="signature-photo">
+        <span className="soft-fade absolute inset-0">
           <img
             src={BHARGAV_FULL}
             alt="Bhargav at the studio"
-            className="absolute inset-0 h-full w-full object-cover object-[50%_16%] cine-drift-top"
+            className="absolute inset-0 h-full w-full object-cover object-[50%_16%] cine-drift-top sepia-[0.32] saturate-[0.85] contrast-[1.03] brightness-[1.04]"
             decoding="async"
           />
         </span>
-        <span className="pointer-events-none absolute inset-0 bg-[#e9dcc6]/18 mix-blend-multiply" />
-        <span className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-[#f1e7d8]/70" />
+        <span className="pointer-events-none absolute inset-0 bg-[#e8d6b8]/25 mix-blend-multiply" />
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-b from-transparent via-[#f1e7d8]/35 to-[#f1e7d8]/80" />
       </div>
 
       <div className="stagger shrink-0 px-10 pt-8 pb-11 xl:px-12">
