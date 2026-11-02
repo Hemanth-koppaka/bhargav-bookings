@@ -36,7 +36,7 @@ export const DEFAULT_CONTENT: SiteContent = {
     ctaLabel: "Book an appointment",
   },
   policies: {
-    changes: "Reschedule or cancel any time from Manage booking.",
+    changes: "Reschedule or cancel from Manage booking up to 2 hours before your appointment.",
     payment: "No payment is taken online.",
     lateness: "",
   },

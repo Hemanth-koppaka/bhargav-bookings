@@ -6,6 +6,7 @@ import { Check, ChevronDown, Copy, Download, MapPin, MessageCircle } from "lucid
 import { guestToSalonText, waLink } from "@/lib/whatsapp-link";
 import { AddToCalendar } from "@/components/add-to-calendar";
 import { sfx, type ScoreControl } from "@/lib/sfx";
+import { useChangeDeadline } from "@/lib/change-deadline";
 import { prettyPhone } from "@/components/desktop";
 import { LogoReveal } from "@/components/motion";
 import { useBooking, servicesOf, type Booking } from "@/lib/booking-store";
@@ -296,6 +297,7 @@ function ConfirmedScreen() {
   const [preview, setPreview] = useState<{ url: string; note: string } | null>(null);
   const [saveNote, setSaveNote] = useState("");
   const [waNote, setWaNote] = useState("");
+  const changeDeadline = useChangeDeadline();
 
   // If the actions (calendar, WhatsApp, save) sit below the fold, point to them:
   // a small arrow that fades on scroll, when tapped, or after a few seconds.
@@ -627,7 +629,12 @@ function ConfirmedScreen() {
                 {waNote || saveNote}
               </p>
             ) : null}
-            <div className="flex items-center justify-center gap-6 pt-1">
+            {/* the salon's request: keep the appointment, or free the chair in advance */}
+            <p className="pt-1 text-center text-[0.78rem] leading-relaxed text-[#E8E1D8]/60">
+              Can't make it? Change or cancel in Manage booking at least {changeDeadline} before, so someone else can have your
+              chair.
+            </p>
+            <div className="flex items-center justify-center gap-6">
               <Link
                 to="/manage"
                 className="py-2 text-[0.68rem] uppercase tracking-[0.22em] text-[#E8E1D8]/55 transition-colors hover:text-[#E8E1D8]"
