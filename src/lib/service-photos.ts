@@ -91,6 +91,9 @@ export const builtInServiceIcon = (audience: string, name: string, categoryTitle
 /** Bhargav's Signature mark (HB crown), used for the Signature panel. */
 export const SIGNATURE_MARK = I("svc-signature");
 
+/** High-resolution HB crown emblem (uploaded original), used in the Signature panel. */
+export const SIGNATURE_EMBLEM_HD = "/brand/hb-emblem.webp";
+
 /** Bhargav's portrait (also used wherever the founder is shown on a booking). */
 export const BHARGAV_PORTRAIT = "/team/bhargav-portrait.webp";
 
