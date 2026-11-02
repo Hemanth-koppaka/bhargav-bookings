@@ -16,7 +16,8 @@ import {
   prettyPhone,
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
-import { haptic } from "@/lib/utils";
+import { cn, haptic } from "@/lib/utils";
+import { useChangeDeadline } from "@/lib/change-deadline";
 import { sfx } from "@/lib/sfx";
 import { ServiceGlyph, serviceKind } from "@/components/service-icons";
 import { BUSINESS, SERVICE_RULES, STYLISTS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
@@ -58,16 +59,26 @@ function ReviewScreen() {
     if (hydrated && !ready) navigate({ to: "/book" });
   }, [hydrated, ready, navigate]);
 
-  if (!ready || !draft.customer || !draft.date || draft.time == null) return null;
-
   // warm the confirmation film's photo so it starts the moment the guest confirms
   useEffect(() => {
     const img = new Image();
     img.src = "/media/barber-kit.webp";
   }, []);
 
+  // the guest's promise to come, or to tell the salon in advance
+  const [pledged, setPledged] = useState(false);
+  const [nudge, setNudge] = useState(0);
+
+  if (!ready || !draft.customer || !draft.date || draft.time == null) return null;
   const confirm = async () => {
     if (saving) return;
+    if (!pledged) {
+      haptic(20);
+      sfx.error();
+      setNudge((n) => n + 1);
+      document.querySelector("[data-attendance]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     setSaving(true);
     setSaveError("");
     const res = await commitBooking();
@@ -88,7 +99,12 @@ function ReviewScreen() {
 
   return (
     <>
-      <DesktopReview confirm={confirm} saving={saving} saveError={saveError} />
+      <DesktopReview
+        confirm={confirm}
+        saving={saving}
+        saveError={saveError}
+        pledge={<AttendancePledge checked={pledged} onChange={setPledged} nudge={nudge} />}
+      />
       <div className="md:hidden">
         <Page>
           <StepHeader back="/details" step={5} />
@@ -182,6 +198,7 @@ function ReviewScreen() {
                 <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.25} />
                 <PolicyNote fromPricing={hasFromPricing} />
               </div>
+              <AttendancePledge checked={pledged} onChange={setPledged} nudge={nudge} />
             </div>
           </Screen>
 
@@ -259,10 +276,12 @@ function DesktopReview({
   confirm,
   saving,
   saveError,
+  pledge,
 }: {
   confirm: () => void;
   saving: boolean;
   saveError: string;
+  pledge: ReactNode;
 }) {
   const { draft, selected, totalMinutes, totalPrice, hasFromPricing, removeService } = useBooking();
   if (!draft.customer || !draft.date || draft.time == null) return null;
@@ -392,6 +411,7 @@ function DesktopReview({
               <CalendarDays className="h-5 w-5 shrink-0" strokeWidth={1.25} />
               <PolicyNote fromPricing={hasFromPricing} />
             </div>
+            {pledge}
           </div>
         </main>
       </div>
@@ -433,5 +453,59 @@ function PolicyNote({ fromPricing }: { fromPricing: boolean }) {
       {payment.replace(/\.$/, "")}
       {fromPricing ? " — prices marked + are confirmed in the chair" : ""}.{lateness ? ` ${lateness}` : ""}
     </span>
+  );
+}
+
+/**
+ * The salon's request, asked before confirming: come on time, or tell us in
+ * advance so the chair can go to someone else. Confirming needs the tick.
+ */
+function AttendancePledge({
+  checked,
+  onChange,
+  nudge,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  nudge: number;
+}) {
+  const deadline = useChangeDeadline();
+  return (
+    <section
+      data-attendance
+      key={nudge}
+      className={cn(
+        "scroll-mt-24 rounded-md border px-5 py-5 transition-colors lg:px-7 lg:py-6",
+        nudge && !checked ? "shake border-bronze/70 bg-champagne/20" : "border-hairline bg-card",
+      )}
+    >
+      <div className="text-[0.62rem] uppercase tracking-[0.28em] text-bronze lg:text-[0.68rem]">Before you confirm</div>
+      <h2 className="mt-2 font-display text-[1.35rem] leading-snug lg:text-[1.6rem]">Please keep your appointment.</h2>
+      <p className="mt-2 text-[0.88rem] leading-relaxed text-muted-foreground lg:text-[0.95rem]">
+        Every booking holds a chair another guest could have had. If you can't make it, let us know in advance, so we can
+        give your time to someone who genuinely wants to come.
+      </p>
+      <p className="mt-3 text-[0.88rem] leading-relaxed lg:text-[0.95rem]">
+        You can change or cancel your booking yourself in{" "}
+        <Link to="/manage" className="underline underline-offset-4">
+          Manage booking
+        </Link>{" "}
+        up to <strong className="font-medium">{deadline} before</strong> your appointment.
+      </p>
+      <label className="mt-4 flex cursor-pointer items-start gap-3">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--ink,#1a1410)]"
+        />
+        <span className="text-[0.92rem] leading-snug lg:text-[1rem]">
+          I'll be there on time, or I'll change or cancel at least {deadline} before.
+        </span>
+      </label>
+      <p className="mt-4 text-[0.8rem] italic text-muted-foreground">
+        Thank you for respecting each other's time. <span className="not-italic text-bronze">Hair by Bhargav</span>
+      </p>
+    </section>
   );
 }
