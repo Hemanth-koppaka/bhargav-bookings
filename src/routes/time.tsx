@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CalendarDays,
   ChevronDown,
@@ -85,7 +86,8 @@ function TimeScreen() {
       .map((d) => d.iso);
   }, [days, draft.date]);
   const rawDay = useDayAvailability(draft.date, draft.audience, draft.serviceIds, ahead);
-  const day = forStylist(rawDay, draft.staffId);
+  // a service with a preferred stylist (Bhargav's Signature) shows that stylist's times
+  const day = forStylist(rawDay, draft.staffId ?? rawDay.data?.preferred?.id, Boolean(rawDay.data?.preferred) && !draft.staffId);
   const slots = day.data?.slots ?? [];
   const selectedBreaks = day.data?.breaks ?? [];
 
@@ -134,7 +136,7 @@ function TimeScreen() {
                 </div>
                 {!day.data?.closed ? <StylistPicker day={rawDay} /> : null}
                 <SlotGroups day={day} />
-                {slots.length > 0 && slots.every((x) => !x.available) ? (
+                {slots.length > 0 && slots.every((x) => !x.available && !(x as { others?: string[] }).others) ? (
                   <p className="mt-6 text-sm text-muted-foreground">
                     {draft.staffId
                       ? "This stylist has no free times on this day. Try any available stylist or another date."
@@ -215,7 +217,7 @@ type DayState = { data: DayAvailability | null; loading: boolean; error: string 
  * is free for the whole service ("any" keeps the salon-wide picture, where a
  * time is free if at least one qualified stylist is).
  */
-function forStylist(day: DayState, staffId: string | null | undefined): DayState {
+function forStylist(day: DayState, staffId: string | null | undefined, offerOthers = false): DayState {
   if (!staffId || !day.data) return day;
   return {
     ...day,
@@ -223,7 +225,8 @@ function forStylist(day: DayState, staffId: string | null | undefined): DayState
       ...day.data,
       slots: day.data.slots.map((x) =>
         x.available && x.staff && !x.staff.includes(staffId)
-          ? { ...x, available: false, reason: "booked" as const }
+          ? // the preferred stylist is busy; others are free for the whole service
+            { ...x, available: false, reason: "booked" as const, ...(offerOthers && x.staff.length ? { others: x.staff } : {}) }
           : x,
       ),
     },
@@ -233,7 +236,7 @@ function forStylist(day: DayState, staffId: string | null | undefined): DayState
 /** Choose a stylist: "Any available" or a named stylist, with live Available / Busy for the picked time. */
 /** Name of the chosen stylist ("Any stylist" when none is chosen). */
 function stylistLabel(staffId: string | null | undefined, day: DayState) {
-  if (!staffId) return "Any stylist";
+  if (!staffId) return day.data?.preferred?.name ?? "Any stylist";
   return (
     day.data?.stylists?.find((s) => s.id === staffId)?.name ??
     STYLISTS.find((s) => s.id === staffId)?.name ??
@@ -251,6 +254,8 @@ function goToStylist() {
 
 function StylistPicker({ day }: { day: DayState }) {
   const { draft, update } = useBooking();
+  const pref = day.data?.preferred;
+  if (pref) return <PreferredStylist day={day} />;
   const team =
     day.data?.stylists ??
     stylistsFor(draft.serviceIds).map((s) => ({
@@ -515,8 +520,136 @@ function BreakDivider({ start, end }: { start: number; end: number }) {
   );
 }
 
+/**
+ * Services with a preferred stylist (Bhargav's Signature): the stylist is set,
+ * not chosen. If the guest explicitly continued with another stylist, say so
+ * and offer the way back.
+ */
+function PreferredStylist({ day }: { day: DayState }) {
+  const { draft, update } = useBooking();
+  const pref = day.data!.preferred!;
+  const other = draft.staffId && draft.staffId !== pref.id ? stylistLabel(draft.staffId, day) : null;
+  const back = () => {
+    const slot = draft.time != null ? day.data?.slots.find((x) => x.minute === draft.time) : undefined;
+    // keep the time only if the preferred stylist is free then
+    update({ staffId: null, ...(slot && slot.staff?.includes(pref.id) ? {} : { time: null }) });
+  };
+  return (
+    <section data-stylist-picker className="mt-6 scroll-mt-28" aria-label="Stylist">
+      <div className="flex items-center gap-4">
+        <h2 className="shrink-0 font-sans text-[0.72rem] font-normal uppercase tracking-[0.3em] lg:text-[0.78rem]">Stylist</h2>
+        <span className="h-px flex-1 bg-hairline" />
+      </div>
+      <div className="mt-3 flex items-baseline justify-between gap-4">
+        <p className="font-display text-[1.25rem] leading-tight lg:text-[1.35rem]">
+          <span className="text-muted-foreground">Stylist · </span>
+          {other ?? pref.name}
+        </p>
+        {other ? (
+          <button type="button" onClick={back} className="shrink-0 text-[0.8rem] text-bronze underline underline-offset-4">
+            Back to {pref.name}
+          </button>
+        ) : null}
+      </div>
+      <p className="mt-1 text-[0.8rem] text-muted-foreground">
+        {other ? `You chose to continue with ${other}.` : `This signature service is performed by ${pref.name}.`}
+      </p>
+    </section>
+  );
+}
+
+/** "Bhargav isn't available at this time": calm choice, never a silent swap. */
+function OtherStylistChoice({
+  minute,
+  others,
+  day,
+  onClose,
+}: {
+  minute: number;
+  others: string[];
+  day: DayState;
+  onClose: () => void;
+}) {
+  const { update } = useBooking();
+  const [listing, setListing] = useState(false);
+  const pref = day.data!.preferred!;
+  const names = others
+    .map((id) => ({ id, name: day.data?.stylists?.find((s) => s.id === id)?.name ?? "Stylist" }))
+    .filter((s) => s.id !== pref.id);
+  // rendered at the top of the page (outside the animated list) so it's never clipped or covered
+  return createPortal(
+    <div
+      role="dialog"
+      aria-label={`${pref.name} isn't available at ${minuteLabel(minute)}`}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        className="fade-rise w-full max-w-md rounded-md border border-hairline bg-card p-6 shadow-[0_24px_60px_-28px_rgba(30,20,10,0.55)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-[0.66rem] uppercase tracking-[0.28em] text-bronze">{minuteLabel(minute)}</div>
+        <p className="mt-2 font-display text-[1.45rem] leading-snug">{pref.name} isn't available at this time.</p>
+        {!listing ? (
+          <>
+            <p className="mt-2 text-[0.92rem] text-muted-foreground">Would you like to continue with one of our available stylists?</p>
+            <div className="mt-5 grid gap-2">
+              <button
+                type="button"
+                data-sfx="select"
+                onClick={() => setListing(true)}
+                className="press min-h-12 rounded-sm bg-foreground px-5 text-[0.72rem] uppercase tracking-[0.2em] text-background"
+              >
+                Continue with another stylist
+              </button>
+              <button
+                type="button"
+                data-sfx="secondary"
+                onClick={onClose}
+                className="press min-h-12 rounded-sm border border-foreground/20 px-5 text-[0.72rem] uppercase tracking-[0.2em]"
+              >
+                Choose another time with {pref.name}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 text-[0.92rem] text-muted-foreground">Free for your whole appointment at {minuteLabel(minute)}:</p>
+            <ul className="mt-4 grid gap-2">
+              {names.map((s) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptic();
+                      sfx.timeSelect();
+                      update({ staffId: s.id, time: minute });
+                      onClose();
+                    }}
+                    className="press flex min-h-13 w-full items-center justify-between rounded-md border border-foreground/12 bg-background px-4 text-left hover:border-foreground/50"
+                  >
+                    <span className="text-[1rem]">{s.name}</span>
+                    <span className="flex items-center gap-1.5 text-[0.75rem] text-muted-foreground">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" /> Available
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button type="button" onClick={onClose} className="mt-4 text-[0.8rem] text-muted-foreground underline underline-offset-4">
+              Choose another time with {pref.name}
+            </button>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function SlotGroups({ day }: { day: DayState }) {
   const { draft, update } = useBooking();
+  const [ask, setAsk] = useState<{ minute: number; others: string[] } | null>(null);
   if (day.loading && !day.data) return <SlotSkeleton />;
   if (day.error) return <p className="mt-6 text-sm text-destructive">{day.error}</p>;
   if (day.data?.message)
@@ -530,9 +663,20 @@ function SlotGroups({ day }: { day: DayState }) {
     (g) => g.items.length > 0,
   );
   let prevEnd = -1;
+  const pref = day.data?.preferred;
+  const prefFree = slots.some((x) => x.available);
+  const othersFree = slots.some((x) => (x as { others?: string[] }).others);
 
   return (
     <>
+      {pref && !draft.staffId && !prefFree && othersFree ? (
+        <p className="mt-5 text-[0.9rem] text-muted-foreground">
+          {pref.name} isn't available on this day. Pick a time to continue with another stylist, or choose another date.
+        </p>
+      ) : null}
+      {ask && pref ? (
+        <OtherStylistChoice minute={ask.minute} others={ask.others} day={day} onClose={() => setAsk(null)} />
+      ) : null}
       {groups.map(({ p, items }) => {
         const firstMin = items[0]!.minute;
         const lastMin = items[items.length - 1]!.minute;
@@ -560,14 +704,17 @@ function SlotGroups({ day }: { day: DayState }) {
             <div className="stagger mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-4 lg:gap-3 xl:grid-cols-5">
               {items.flatMap((x) => {
                 const on = draft.time === x.minute;
+                const others = (x as { others?: string[] }).others;
                 const cell = (
                   <button
                     key={x.minute}
-                    disabled={!x.available}
+                    disabled={!x.available && !others}
                     data-sfx-off=""
                     aria-pressed={on}
                     onClick={() => {
                       haptic();
+                      // the preferred stylist is busy then: ask, never switch silently
+                      if (others) return setAsk({ minute: x.minute, others });
                       if (!on) sfx.timeSelect();
                       update({ time: x.minute });
                     }}
@@ -577,15 +724,17 @@ function SlotGroups({ day }: { day: DayState }) {
                         ? "ring-pulse border-foreground bg-foreground text-background"
                         : x.available
                           ? "border-foreground/12 bg-card hover:border-foreground/50"
-                          : "border-transparent bg-foreground/[0.045] text-foreground/35")
+                          : others
+                            ? "border-dashed border-foreground/18 bg-transparent text-foreground/55 hover:border-foreground/40"
+                            : "border-transparent bg-foreground/[0.045] text-foreground/35")
                     }
                   >
-                    <span className={x.available ? "" : "line-through decoration-foreground/25"}>
+                    <span className={x.available || others ? "" : "line-through decoration-foreground/25"}>
                       {minuteLabel(x.minute)}
                     </span>
                     {!x.available ? (
                       <span className="text-[0.66rem] lg:text-[0.72rem]">
-                        {x.reason === "booked" ? "Booked" : "Unavailable"}
+                        {others ? "Other stylists" : x.reason === "booked" ? "Booked" : "Unavailable"}
                       </span>
                     ) : null}
                   </button>
@@ -855,7 +1004,7 @@ function DesktopTime({
                 </div>
               ) : null}
               <SlotGroups day={day} />
-              {slots.every((x) => !x.available) ? (
+              {slots.every((x) => !x.available && !(x as { others?: string[] }).others) ? (
                 <p className="mt-6 text-muted-foreground">
                   No slots left on this day. Please try another date.
                 </p>

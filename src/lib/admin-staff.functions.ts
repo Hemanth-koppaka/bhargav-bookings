@@ -563,3 +563,46 @@ export const adminReopen = createServerFn({ method: "POST" })
     });
     return { ok: true as const };
   });
+
+/* ── a service's stylist rule (e.g. Bhargav's Signature → Bhargav) ── */
+
+/** The stylist rule for one service record, with the stylists to choose from. */
+export const adminServiceRule = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ pin, id: z.string().max(80) }).parse(d))
+  .handler(async ({ data }) => {
+    await admin(data.pin);
+    const { applyConfig } = await import("./salon");
+    const { loadConfig } = await import("./config.server");
+    applyConfig((await loadConfig()) as never);
+    const S = await import("./staff-store.server");
+    const R = await import("./service-rules.server");
+    const [store, settings] = await Promise.all([S.loadStore(), R.loadRuleSettings()]);
+    const rule = R.resolveRules(store, settings)[data.id] ?? null;
+    const stylists = (store.staff as Row[])
+      .filter((r) => r["active"] !== false && !r["archived_at"])
+      .map((r) => ({ id: r["id"] as string, name: r["name"] as string }));
+    return { preferred: rule?.preferred ?? null, fallback: rule?.fallback ?? [], stylists };
+  });
+
+/** "any" = every qualified stylist; otherwise prefer this stylist (others only if the guest chooses). */
+export const adminSetServiceRule = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z.object({ pin, id: z.string().max(80), preferred: z.union([z.literal("any"), z.string().max(80)]) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const sb = await admin(data.pin);
+    const { data: cur } = await sb.from("site_settings").select("value").eq("key", "service_rules").maybeSingle();
+    const value = { ...((cur?.value as Record<string, unknown>) ?? {}) };
+    value[data.id] = data.preferred === "any" ? { mode: "any" } : { mode: "preferred", stylist: data.preferred };
+    const { error } = await sb.from("site_settings").upsert({ key: "service_rules", value: value as never });
+    if (error) return { ok: false as const, error: "Couldn't save the stylist rule." };
+    await audit({
+      action: "service.stylist_rule",
+      entity: "service",
+      entityId: data.id,
+      summary: data.preferred === "any" ? "Service open to any qualified stylist" : "Service prefers a specific stylist",
+      before: cur?.value ?? null,
+      after: value,
+    });
+    return { ok: true as const };
+  });

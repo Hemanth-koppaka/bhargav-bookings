@@ -19,7 +19,8 @@ import { useBooking } from "@/lib/booking-store";
 import { haptic } from "@/lib/utils";
 import { sfx } from "@/lib/sfx";
 import { ServiceGlyph, serviceKind } from "@/components/service-icons";
-import { BUSINESS, STYLISTS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
+import { BUSINESS, SERVICE_RULES, STYLISTS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
+import { preferredFor } from "@/lib/service-rules";
 
 export const Route = createFileRoute("/review")({
   head: () => ({
@@ -130,7 +131,7 @@ function ReviewScreen() {
                     <div className="mt-0.5 flex items-center justify-between gap-3 text-[0.88rem] text-muted-foreground">
                       <span>
                         {minuteLabel(draft.time)} · {formatDuration(totalMinutes)}
-                        {STYLISTS.length ? ` · ${stylistLabel(draft.staffId)}` : ""}
+                        {STYLISTS.length ? ` · ${stylistLabel(draft.staffId, draft.serviceIds)}` : ""}
                       </span>
                       <Link to="/time" className="text-[0.8rem] text-bronze underline underline-offset-4">
                         Change time
@@ -225,9 +226,13 @@ function PhotoStrip() {
   );
 }
 
-/** "with Bhargav" or "any available stylist" (assigned when the booking is confirmed). */
-const stylistLabel = (id: string | null | undefined) =>
-  id ? `with ${STYLISTS.find((x) => x.id === id)?.name ?? "your stylist"}` : "any available stylist";
+/** "with Bhargav" or "any available stylist" (assigned when the booking is confirmed).
+ * A service with a preferred stylist (Bhargav's Signature) is with that stylist. */
+const stylistLabel = (id: string | null | undefined, serviceIds: string[] = []) => {
+  if (id) return `with ${STYLISTS.find((x) => x.id === id)?.name ?? "your stylist"}`;
+  const pref = preferredFor(serviceIds, SERVICE_RULES);
+  return pref ? `with ${pref.preferredName}` : "any available stylist";
+};
 
 function Card({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
@@ -313,7 +318,7 @@ function DesktopReview({
                   </div>
                   <div className="mt-1 flex items-center gap-4 text-[1.1rem] text-muted-foreground">
                     {minuteLabel(draft.time)} · {formatDuration(totalMinutes)}
-                        {STYLISTS.length ? ` · ${stylistLabel(draft.staffId)}` : ""}
+                        {STYLISTS.length ? ` · ${stylistLabel(draft.staffId, draft.serviceIds)}` : ""}
                     <Link to="/time" className="text-[0.9rem] text-bronze underline underline-offset-4">
                       Change time
                     </Link>
