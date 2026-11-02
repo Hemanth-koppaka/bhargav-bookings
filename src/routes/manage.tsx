@@ -5,6 +5,7 @@ import { GhostAction, PrimaryAction } from "@/components/screen";
 import { InfoPage, InfoTitle, SectionLabel } from "@/components/info-page";
 import { ScrollStrip, prettyPhone } from "@/components/desktop";
 import { AddToCalendar } from "@/components/add-to-calendar";
+import { RateVisit, visitOver } from "@/components/rate-visit";
 import { auth, useBooking, servicesOf, type Booking, type ChangeResult } from "@/lib/booking-store";
 import { getAvailability, getPublicRules } from "@/lib/salon.functions";
 import type { DayAvailability } from "@/lib/engine.server";
@@ -413,8 +414,11 @@ function BookingPanel({
         </div>
       </div>
 
+      {/* after the visit: rate each service (once) */}
+      {mode === "view" ? <RateVisit booking={booking} className="mt-6" /> : null}
+
       {/* free reminders through the guest's own calendar; offered again after any change */}
-      {mode === "view" ? <AddToCalendar booking={booking} tone="light" className="mt-6" /> : null}
+      {mode === "view" && !visitOver(booking, minutesNeeded) ? <AddToCalendar booking={booking} tone="light" className="mt-6" /> : null}
 
       {cancelled ? null : mode === "view" ? (
         <ChangeWindow booking={booking}>

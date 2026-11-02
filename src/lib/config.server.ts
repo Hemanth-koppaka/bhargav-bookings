@@ -50,6 +50,12 @@ export async function loadConfig() {
     (cats.data ?? []).map((c) => ({ id: c.id, name: c.name, gender: c.gender })),
     (svcs.data ?? []).map((s) => ({ id: s.id, name: s.name, gender: s.gender })),
   );
+  // guests' ratings, per service record (id): average out of 5 and how many
+  const ratings = (set["service_ratings"] ?? {}) as Record<string, { sum: number; count: number }>;
+  const ratingOf = (id: string) => {
+    const r = ratings[id];
+    return r && r.count > 0 ? { avg: Math.round((r.sum / r.count) * 10) / 10, count: r.count } : undefined;
+  };
   const menu = (g: string) =>
     (cats.data ?? [])
       .filter((c) => c.gender === g && !(c as Record<string, unknown>)["archived_at"])
@@ -81,6 +87,7 @@ export async function loadConfig() {
             buffer: ((s as Record<string, unknown>)["buffer_minutes"] as number) ?? 0,
             featured: Boolean((s as Record<string, unknown>)["featured"]) || undefined,
             icon: icons[`svc:${s.id}`] || undefined,
+            rating: ratingOf(s.id),
             photo:
               ((s as Record<string, unknown>)["image_url"] as string) ||
               media[`svc:${s.id}`] ||

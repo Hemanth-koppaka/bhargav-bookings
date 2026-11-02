@@ -6,6 +6,8 @@ import { BUSINESS, hoursFor, isClosed, minuteLabel, toISO } from "@/lib/salon";
 import { LogoReveal } from "@/components/motion";
 import { CallButton, InfoStrip } from "@/components/desktop";
 import { SoundToggle } from "@/components/sound-toggle";
+import { useBooking } from "@/lib/booking-store";
+import { shouldAskRating } from "@/components/rate-visit";
 import founder from "@/assets/founder.jpg.asset.json";
 
 export const Route = createFileRoute("/")({
@@ -309,6 +311,7 @@ function MobileHome() {
           </h1>
           <p className="mt-3 text-[0.9rem] leading-relaxed text-muted-foreground">{CONTENT.home.intro}</p>
           <Announcement className="mt-3" />
+          <RatePrompt className="mt-3" />
           <div className="mt-[clamp(1rem,2.5svh,1.5rem)] space-y-2.5">
             <Link
               to="/book"
@@ -386,6 +389,7 @@ function DesktopHome() {
           </h1>
           <p className="mt-8 max-w-md text-[1.1rem] leading-relaxed text-muted-foreground">{CONTENT.home.introLong}</p>
           <Announcement className="mt-5 max-w-md" />
+          <RatePrompt className="mt-4 max-w-md" />
           <div className="mt-10 flex items-center gap-4">
             <Link
               to="/book"
@@ -447,5 +451,33 @@ function DesktopHome() {
 
       <InfoStrip className="mx-8 px-6 xl:mx-10 xl:px-16" />
     </div>
+  );
+}
+
+/** Returning guests: a quiet invitation to rate their latest visit (last 30 days, once). */
+function RatePrompt({ className }: { className?: string }) {
+  const { bookings, hydrated } = useBooking();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted || !hydrated) return null;
+  const monthAgo = toISO(new Date(Date.now() - 30 * 86_400_000));
+  const b = bookings
+    .filter((x) => x.date >= monthAgo && shouldAskRating(x))
+    .sort((a, z) => z.date.localeCompare(a.date) || z.time - a.time)[0];
+  if (!b) return null;
+  const day = new Date(`${b.date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  return (
+    <Link
+      to="/manage"
+      search={{ ref: b.reference }}
+      className={"press flex items-center justify-between gap-3 rounded-md border border-bronze/30 bg-champagne/15 px-4 py-3 text-[0.9rem] " + (className ?? "")}
+    >
+      <span>
+        How was your visit on {day}? <span className="text-bronze underline underline-offset-4">Rate it</span>
+      </span>
+      <span className="text-bronze" aria-hidden>
+        ★
+      </span>
+    </Link>
   );
 }

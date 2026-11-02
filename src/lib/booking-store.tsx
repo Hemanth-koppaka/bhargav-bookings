@@ -33,6 +33,10 @@ export type Draft = {
   photos?: RefPhoto[];
   /** Chosen stylist id; null/absent = any available stylist. */
   staffId?: string | null;
+  /** The services category the guest was last browsing (by id), restored on return. */
+  lastCategoryId?: string;
+  /** Services changed after a time was chosen: the time must be checked again. */
+  timeStale?: boolean;
 };
 
 export type Booking = {
@@ -46,6 +50,8 @@ export type Booking = {
   createdAt: string;
   /** Manage key from a lookup by booking ID or phone (the phone isn't sent back). */
   token?: string;
+  /** From the salon: a finished visit the guest hasn't rated yet. */
+  rateable?: boolean;
   /** What was booked, as stored by the salon (never re-read from today's menu). */
   snapshot?: BookingSnapshot | undefined;
   /** The stylist assigned when the booking was confirmed. */
@@ -53,7 +59,7 @@ export type Booking = {
 };
 
 export type BookingSnapshot = {
-  services: { name: string; price: number; minutes: number }[];
+  services: { id?: string; name: string; price: number; minutes: number }[];
   minutes: number;
   price: number;
 };
@@ -160,13 +166,19 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       toggleService: (id) =>
         setDraft((d) => ({
           ...d,
+          // one entry per service (by id), never duplicates
           serviceIds: d.serviceIds.includes(id)
             ? d.serviceIds.filter((x) => x !== id)
             : [...d.serviceIds, id],
-          time: null,
+          // a chosen time is kept but re-checked on the time step (the length changed)
+          ...(d.time != null ? { timeStale: true } : {}),
         })),
       removeService: (id) =>
-        setDraft((d) => ({ ...d, serviceIds: d.serviceIds.filter((x) => x !== id), time: null })),
+        setDraft((d) => ({
+          ...d,
+          serviceIds: d.serviceIds.filter((x) => x !== id),
+          ...(d.time != null ? { timeStale: true } : {}),
+        })),
       resetDraft: () => setDraft(EMPTY),
       commitBooking: async () => {
         if (!draft.audience || !draft.date || draft.time == null || !draft.customer)
@@ -220,6 +232,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
             status: r.status,
             createdAt: r.createdAt,
             token: r.token,
+            rateable: r.rateable,
             ...(r.snapshot ? { snapshot: r.snapshot } : {}),
           }));
           const refs = new Set(found.map((f) => f.reference));

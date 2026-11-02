@@ -72,6 +72,11 @@ function ReviewScreen() {
   if (!ready || !draft.customer || !draft.date || draft.time == null) return null;
   const confirm = async () => {
     if (saving) return;
+    // services changed after the time was chosen: check the time again first
+    if (draft.timeStale) {
+      navigate({ to: "/time" });
+      return;
+    }
     if (!pledged) {
       haptic(20);
       sfx.error();
@@ -200,6 +205,7 @@ function ReviewScreen() {
                 </div>
               </Card>
 
+              {draft.timeStale ? <StaleTime /> : null}
               <AttendancePledge checked={pledged} onChange={setPledged} nudge={nudge} fromPricing={hasFromPricing} />
             </div>
           </Screen>
@@ -298,118 +304,125 @@ function DesktopReview({
       <DesktopStepHeader back="/details" step={5} />
 
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-        <main className="page-in mx-auto max-w-6xl px-8 py-6 lg:px-14">
+        {/* one shared container: the title and both columns align to it */}
+        <main className="page-in mx-auto w-[min(1200px,calc(100vw-64px))] pt-7 pb-10 [@media(min-width:1024px)_and_(max-height:800px)]:pt-4 [@media(min-width:1024px)_and_(max-height:800px)]:pb-6">
           <StepTitle step="five">
             Review your <Accent>appointment</Accent>
           </StepTitle>
-          <p className="mt-2 text-[1.1rem] text-muted-foreground">
+          <p className="mt-2 text-[1.05rem] text-muted-foreground [@media(min-width:1024px)_and_(max-height:800px)]:mt-1">
             Please check your details below. You can edit them if needed.
           </p>
 
-          <div className="mt-6 space-y-3.5">
-            <Card title="Appointment details" action={<EditLink to="/services" />}>
-              <div className="flex items-center gap-7">
-                <Thumb src={img.src} pos={img.pos} fit={img.fit} className="h-24 w-24" />
-                <div className="min-w-0 flex-1">
-                  <ul className="space-y-1">
-                    {selected.map((x) => (
-                      <li key={x.id} className="group flex items-center gap-3">
-                        <ServiceGlyph kind={serviceKind(x)} className="h-5 w-5 shrink-0 text-bronze" />
-                        <span className="font-display text-[1.7rem] leading-tight">{x.name}</span>
-                        {selected.length > 1 ? (
-                          <span className="text-[0.9rem] text-muted-foreground">
-                            {inr(x.price)}
-                            {x.from ? "+" : ""}
-                          </span>
-                        ) : null}
-                        {selected.length > 1 ? (
-                          <button
-                            onClick={() => removeService(x.id)}
-                            aria-label={`Remove ${x.name}`}
-                            className="press -m-2 inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/35 opacity-0 transition-opacity hover:bg-foreground/5 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
-                          >
-                            <X className="h-4 w-4" strokeWidth={1.25} />
-                          </button>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-1.5 text-[1.1rem] text-muted-foreground">
-                    {fromISO(draft.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
-                  </div>
-                  <div className="mt-1 flex items-center gap-4 text-[1.1rem] text-muted-foreground">
-                    {minuteLabel(draft.time)} · {formatDuration(totalMinutes)}
-                        {STYLISTS.length ? ` · ${stylistLabel(draft.staffId, draft.serviceIds)}` : ""}
-                    <Link to="/time" className="text-[0.9rem] text-bronze underline underline-offset-4">
+          {/* 50 / 50: appointment + you on the left, studio + confirmation on the right */}
+          <div className="mt-6 grid grid-cols-1 items-start gap-5 min-[901px]:grid-cols-2 [@media(min-width:1024px)_and_(max-height:800px)]:mt-4 [@media(min-width:1024px)_and_(max-height:800px)]:gap-4">
+            <div className="grid gap-5 [@media(min-width:1024px)_and_(max-height:800px)]:gap-4">
+              <Card title="Appointment details" action={<EditLink to="/services" />}>
+                <div className="flex gap-5">
+                  <Thumb src={img.src} pos={img.pos} fit={img.fit} className="h-20 w-20 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <ul className="space-y-0.5">
+                      {selected.map((x) => (
+                        <li key={x.id} className="group flex items-center gap-2.5">
+                          <ServiceGlyph kind={serviceKind(x)} className="h-4 w-4 shrink-0 text-bronze" />
+                          <span className="min-w-0 truncate font-display text-[1.45rem] leading-tight">{x.name}</span>
+                          {selected.length > 1 ? (
+                            <button
+                              onClick={() => removeService(x.id)}
+                              aria-label={`Remove ${x.name}`}
+                              className="press -m-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-foreground/35 opacity-0 transition-opacity hover:bg-foreground/5 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+                            >
+                              <X className="h-4 w-4" strokeWidth={1.25} />
+                            </button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-1.5 text-[1rem] text-muted-foreground">
+                      {fromISO(draft.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+                    </div>
+                    <div className="text-[1rem] text-muted-foreground">
+                      {minuteLabel(draft.time)} – {minuteLabel(draft.time + totalMinutes)}
+                    </div>
+                    <div className="text-[1rem] text-muted-foreground">
+                      {formatDuration(totalMinutes)}
+                      {STYLISTS.length ? ` · ${stylistLabel(draft.staffId, draft.serviceIds)}` : ""}
+                    </div>
+                    <Link to="/time" className="mt-1 inline-block text-[0.88rem] text-bronze underline underline-offset-4">
                       Change time
                     </Link>
                   </div>
-                </div>
-                <div className="self-stretch border-l border-hairline pl-8 pr-2 lg:pl-14 lg:pr-6">
-                  <div className="flex h-full flex-col justify-center">
-                    <div className="text-[0.72rem] uppercase tracking-[0.3em] text-foreground/70">
-                      {hasFromPricing ? "Estimated price" : "Price"}
+                  <div className="flex shrink-0 flex-col justify-center border-l border-hairline pl-6">
+                    <div className="text-[0.66rem] uppercase tracking-[0.28em] text-foreground/70">
+                      {hasFromPricing ? "Estimated" : "Price"}
                     </div>
-                    <div className="mt-2 font-display text-[2.2rem] leading-none">
+                    <div className="mt-2 font-display text-[1.9rem] leading-none">
                       {inr(totalPrice)}
                       {hasFromPricing ? "+" : ""}
                     </div>
+                    {selected.length > 1 ? (
+                      <div className="mt-1.5 text-[0.78rem] text-muted-foreground">{selected.length} services</div>
+                    ) : null}
                   </div>
                 </div>
-              </div>
-            </Card>
-
-            <Card title="Your details" action={<EditLink to="/details" />}>
-              <dl className="grid grid-cols-3 divide-x divide-hairline">
-                {[
-                  ["Full name", c.name],
-                  ["Mobile number", prettyPhone(c.phone)],
-                  ["Email (optional)", c.email || "—"],
-                ].map(([k, v]) => (
-                  <div key={k} className="px-8 first:pl-0">
-                    <dt className="text-[0.68rem] uppercase tracking-[0.26em] text-muted-foreground">{k}</dt>
-                    <dd className="mt-2 truncate text-[1.1rem]">{v}</dd>
-                  </div>
-                ))}
-              </dl>
-              {c.notes ? (
-                <p className="mt-5 hairline-t pt-4 text-[0.95rem] leading-relaxed text-muted-foreground">
-                  <span className="mr-3 text-[0.68rem] uppercase tracking-[0.26em]">Note</span>
-                  {c.notes}
-                </p>
-              ) : null}
-              <PhotoStrip />
               </Card>
 
-            <Card
-              title="Studio location"
-              action={
-                <a href={mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-[0.95rem] text-bronze">
-                  <span className="underline underline-offset-4">Directions</span>
-                  <ArrowUpRight className="h-4 w-4" strokeWidth={1.25} />
-                </a>
-              }
-            >
-              <div className="flex items-center gap-7">
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-champagne/20 text-bronze">
-                  <MapPin className="h-5 w-5" strokeWidth={1.25} />
-                </span>
-                <address className="flex-1 text-[1.1rem] not-italic leading-relaxed">
-                  {line1},
-                  <br />
-                  KPHB{line2.join(", KPHB")}
-                </address>
-                <iframe
-                  title="Map to the studio"
-                  src={embedUrl}
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  className="h-24 w-56 shrink-0 rounded-sm border-0 bg-muted grayscale lg:w-80"
-                />
-              </div>
-            </Card>
+              <Card title="Your details" action={<EditLink to="/details" />}>
+                <dl className="grid grid-cols-3 divide-x divide-hairline">
+                  {[
+                    ["Full name", c.name],
+                    ["Mobile", prettyPhone(c.phone)],
+                    ["Email", c.email || "—"],
+                  ].map(([k, v]) => (
+                    <div key={k} className="min-w-0 px-4 first:pl-0 last:pr-0">
+                      <dt className="text-[0.64rem] uppercase tracking-[0.24em] text-muted-foreground">{k}</dt>
+                      <dd className="mt-2 truncate text-[1rem]" title={v}>
+                        {v}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                {c.notes ? (
+                  <p className="mt-4 hairline-t pt-3 text-[0.92rem] leading-relaxed text-muted-foreground">
+                    <span className="mr-3 text-[0.66rem] uppercase tracking-[0.26em]">Note</span>
+                    {c.notes}
+                  </p>
+                ) : null}
+                <PhotoStrip />
+              </Card>
+            </div>
 
-            {pledge}
+            <div className="grid gap-5 [@media(min-width:1024px)_and_(max-height:800px)]:gap-4">
+              <Card
+                title="Studio location"
+                action={
+                  <a href={mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-[0.85rem] text-bronze lg:text-[0.95rem]">
+                    <span className="underline underline-offset-4">Directions</span>
+                    <ArrowUpRight className="h-4 w-4" strokeWidth={1.25} />
+                  </a>
+                }
+              >
+                <div className="grid grid-cols-[minmax(0,11fr)_minmax(0,9fr)] items-center gap-5">
+                  <address className="text-[0.98rem] not-italic leading-relaxed">
+                    <span className="block font-display text-[1.2rem] leading-tight">{BUSINESS.name || "Hair by Bhargav"}</span>
+                    <span className="mt-1 block text-muted-foreground">
+                      {line1},
+                      <br />
+                      KPHB{line2.join(", KPHB")}
+                    </span>
+                  </address>
+                  <iframe
+                    title="Map to the studio"
+                    src={embedUrl}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    className="h-32 w-full rounded-sm border-0 bg-muted grayscale"
+                  />
+                </div>
+              </Card>
+
+              {draft.timeStale ? <StaleTime /> : null}
+              {pledge}
+            </div>
           </div>
         </main>
       </div>
@@ -458,7 +471,7 @@ function AttendancePledge({
       key={nudge}
       className={cn(
         "scroll-mt-24 rounded-md border px-5 py-5 transition-colors lg:px-7 lg:py-6",
-        nudge && !checked ? "shake border-bronze/70 bg-champagne/20" : "border-hairline bg-card",
+        nudge && !checked ? "shake border-bronze/70 bg-champagne/25" : "border-bronze/25 bg-champagne/10",
       )}
     >
       <div className="text-[0.62rem] uppercase tracking-[0.28em] text-bronze lg:text-[0.68rem]">Before you confirm</div>
@@ -491,5 +504,17 @@ function AttendancePledge({
         Thank you for respecting each other's time. <span className="not-italic text-bronze">Hair by Bhargav</span>
       </p>
     </section>
+  );
+}
+
+/** The services changed after the time was picked: the time needs a fresh check. */
+function StaleTime() {
+  return (
+    <div role="status" className="rounded-md border border-bronze/35 bg-champagne/20 px-5 py-4 text-[0.9rem] leading-relaxed">
+      Your services have changed, so the previously selected time may no longer be available.{" "}
+      <Link to="/time" className="whitespace-nowrap text-bronze underline underline-offset-4">
+        Choose a new time
+      </Link>
+    </div>
   );
 }

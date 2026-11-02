@@ -52,10 +52,18 @@ export const Route = createFileRoute("/services")({
 });
 
 function ServicesScreen() {
-  const { draft, hydrated, toggleService, selected, totalMinutes, totalPrice, hasFromPricing } =
+  const { draft, hydrated, toggleService, selected, totalMinutes, totalPrice, hasFromPricing, update } =
     useBooking();
   const navigate = useNavigate();
   const [active, setActive] = useState<string | null>(null);
+  // Coming back with services already chosen: open the basket so they're in view.
+  const [basketOpen, setBasketOpen] = useState(false);
+  const basketInit = useRef(false);
+  useEffect(() => {
+    if (!hydrated || basketInit.current) return;
+    basketInit.current = true;
+    if (selected.length) setBasketOpen(true);
+  }, [hydrated, selected.length]);
   const multiHint = useMultiHint(selected.length);
   const chipRow = useRef<HTMLDivElement>(null);
   const popularity = usePopularity();
@@ -65,7 +73,10 @@ function ServicesScreen() {
   }, [hydrated, draft.audience, navigate]);
 
   const menu = draft.audience ? menuFor(draft.audience) : [];
-  const activeId = active ?? menu[0]?.id ?? null;
+  const popular = useMemo(() => popularIn(menu, popularity), [menu, popularity]);
+  // the category the guest was last browsing (by id), else the first
+  const remembered = draft.lastCategoryId && menu.some((c) => c.id === draft.lastCategoryId) ? draft.lastCategoryId : null;
+  const activeId = active ?? remembered ?? menu[0]?.id ?? null;
   const category = menu.find((c) => c.id === activeId) ?? menu[0];
   const [query, setQuery] = useState("");
   const search = useServiceSearch(menu, query);
@@ -101,6 +112,7 @@ function ServicesScreen() {
       );
     setActive(id);
     setQuery("");
+    update({ lastCategoryId: id });
   };
   // a soft response when results appear: never per keystroke (throttled in the engine)
   const hits = search?.length ?? 0;
@@ -122,6 +134,7 @@ function ServicesScreen() {
     <>
       <DesktopServices
         hint={multiHint}
+        basket={{ open: basketOpen, setOpen: setBasketOpen }}
         menu={menu}
         category={category}
         onCategory={goCategory}
@@ -257,9 +270,10 @@ function ServicesScreen() {
                               {x.note}
                             </span>
                           ) : null}
-                          <span className="mt-1.5 flex items-center gap-1.5 text-[0.75rem] text-muted-foreground">
+                          <span className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.75rem] text-muted-foreground">
                             <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
                             {formatDuration(x.minutes)}
+                            <ServiceSignals rating={x.rating} popular={popular.has(x.id)} />
                           </span>
                         </span>
                         <span className="shrink-0 whitespace-nowrap text-[1rem]">
@@ -291,7 +305,16 @@ function ServicesScreen() {
           {selected.length ? (
             <StickyBar>
               <MultiHint hint={multiHint} className="mb-3" />
-              <div className="fade-rise mb-3 flex items-center justify-between gap-3">
+              {basketOpen ? (
+                <Basket className="mb-3" onAddMore={() => setBasketOpen(false)} onContinue={() => navigate({ to: "/time" })} />
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setBasketOpen((v) => !v)}
+                aria-expanded={basketOpen}
+                aria-label={basketOpen ? "Hide your services" : "Show your services"}
+                className="fade-rise mb-3 flex w-full items-center justify-between gap-3 text-left"
+              >
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/12">
                     <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.1} />
@@ -320,13 +343,17 @@ function ServicesScreen() {
                   {inr(totalPrice)}
                   {hasFromPricing ? "+" : ""}
                 </span>
-              </div>
-              <PrimaryAction
-                disabled={selected.length === 0}
-                onClick={() => navigate({ to: "/time" })}
-              >
-                Choose a time
-              </PrimaryAction>
+                <ChevronDown
+                  className={"h-4 w-4 shrink-0 text-muted-foreground transition-transform " + (basketOpen ? "" : "rotate-180")}
+                  strokeWidth={1.5}
+                />
+              </button>
+              {/* the open basket has its own "Choose a time" */}
+              {basketOpen ? null : (
+                <PrimaryAction disabled={selected.length === 0} onClick={() => navigate({ to: "/time" })}>
+                  Choose a time
+                </PrimaryAction>
+              )}
             </StickyBar>
           ) : null}
         </Page>
@@ -340,6 +367,78 @@ function ServicesScreen() {
  * first time someone adds a service, a quiet note says so (once per device,
  * gone after a few seconds, on tap, or when they add a second service).
  */
+/**
+ * The appointment basket: what's chosen, each removable, with the live count,
+ * time and total. It's the same booking draft every step reads, so nothing
+ * here can drift from the time, details or review steps.
+ */
+function Basket({ onAddMore, onContinue, className }: { onAddMore: () => void; onContinue: () => void; className?: string }) {
+  const { selected, removeService, totalMinutes, totalPrice, hasFromPricing } = useBooking();
+  return (
+    <div className={"fade-rise rounded-md border border-hairline bg-card " + (className ?? "")}>
+      <div className="flex items-center justify-between px-4 pt-4 lg:px-5">
+        <span className="text-[0.66rem] uppercase tracking-[0.28em] text-muted-foreground">Your services</span>
+        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-bronze px-1.5 text-[0.7rem] text-ivory tabular-nums">
+          {selected.length}
+        </span>
+      </div>
+      <ul className="mt-2 max-h-[34svh] divide-y divide-hairline overflow-y-auto px-4 lg:px-5">
+        {selected.map((x) => (
+          <li key={x.id} className="flex items-center gap-3 py-2.5">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[0.95rem]">{x.name}</span>
+              <span className="block text-[0.75rem] text-muted-foreground">{formatDuration(x.minutes ?? x.slots * 30)}</span>
+            </span>
+            <span className="shrink-0 tabular-nums">
+              {inr(x.price)}
+              {x.from ? "+" : ""}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                sfx.serviceSelect(false);
+                removeService(x.id);
+              }}
+              aria-label={`Remove ${x.name}`}
+              className="press -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+            >
+              <X className="h-4 w-4" strokeWidth={1.5} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="mx-4 flex items-baseline justify-between border-t border-hairline py-3 lg:mx-5">
+        <span className="text-[0.85rem] text-muted-foreground">
+          {selected.length} {selected.length === 1 ? "service" : "services"} · {formatDuration(totalMinutes)}
+        </span>
+        <span className="font-display text-[1.35rem] leading-none">
+          {inr(totalPrice)}
+          {hasFromPricing ? "+" : ""}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 px-4 pb-4 lg:px-5">
+        <button
+          type="button"
+          data-sfx="secondary"
+          onClick={onAddMore}
+          className="press min-h-11 rounded-sm border border-foreground/20 text-[0.66rem] uppercase tracking-[0.2em]"
+        >
+          Add services
+        </button>
+        <button
+          type="button"
+          data-sfx="primary"
+          onClick={onContinue}
+          disabled={!selected.length}
+          className="press min-h-11 rounded-sm bg-foreground text-[0.66rem] uppercase tracking-[0.2em] text-background disabled:opacity-40"
+        >
+          Choose a time
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const MULTI_HINT_KEY = "hb.hint.multi";
 function useMultiHint(count: number) {
   const [show, setShow] = useState(false);
@@ -385,6 +484,7 @@ function MultiHint({ hint, className }: { hint: { show: boolean; hide: () => voi
 
 function DesktopServices({
   hint,
+  basket,
   menu,
   category,
   onCategory,
@@ -393,6 +493,7 @@ function DesktopServices({
   search,
 }: {
   hint: { show: boolean; hide: () => void };
+  basket: { open: boolean; setOpen: (v: boolean | ((x: boolean) => boolean)) => void };
   menu: Category[];
   category: Category;
   onCategory: (id: string) => void;
@@ -406,6 +507,7 @@ function DesktopServices({
   const img = AUDIENCE_IMAGE[men ? "men" : "women"];
   const [sort, setSort] = useState<SortKey>("popular");
   const popularity = usePopularity();
+  const popular = useMemo(() => popularIn(menu, popularity), [menu, popularity]);
   const goBack = useRewindBack("/book");
 
   return (
@@ -614,9 +716,10 @@ function DesktopServices({
                             {x.note}
                           </span>
                         ) : null}
-                        <span className="mt-1 flex items-center gap-2 text-[0.82rem] text-muted-foreground">
+                        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.82rem] text-muted-foreground">
                           <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
                           {formatDuration(x.minutes)}
+                          <ServiceSignals rating={x.rating} popular={popular.has(x.id)} />
                         </span>
                       </span>
                       <span className="shrink-0 whitespace-nowrap font-display text-[1.4rem]">
@@ -676,6 +779,13 @@ function DesktopServices({
           </div>
         </div>
       ) : null}
+      {basket.open && selected.length ? (
+        <div className="relative z-30">
+          <div className="absolute bottom-3 left-6 w-[min(26rem,calc(100vw-3rem))] shadow-[0_24px_50px_-28px_rgba(40,25,10,0.55)] lg:left-10 xl:left-16">
+            <Basket onAddMore={() => basket.setOpen(false)} onContinue={() => navigate({ to: "/time" })} />
+          </div>
+        </div>
+      ) : null}
       <DesktopBar>
         {selected[0] ? (
           <ServiceIconTile
@@ -695,9 +805,15 @@ function DesktopServices({
         <div className="min-w-0 flex-1">
           {selected.length ? (
             <>
-              <div className="truncate font-display text-[1.35rem] leading-tight">
+              <button
+                type="button"
+                onClick={() => basket.setOpen((v) => !v)}
+                aria-expanded={basket.open}
+                className="flex max-w-full items-center gap-2 truncate text-left font-display text-[1.35rem] leading-tight hover:text-bronze"
+              >
                 {selected.length} {selected.length === 1 ? "service" : "services"} selected
-              </div>
+                <ChevronDown className={"h-4 w-4 shrink-0 transition-transform " + (basket.open ? "" : "rotate-180")} strokeWidth={1.5} />
+              </button>
               <div className="mt-0.5 truncate text-[0.88rem] text-muted-foreground">
                 {formatDuration(totalMinutes)} · {selected.map((x) => x.name).join(", ")}
               </div>
@@ -846,6 +962,50 @@ function sortServices<T extends { id: string; price: number; minutes: number }>(
 
 let popularityCache: Record<string, number> | null = null;
 /** Booking counts per service, fetched once per visit and refreshed on the next one. */
+/** Only show a rating once enough guests have given one. */
+const MIN_RATINGS = 3;
+/** "Popular" = genuinely most booked (real bookings, last 120 days): top 3 of this menu, 5+ bookings. */
+function popularIn(menu: Category[], counts: Record<string, number>) {
+  const ranked = menu
+    .flatMap((c) => c.services)
+    .map((s) => ({ id: s.id, n: counts[s.id] ?? 0 }))
+    .filter((s) => s.n >= 5)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 3);
+  return new Set(ranked.map((s) => s.id));
+}
+
+/**
+ * Two separate signals, kept quiet: the guests' rating (quality) and
+ * "Popular" (how often it's booked). Neither is shown without real data.
+ */
+function ServiceSignals({ rating, popular }: { rating?: { avg: number; count: number } | undefined; popular: boolean }) {
+  const showRating = rating && rating.count >= MIN_RATINGS;
+  if (!showRating && !popular) return null;
+  return (
+    <>
+      {showRating ? (
+        <span className="flex items-center gap-1" aria-label={`Rated ${rating.avg.toFixed(1)} out of 5 by ${rating.count} guests`}>
+          <span aria-hidden>·</span>
+          <span className="text-bronze" aria-hidden>
+            ★
+          </span>
+          <span className="text-foreground/80 tabular-nums">{rating.avg.toFixed(1)}</span>
+          <span>
+            ({rating.count} {rating.count === 1 ? "rating" : "ratings"})
+          </span>
+        </span>
+      ) : null}
+      {popular ? (
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden>·</span>
+          <span className="text-[0.62rem] uppercase tracking-[0.2em] text-bronze">Popular</span>
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 function usePopularity() {
   const [counts, setCounts] = useState<Record<string, number>>(popularityCache ?? {});
   useEffect(() => {

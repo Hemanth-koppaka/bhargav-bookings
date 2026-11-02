@@ -48,6 +48,8 @@ export type CatalogueService = {
   photo: string | null;
   /** This record's own icon ("" = not set). Men and women never share one. */
   icon: string;
+  /** Guests' ratings after their visits (read-only: never typed in by the salon). */
+  rating: { avg: number; count: number } | null;
   /** Active bookings from today onwards that include this service. */
   upcoming: number;
 };
@@ -61,7 +63,7 @@ export const adminCatalogue = createServerFn({ method: "POST" })
     const [c, s, st, bk] = await Promise.all([
       sb.from("service_categories").select("*").order("display_order"),
       sb.from("services").select("*").order("display_order"),
-      sb.from("site_settings").select("key, value").in("key", ["media", "service_icons"]),
+      sb.from("site_settings").select("key, value").in("key", ["media", "service_icons", "service_ratings"]),
       sb
         .from("bookings")
         .select("service_ids, status, meta")
@@ -73,6 +75,7 @@ export const adminCatalogue = createServerFn({ method: "POST" })
       string,
       string
     >;
+    const ratings = ((st.data ?? []).find((x) => x.key === "service_ratings")?.value ?? {}) as Record<string, { sum: number; count: number }>;
     const { recordIcons } = await import("./service-icons.server");
     const icons = await recordIcons(
       sb as never,
@@ -123,6 +126,9 @@ export const adminCatalogue = createServerFn({ method: "POST" })
         archived: Boolean(r["archived_at"]),
         photo: (r["image_url"] as string) || media[`svc:${r["id"]}`] || null,
         icon: icons[`svc:${r["id"]}`] ?? "",
+        rating: ratings[r["id"] as string]?.count
+          ? { avg: Math.round((ratings[r["id"] as string]!.sum / ratings[r["id"] as string]!.count) * 10) / 10, count: ratings[r["id"] as string]!.count }
+          : null,
         upcoming: upcoming[r["id"] as string] ?? 0,
       })),
     };
