@@ -29,6 +29,7 @@ import {
   type CatalogueCategory,
   type CatalogueService,
 } from "@/lib/admin-catalogue.functions";
+import { adminServiceRule, adminSetServiceRule } from "@/lib/admin-staff.functions";
 import { useAdmin } from "@/lib/admin-store";
 import { formatDuration, inr, type Audience } from "@/lib/salon";
 import {
@@ -613,6 +614,19 @@ function ServiceEditor({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [confirmArchive, setConfirmArchive] = useState(false);
+  // who performs this service: any qualified stylist, or one preferred stylist
+  const [rule, setRule] = useState<{ preferred: string; initial: string; stylists: { id: string; name: string }[] } | null>(null);
+  useEffect(() => {
+    setRule(null);
+    if (!service || service === "new") return;
+    let live = true;
+    adminServiceRule({ data: { pin, id: service.id } })
+      .then((r) => live && setRule({ preferred: r.preferred ?? "any", initial: r.preferred ?? "any", stylists: r.stylists }))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [service, pin]);
 
   useEffect(() => {
     if (!service) return;
@@ -660,6 +674,10 @@ function ServiceEditor({
           featured: f.featured,
         },
       });
+      if (!isNew && rule && rule.preferred !== rule.initial) {
+        const r = await adminSetServiceRule({ data: { pin, id: (service as CatalogueService).id, preferred: rule.preferred } });
+        if (!r.ok) throw new Error(r.error);
+      }
       toast.success(isNew ? `${f.name.trim()} added.` : "Saved.");
       onSaved();
       onClose();
@@ -760,6 +778,25 @@ function ServiceEditor({
               </select>
             </Field>
           </div>
+          {rule ? (
+            <Field
+              label="Stylist"
+              hint={
+                rule.preferred === "any"
+                  ? "Any qualified stylist who is free."
+                  : "Booked with this stylist. If they're busy, guests can choose another available stylist themselves; it's never switched for them."
+              }
+            >
+              <select className={inputClass} value={rule.preferred} onChange={(e) => setRule({ ...rule, preferred: e.target.value })}>
+                <option value="any">Any qualified stylist</option>
+                {rule.stylists.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    Prefer {st.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
           <Field label="Price (₹)">
             <input
               className={inputClass}

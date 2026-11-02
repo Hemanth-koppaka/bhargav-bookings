@@ -4,6 +4,8 @@
 // here, and the database trigger is the final guard against races.
 import { supabaseAdmin as sb } from "@/integrations/supabase/client.server";
 import { hasPerStylistGuard, loadStore, staffIdOf } from "./staff-store.server";
+import { loadRuleSettings, resolveRules } from "./service-rules.server";
+import { preferredFor, type ServiceRule } from "./service-rules";
 import {
   computeSlots,
   computeStaffSlots,
@@ -146,12 +148,19 @@ export type Stylist = { id: string; name: string; gender: string; order: number 
 export async function staffDay(
   date: string,
   serviceIds: string[],
-  options: { ignoreReference?: string | undefined; staffMode?: boolean | undefined; store?: Awaited<ReturnType<typeof loadStore>> | undefined } = {},
+  options: {
+    ignoreReference?: string | undefined;
+    staffMode?: boolean | undefined;
+    store?: Awaited<ReturnType<typeof loadStore>> | undefined;
+    rules?: Record<string, ServiceRule> | undefined;
+  } = {},
 ): Promise<{ eligible: Stylist[]; working: StaffDay[]; salonBusy: Range[] } | null> {
-  const [store, booked] = await Promise.all([
+  const [store, booked, ruleSettings] = await Promise.all([
     options.store ?? loadStore(),
     sb.from("bookings").select("*").eq("date", date).neq("status", "cancelled"),
+    options.rules ? Promise.resolve(null) : loadRuleSettings(),
   ]);
+  const rules = options.rules ?? resolveRules(store, ruleSettings ?? {});
   const staff = (store.staff as Record<string, unknown>[])
     .filter((r) => r["active"] !== false && !r["archived_at"])
     .sort((a, b) => ((a["display_order"] as number) ?? 0) - ((b["display_order"] as number) ?? 0));
@@ -173,8 +182,12 @@ export async function staffDay(
     if (!can.has(k)) can.set(k, new Set());
     can.get(k)!.add(r["service_id"] as string);
   }
+  // a service with a preferred stylist may be done by that stylist or its fallback pool;
+  // every other service by the stylists who offer it
+  const may = (staffId: string, svcId: string) =>
+    rules[svcId] ? rules[svcId].preferred === staffId || rules[svcId].fallback.includes(staffId) : Boolean(can.get(staffId)?.has(svcId));
   const eligible = all
-    .filter((r) => serviceIds.every((id) => can.get(r["id"] as string)?.has(id)))
+    .filter((r) => serviceIds.every((id) => may(r["id"] as string, id)))
     .map((r): Stylist => ({ id: r["id"] as string, name: r["name"] as string, gender: (r["gender"] as string) || "", order: (r["display_order"] as number) ?? 0 }));
   const onLeave = new Set(((leave.data ?? []) as R[]).map((r) => r["staff_id"] as string));
   const working: StaffDay[] = [];
@@ -286,6 +299,11 @@ export type DayAvailability = {
   message?: string;
   /** Stylists who can do the chosen services (multi-stylist salons). */
   stylists?: Stylist[];
+  /**
+   * The chosen services prefer one stylist (e.g. Bhargav's Signature → Bhargav):
+   * booked with them unless the guest explicitly picks another stylist.
+   */
+  preferred?: { id: string; name: string };
 };
 
 /** Everything the time picker needs for one day. */
@@ -303,11 +321,13 @@ export async function availability(
   } = {},
 ): Promise<DayAvailability> {
   // one read of the stylist store, then everything else in parallel
-  const [store, rules] = await Promise.all([loadStore(), rulesIn]);
+  const [store, rules, ruleSettings] = await Promise.all([loadStore(), rulesIn, loadRuleSettings()]);
+  const svcRules = resolveRules(store, ruleSettings);
+  const pref = preferredFor(options.serviceIds ?? [], svcRules);
   const [plan, team, perStylist] = await Promise.all([
     dayPlan(date, store),
     options.serviceIds?.length
-      ? staffDay(date, options.serviceIds, { ignoreReference: options.ignoreReference, staffMode: options.staff, store })
+      ? staffDay(date, options.serviceIds, { ignoreReference: options.ignoreReference, staffMode: options.staff, store, rules: svcRules })
       : Promise.resolve(null),
     hasPerStylistGuard(),
   ]);
@@ -354,7 +374,8 @@ export async function availability(
       );
     }
     const message = !team.eligible.length ? "No stylist offers this combination of services. Please book them separately." : undefined;
-    return { ...base, slots, bookable: slots.some((s) => s.available), stylists: team.eligible, ...(message ? { message } : {}) };
+    const preferred = pref && team.eligible.some((s) => s.id === pref.preferred) ? { id: pref.preferred, name: pref.preferredName } : undefined;
+    return { ...base, slots, bookable: slots.some((s) => s.available), stylists: team.eligible, ...(preferred ? { preferred } : {}), ...(message ? { message } : {}) };
   }
   const slots = computeSlots({ ...common, busy: await busyOn(date, options.ignoreReference) });
   return { ...base, slots, bookable: slots.some((s) => s.available) };
@@ -377,6 +398,17 @@ export async function checkTime(
   rules: BookingRules,
   options: { ignoreReference?: string; staff?: boolean; serviceIds?: string[]; choice?: string; exclude?: string[] } = {},
 ): Promise<{ ok: true; staffId?: string | null } | { ok: false; error: string }> {
+  // A service with a preferred stylist (Bhargav's Signature → Bhargav) is booked
+  // with that stylist unless the guest explicitly chose someone from its pool:
+  // "any" never quietly becomes someone else.
+  let implicitPreferred: ServiceRule | null = null;
+  if ((!options.choice || options.choice === "any") && options.serviceIds?.length) {
+    const pref = preferredFor(options.serviceIds, resolveRules(await loadStore(), await loadRuleSettings()));
+    if (pref) {
+      implicitPreferred = pref;
+      options = { ...options, choice: pref.preferred };
+    }
+  }
   const day = await availability(date, q, rules, options);
   if (day.closed) return { ok: false, error: "The studio is closed that day." };
   if (day.message) return { ok: false, error: day.message };
@@ -387,7 +419,9 @@ export async function checkTime(
     return {
       ok: false,
       error:
-        options.choice && options.choice !== "any" && slot.reason === "booked"
+        implicitPreferred && slot.reason !== "past" && slot.reason !== "notice"
+          ? `${implicitPreferred.preferredName} isn't available at this time. Please choose another time, or continue with another stylist.`
+          : options.choice && options.choice !== "any" && slot.reason === "booked"
           ? "That stylist is booked at this time. Please choose another time or any available stylist."
           : (REASON_TEXT[slot.reason ?? "blocked"] ?? REASON_TEXT["blocked"]!),
     };
