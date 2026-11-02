@@ -28,6 +28,8 @@ export type CatalogueCategory = {
   active: boolean;
   archived: boolean;
   photo: string | null;
+  /** This record's own icon ("" = not set). */
+  icon: string;
 };
 export type CatalogueService = {
   id: string;
@@ -44,6 +46,8 @@ export type CatalogueService = {
   active: boolean;
   archived: boolean;
   photo: string | null;
+  /** This record's own icon ("" = not set). Men and women never share one. */
+  icon: string;
   /** Active bookings from today onwards that include this service. */
   upcoming: number;
 };
@@ -57,7 +61,7 @@ export const adminCatalogue = createServerFn({ method: "POST" })
     const [c, s, st, bk] = await Promise.all([
       sb.from("service_categories").select("*").order("display_order"),
       sb.from("services").select("*").order("display_order"),
-      sb.from("site_settings").select("value").eq("key", "media").maybeSingle(),
+      sb.from("site_settings").select("key, value").in("key", ["media", "service_icons"]),
       sb
         .from("bookings")
         .select("service_ids, status, meta")
@@ -65,7 +69,14 @@ export const adminCatalogue = createServerFn({ method: "POST" })
         .neq("status", "cancelled"),
     ]);
     if (c.error || s.error) throw new Error("Couldn't load the menu");
-    const media = (st.data?.value ?? {}) as Record<string, string>;
+    const media = ((st.data ?? []).find((x) => x.key === "media")?.value ?? {}) as Record<string, string>;
+    const { recordIcons } = await import("./service-icons.server");
+    const icons = await recordIcons(
+      sb as never,
+      (st.data ?? []).find((x) => x.key === "service_icons")?.value,
+      ((c.data ?? []) as Row[]).map((r) => ({ id: r["id"] as string, name: r["name"] as string, gender: r["gender"] as string })),
+      ((s.data ?? []) as Row[]).map((r) => ({ id: r["id"] as string, name: r["name"] as string, gender: r["gender"] as string })),
+    );
     const upcoming: Record<string, number> = {};
     for (const b of (bk.data ?? []) as Row[]) {
       const status = (b["meta"] as { status?: string } | null)?.status;
@@ -83,6 +94,7 @@ export const adminCatalogue = createServerFn({ method: "POST" })
         active: r["active"] as boolean,
         archived: Boolean(r["archived_at"]),
         photo: (r["image_url"] as string) || media[`cat:${r["id"]}`] || null,
+        icon: icons[`cat:${r["id"]}`] ?? "",
       })),
       services: ((s.data ?? []) as Row[]).map((r): CatalogueService => ({
         id: r["id"] as string,
@@ -99,6 +111,7 @@ export const adminCatalogue = createServerFn({ method: "POST" })
         active: r["active"] as boolean,
         archived: Boolean(r["archived_at"]),
         photo: (r["image_url"] as string) || media[`svc:${r["id"]}`] || null,
+        icon: icons[`svc:${r["id"]}`] ?? "",
         upcoming: upcoming[r["id"] as string] ?? 0,
       })),
     };

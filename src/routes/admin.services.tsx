@@ -292,7 +292,7 @@ function CatalogueScreen() {
               )}
             >
               <header className="flex items-start gap-3 border-b border-hairline px-4 py-3.5 lg:px-5">
-                <PhotoTile mediaKey={`cat:${c.id}`} url={c.photo} onChange={reload} />
+                <PhotoTile mediaKey={`cat:${c.id}`} url={c.photo} icon={c.icon} onChange={reload} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="font-display text-[1.4rem] leading-tight">{c.name}</h2>
@@ -362,7 +362,7 @@ function CatalogueScreen() {
                       key={s.id}
                       className="flex items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 lg:px-5"
                     >
-                      <PhotoTile mediaKey={`svc:${s.id}`} url={s.photo} onChange={reload} small />
+                      <PhotoTile mediaKey={`svc:${s.id}`} url={s.photo} icon={s.icon} onChange={reload} small />
                       <button onClick={() => setEditing(s)} className="min-w-0 flex-1 text-left">
                         <span className="flex flex-wrap items-center gap-1.5">
                           <span
@@ -985,16 +985,21 @@ function CategoryEditor({
   );
 }
 
-/* ── photo tile (upload / replace / remove) ───────────────── */
+/* ── icon tile (current icon · upload / replace / remove) ──── */
 
+// Belongs to exactly one record (its id, so one gender): changing a men's
+// service never touches the women's service of the same name, and vice versa.
 function PhotoTile({
   mediaKey,
   url,
+  icon,
   onChange,
   small,
 }: {
   mediaKey: string;
   url: string | null;
+  /** The record's own built-in icon, shown until one is uploaded. */
+  icon?: string;
   onChange: () => void;
   small?: boolean;
 }) {
@@ -1011,11 +1016,11 @@ function PhotoTile({
       });
       if (!r.ok) toast.error(r.error);
       else {
-        toast.success(file ? "Photo saved." : "Photo removed.");
+        toast.success(file ? "Icon changed for this service only." : "Back to this service's own icon.");
         onChange();
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't save photo.");
+      toast.error(e instanceof Error ? e.message : "Couldn't save the icon.");
     } finally {
       setBusy(false);
       if (input.current) input.current.value = "";
@@ -1029,8 +1034,8 @@ function PhotoTile({
         type="button"
         onClick={() => input.current?.click()}
         disabled={busy}
-        aria-label={url ? "Replace photo" : "Add photo"}
-        title={url ? "Replace photo" : "Add photo"}
+        aria-label="Change icon"
+        title={url || icon ? "Change icon (this service only)" : "Icon not set: upload one"}
         className={cn(
           "press relative flex items-center justify-center overflow-hidden rounded-md border border-dashed border-foreground/20 bg-background text-foreground/40 hover:border-foreground/50",
           size,
@@ -1038,6 +1043,8 @@ function PhotoTile({
       >
         {url ? (
           <img src={url} alt="" className="h-full w-full object-cover" />
+        ) : icon ? (
+          <img src={icon} alt="" className="h-[86%] w-[86%] object-contain" />
         ) : (
           <ImagePlus className="h-4 w-4" strokeWidth={1.25} />
         )}
@@ -1051,7 +1058,7 @@ function PhotoTile({
         <button
           type="button"
           onClick={() => void save()}
-          aria-label="Remove photo"
+          aria-label="Remove uploaded icon"
           className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center sm:hidden sm:group-hover:flex justify-center rounded-full border border-hairline bg-background text-[0.7rem] text-muted-foreground shadow-sm group-hover:flex hover:text-destructive"
         >
           ×

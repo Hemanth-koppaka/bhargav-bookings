@@ -42,6 +42,14 @@ export async function loadConfig() {
       [0, 1, 2, 3, 4, 5, 6].map((d) => [String(d), [{ start: "13:00", end: "14:00" }]]),
     );
   const media = (set["media"] ?? {}) as Record<string, string>;
+  // every record's own icon (men and women are separate records with separate icons)
+  const { recordIcons } = await import("./service-icons.server");
+  const icons = await recordIcons(
+    sb as never,
+    set["service_icons"],
+    (cats.data ?? []).map((c) => ({ id: c.id, name: c.name, gender: c.gender })),
+    (svcs.data ?? []).map((s) => ({ id: s.id, name: s.name, gender: s.gender })),
+  );
   const menu = (g: string) =>
     (cats.data ?? [])
       .filter((c) => c.gender === g && !(c as Record<string, unknown>)["archived_at"])
@@ -49,12 +57,14 @@ export async function loadConfig() {
         id: c.slug,
         title: c.name,
         blurb: c.description || undefined,
+        icon: icons[`cat:${c.id}`] || undefined,
         photo:
           ((c as Record<string, unknown>)["image_url"] as string) ||
           media[`cat:${c.id}`] ||
           undefined,
         services: (svcs.data ?? [])
-          .filter((s) => s.category_id === c.id && !(s as Record<string, unknown>)["archived_at"])
+          // a category only ever holds its own gender's services
+          .filter((s) => s.category_id === c.id && s.gender === g && !(s as Record<string, unknown>)["archived_at"])
           .map((s) => ({
             id: s.id,
             name: s.name,
@@ -65,6 +75,7 @@ export async function loadConfig() {
             minutes: s.duration_minutes,
             buffer: ((s as Record<string, unknown>)["buffer_minutes"] as number) ?? 0,
             featured: Boolean((s as Record<string, unknown>)["featured"]) || undefined,
+            icon: icons[`svc:${s.id}`] || undefined,
             photo:
               ((s as Record<string, unknown>)["image_url"] as string) ||
               media[`svc:${s.id}`] ||
