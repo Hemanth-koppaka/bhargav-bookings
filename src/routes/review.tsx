@@ -76,7 +76,13 @@ function ReviewScreen() {
       haptic(20);
       sfx.error();
       setNudge((n) => n + 1);
-      document.querySelector("[data-attendance]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      // the phone and laptop layouts each have the box: scroll to the one on screen,
+      // after the nudge re-renders it
+      window.requestAnimationFrame(() => {
+        const box = [...document.querySelectorAll<HTMLElement>("[data-attendance]")].find((el) => el.offsetParent !== null);
+        box?.scrollIntoView({ behavior: "smooth", block: "center" });
+        box?.querySelector<HTMLInputElement>("input[type=checkbox]")?.focus({ preventScroll: true });
+      });
       return;
     }
     setSaving(true);
