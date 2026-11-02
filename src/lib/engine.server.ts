@@ -15,7 +15,7 @@ import {
   type StaffDay,
   type StaffSlot,
 } from "./availability";
-import { breaksFor, findService, hoursFor, isClosed, type Audience, type Service } from "./salon";
+import { breaksFor, findService, hoursFor, isClosed, menuFor, type Audience, type Service } from "./salon";
 
 export type BookingRules = {
   /** Spacing of start times offered to guests. */
@@ -277,12 +277,14 @@ export function quote(audience: Audience, serviceIds: string[]): Quote | null {
     buffer: Math.max(0, ...list.map((x) => x.buffer ?? 0)),
     price: list.reduce((n, x) => n + x.price, 0),
     priceFrom: list.some((x) => x.from),
+    // what was booked, as it was then: later menu edits never change history
     snapshot: list.map((x) => ({
       id: x.id,
       name: x.name,
       price: x.price,
       minutes: x.minutes ?? x.slots * 30,
       from: Boolean(x.from),
+      category: menuFor(audience).find((c) => c.services.some((s) => s.id === x.id))?.title ?? "",
     })),
   };
 }

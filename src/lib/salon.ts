@@ -24,6 +24,8 @@ export type Service = {
   buffer?: number;
   /** Shown first under "Popular". */
   featured?: boolean;
+  /** Guests' rating of this service after their visit (average of 1–5, and how many). */
+  rating?: { avg: number; count: number } | undefined;
   /** Photo uploaded by the salon in the admin Menu (falls back to an icon). */
   photo?: string;
   /** The salon's icon for this service (icon only, shown on the tile). */

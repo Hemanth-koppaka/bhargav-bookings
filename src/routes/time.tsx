@@ -60,7 +60,7 @@ export const Route = createFileRoute("/time")({
 });
 
 function TimeScreen() {
-  const { draft, hydrated, totalMinutes, selected } = useBooking();
+  const { draft, hydrated, totalMinutes, selected, update } = useBooking();
   const navigate = useNavigate();
   const [now] = useState(() => new Date());
 
@@ -91,13 +91,28 @@ function TimeScreen() {
   const slots = day.data?.slots ?? [];
   const selectedBreaks = day.data?.breaks ?? [];
 
+  // Services changed after a time was chosen: check that time again with the new
+  // length and stylist. Keep it if it still works; otherwise say so and clear it.
+  const [timeNote, setTimeNote] = useState("");
+  useEffect(() => {
+    if (!draft.timeStale || draft.time == null || !day.data || day.loading || day.data.date !== draft.date) return;
+    const slot = day.data.slots.find((x) => x.minute === draft.time);
+    if (slot?.available) {
+      update({ timeStale: false });
+      setTimeNote(`Your ${minuteLabel(draft.time)} time still works with your updated services.`);
+    } else {
+      update({ time: null, timeStale: false });
+      setTimeNote("Your services have changed, so the previously selected time is no longer available. Please choose a new time.");
+    }
+  }, [draft.timeStale, draft.time, draft.date, day.data, day.loading, update]);
+
   const breakNote = selectedBreaks.length
     ? ` · ${selectedBreaks.map((b) => `${b.label ?? "Break"} ${minuteLabel(b.start)}–${minuteLabel(b.end)}`).join(", ")}`
     : "";
 
   return (
     <>
-      <DesktopTime days={days} day={day} rawDay={rawDay} />
+      <DesktopTime days={days} day={day} rawDay={rawDay} timeNote={timeNote} />
       <div className="md:hidden">
         <Page>
           <StepHeader back="/services" step={3} />
@@ -135,7 +150,9 @@ function TimeScreen() {
                   </div>
                 </div>
                 {!day.data?.closed ? <StylistPicker day={rawDay} /> : null}
-                <SlotGroups day={day} />
+                {timeNote ? <TimeNote text={timeNote} /> : null}
+                {timeNote ? <TimeNote text={timeNote} /> : null}
+              <SlotGroups day={day} />
                 {slots.length > 0 && slots.every((x) => !x.available && !(x as { others?: string[] }).others) ? (
                   <p className="mt-6 text-sm text-muted-foreground">
                     {draft.staffId
@@ -435,6 +452,15 @@ function useDayAvailability(
     };
   }, [date, audience, key, aheadKey]);
   return state;
+}
+
+/** A calm line about the chosen time after the services changed. */
+function TimeNote({ text }: { text: string }) {
+  return (
+    <p role="status" className="fade-rise mt-5 rounded-md border border-bronze/30 bg-champagne/20 px-4 py-3 text-[0.88rem] leading-relaxed">
+      {text}
+    </p>
+  );
 }
 
 function SlotSkeleton() {
@@ -932,10 +958,12 @@ function DesktopTime({
   days,
   day,
   rawDay,
+  timeNote,
 }: {
   days: { iso: string; date: Date; selectable: boolean }[];
   day: DayState;
   rawDay: DayState;
+  timeNote: string;
 }) {
   const slots = day.data?.slots ?? [];
   const { draft, totalMinutes, totalPrice, hasFromPricing, selected } = useBooking();

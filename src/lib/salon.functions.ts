@@ -231,6 +231,68 @@ async function owns(r: { reference: string; customer: unknown }, auth: { phone?:
   return false;
 }
 
+/** A finished, uncancelled visit that hasn't been rated yet (salon time, UTC+5:30). */
+function rateable(row: Record<string, unknown>) {
+  const meta = (row["meta"] ?? {}) as Record<string, unknown>;
+  const st = meta["status"] as string | undefined;
+  if (row["status"] === "cancelled" || st === "cancelled" || st === "no-show" || meta["rating"]) return false;
+  const now = new Date(Date.now() + 330 * 60_000);
+  const today = now.toISOString().slice(0, 10);
+  const minute = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const time = row["time"] as number;
+  const end = (row["ends_at_minute"] as number | null) ?? time + ((row["slots"] as number) ?? 1) * 30;
+  const date = row["date"] as string;
+  return st === "completed" || date < today || (date === today && end <= minute);
+}
+
+/**
+ * A guest rates the services of their own finished visit (1–5 stars each),
+ * once. Stored on the booking, then added to each service's own totals
+ * (by service id: men's and women's services are rated separately).
+ */
+export const rateMyVisit = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    lookup
+      .extend({
+        ratings: z
+          .array(z.object({ serviceId: z.string().max(80), stars: z.number().int().min(1).max(5) }))
+          .min(1)
+          .max(20),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const sb = await db();
+    const { data: r } = await sb.from("bookings").select("*").eq("reference", data.reference.toUpperCase()).maybeSingle();
+    if (!r || !(await owns(r, data))) return { ok: false as const, error: "We couldn't find that booking." };
+    const row = r as Record<string, unknown>;
+    if ((row["meta"] as Record<string, unknown> | null)?.["rating"])
+      return { ok: false as const, error: "Thank you, this visit has already been rated." };
+    if (!rateable(row)) return { ok: false as const, error: "You can rate your visit once your appointment is over." };
+    const booked = new Set((r.service_ids as string[] | null) ?? []);
+    const stars = new Map<string, number>();
+    for (const x of data.ratings) if (booked.has(x.serviceId)) stars.set(x.serviceId, x.stars);
+    if (!stars.size) return { ok: false as const, error: "Please rate the services from this visit." };
+    // on the booking first, so a visit can never be counted twice
+    const meta = { ...((row["meta"] as Record<string, unknown> | null) ?? {}), rating: { at: new Date().toISOString(), stars: Object.fromEntries(stars) } };
+    const error = await patchBooking(sb, r.reference, { meta }, {});
+    if (error) return { ok: false as const, error: "Couldn't save your rating. Please try again." };
+    const { data: cur } = await sb.from("site_settings").select("value").eq("key", "service_ratings").maybeSingle();
+    const totals = { ...((cur?.value as Record<string, { sum: number; count: number }> | null) ?? {}) };
+    for (const [id, n] of stars) totals[id] = { sum: (totals[id]?.sum ?? 0) + n, count: (totals[id]?.count ?? 0) + 1 };
+    await sb.from("site_settings").upsert({ key: "service_ratings", value: totals as never });
+    const E = await engine();
+    await E.audit({
+      actor: "guest",
+      action: "booking.rated",
+      entity: "booking",
+      entityId: r.reference,
+      summary: `Guest rated ${r.reference}: ${[...stars.values()].join(", ")} ★`,
+      after: Object.fromEntries(stars),
+    });
+    return { ok: true as const };
+  });
+
 const maskPhone = (p: string) => {
   const d = p.replace(/\D/g, "").slice(-10);
   return d.length >= 4 ? `•••••• ${d.slice(-4)}` : "••••";
@@ -275,12 +337,13 @@ export const findMyBookings = createServerFn({ method: "POST" })
       rows.slice(0, 12).map(async (r) => {
         const b = toRow(r);
         const row = r as Record<string, unknown>;
-        const snap = (row["services_snapshot"] as { name: string; price: number; minutes?: number }[] | null) ?? [];
+        const snap = (row["services_snapshot"] as { id?: string; name: string; price: number; minutes?: number }[] | null) ?? [];
         return {
           ...b,
+          rateable: rateable(row),
           snapshot: snap.length
             ? {
-                services: snap.map((x) => ({ name: x.name, price: x.price, minutes: x.minutes ?? 30 })),
+                services: snap.map((x) => ({ ...(x.id ? { id: x.id } : {}), name: x.name, price: x.price, minutes: x.minutes ?? 30 })),
                 minutes: (row["duration_minutes"] as number | null) ?? snap.reduce((n, x) => n + (x.minutes ?? 30), 0),
                 price: (row["price_total"] as number | null) ?? snap.reduce((n, x) => n + x.price, 0),
               }

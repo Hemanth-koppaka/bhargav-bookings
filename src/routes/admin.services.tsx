@@ -390,6 +390,7 @@ function CatalogueScreen() {
                           {formatDuration(s.minutes)}
                           {s.buffer ? ` + ${s.buffer} min buffer` : ""}
                           {s.upcoming ? ` · ${s.upcoming} upcoming` : ""}
+                          {s.rating ? ` · ★ ${s.rating.avg.toFixed(1)} (${s.rating.count} ${s.rating.count === 1 ? "rating" : "ratings"})` : ""}
                         </span>
                       </button>
                       <span className="shrink-0 text-[0.92rem] tabular-nums">
