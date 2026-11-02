@@ -195,8 +195,8 @@ export const SEED_SERVICE_ICON: Record<Gender, Record<string, string>> = {
     "brightening-facial": "/icons/services/men/brightening-facial.webp",
     "brightening-pack": "/icons/services/men/brightening-pack.webp",
     "d-tan-face-neck": "/icons/services/men/d-tan-face-neck.webp",
-    "essentials": "/icons/services/men/essentials.webp",
-    "ethereal": "/icons/services/men/ethereal.webp",
+    essentials: "/icons/services/men/essentials.webp",
+    ethereal: "/icons/services/men/ethereal.webp",
     "foot-massage": "/icons/services/men/foot-massage.webp",
     "foot-polish": "/icons/services/men/foot-polish.webp",
     "foot-scrub": "/icons/services/men/foot-scrub.webp",
@@ -212,17 +212,17 @@ export const SEED_SERVICE_ICON: Record<Gender, Record<string, string>> = {
     "hands-d-tan": "/icons/services/men/hands-d-tan.webp",
     "hb-signature-facial": "/icons/services/men/hb-signature-facial.webp",
     "head-oil-massage": "/icons/services/men/head-oil-massage.webp",
-    "highlights": "/icons/services/men/highlights.webp",
+    highlights: "/icons/services/men/highlights.webp",
     "keratin-botox": "/icons/services/men/keratin-botox.webp",
     "kids-u-14": "/icons/services/men/kids-u-14.webp",
     "korean-facial": "/icons/services/men/korean-facial.webp",
     "lotus-clean-up": "/icons/services/men/lotus-clean-up.webp",
     "o3-advance-facial": "/icons/services/men/o3-advance-facial.webp",
     "o3-clean-up": "/icons/services/men/o3-clean-up.webp",
-    "premium": "/icons/services/men/premium.webp",
+    premium: "/icons/services/men/premium.webp",
     "root-touchup-ammonia": "/icons/services/men/root-touchup-ammonia.webp",
     "root-touchup-ammonia-free": "/icons/services/men/root-touchup-ammonia-free.webp",
-    "shave": "/icons/services/men/shave.webp",
+    shave: "/icons/services/men/shave.webp",
     "straightening-smoothening": "/icons/services/men/straightening-smoothening.webp",
     "tan-facial": "/icons/services/men/tan-facial.webp",
     "threading-chin": "/icons/services/men/threading-chin.webp",
@@ -264,8 +264,8 @@ export const SEED_SERVICE_ICON: Record<Gender, Record<string, string>> = {
     "brightening-pack": "/icons/services/women/brightening-pack.webp",
     "cut-and-styling": "/icons/services/women/cut-and-styling.webp",
     "d-tan-face-neck": "/icons/services/women/d-tan-face-neck.webp",
-    "essentials": "/icons/services/women/essentials.webp",
-    "ethereal": "/icons/services/women/ethereal.webp",
+    essentials: "/icons/services/women/essentials.webp",
+    ethereal: "/icons/services/women/ethereal.webp",
     "eye-makeup": "/icons/services/women/eye-makeup.webp",
     "foot-massage": "/icons/services/women/foot-massage.webp",
     "foot-polish": "/icons/services/women/foot-polish.webp",
@@ -285,7 +285,7 @@ export const SEED_SERVICE_ICON: Record<Gender, Record<string, string>> = {
     "hands-d-tan": "/icons/services/women/hands-d-tan.webp",
     "hb-signature-facial": "/icons/services/women/hb-signature-facial.webp",
     "head-oil-massage": "/icons/services/women/head-oil-massage.webp",
-    "highlights": "/icons/services/women/highlights.webp",
+    highlights: "/icons/services/women/highlights.webp",
     "ironing-tonging": "/icons/services/women/ironing-tonging.webp",
     "keratin-botox": "/icons/services/women/keratin-botox.webp",
     "kids-u-14": "/icons/services/women/kids-u-14.webp",
@@ -296,7 +296,7 @@ export const SEED_SERVICE_ICON: Record<Gender, Record<string, string>> = {
     "o3-clean-up": "/icons/services/women/o3-clean-up.webp",
     "outdoor-charges": "/icons/services/women/outdoor-charges.webp",
     "party-makeup": "/icons/services/women/party-makeup.webp",
-    "premium": "/icons/services/women/premium.webp",
+    premium: "/icons/services/women/premium.webp",
     "root-touchup-ammonia": "/icons/services/women/root-touchup-ammonia.webp",
     "root-touchup-ammonia-free": "/icons/services/women/root-touchup-ammonia-free.webp",
     "saree-draping-at-venue": "/icons/services/women/saree-draping-at-venue.webp",
@@ -334,27 +334,32 @@ export const SEED_SERVICE_ICON: Record<Gender, Record<string, string>> = {
 export const SEED_CATEGORY_ICON: Record<Gender, Record<string, string>> = {
   men: {
     "beauty-services": "/icons/categories/men/beauty-services.webp",
-    "colours": "/icons/categories/men/colours.webp",
+    colours: "/icons/categories/men/colours.webp",
     "glow-and-radiance": "/icons/categories/men/glow-and-radiance.webp",
     "hair-care": "/icons/categories/men/hair-care.webp",
     "hair-treatments": "/icons/categories/men/hair-treatments.webp",
-    "hairstyles": "/icons/categories/men/hairstyles.webp",
+    hairstyles: "/icons/categories/men/hairstyles.webp",
     "pre-bridal-groom-packages": "/icons/categories/men/pre-bridal-groom-packages.webp",
-    "reflexology": "/icons/categories/men/reflexology.webp",
+    reflexology: "/icons/categories/men/reflexology.webp",
   },
   women: {
     "beauty-services": "/icons/categories/women/beauty-services.webp",
-    "colours": "/icons/categories/women/colours.webp",
+    colours: "/icons/categories/women/colours.webp",
     "glow-and-radiance": "/icons/categories/women/glow-and-radiance.webp",
     "hair-care": "/icons/categories/women/hair-care.webp",
     "hair-treatments": "/icons/categories/women/hair-treatments.webp",
-    "hairstyles": "/icons/categories/women/hairstyles.webp",
-    "maquillage": "/icons/categories/women/maquillage.webp",
+    hairstyles: "/icons/categories/women/hairstyles.webp",
+    maquillage: "/icons/categories/women/maquillage.webp",
     "pre-bridal-groom-packages": "/icons/categories/women/pre-bridal-groom-packages.webp",
-    "reflexology": "/icons/categories/women/reflexology.webp",
+    reflexology: "/icons/categories/women/reflexology.webp",
   },
 };
 
 /** Same slug the icon files are named with. */
 export const iconSlug = (s: string) =>
-  s.toLowerCase().replace(/&/g, " and ").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  s
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");

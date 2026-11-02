@@ -98,7 +98,13 @@ export const WEEK: WeekDay[] = [
   { day: "Sunday", closed: false, breaks: [DEFAULT_LUNCH] },
 ];
 
-const s = (id: string, name: string, price: number, slots: number, extra?: Partial<Service>): Service => ({
+const s = (
+  id: string,
+  name: string,
+  price: number,
+  slots: number,
+  extra?: Partial<Service>,
+): Service => ({
   id,
   name,
   price,
@@ -190,8 +196,7 @@ export const MEN_MENU: Category[] = [
   {
     id: "hair",
     title: "Hairstyles",
-    blurb:
-      "A thorough walkthrough and a hair do that accentuates your personality.",
+    blurb: "A thorough walkthrough and a hair do that accentuates your personality.",
     services: [
       s("m-cut", "Basic Haircut", 500, 1),
       s("m-beard", "Beard Trim", 250, 1),
@@ -260,8 +265,7 @@ export const WOMEN_MENU: Category[] = [
   {
     id: "hair",
     title: "Hairstyles",
-    blurb:
-      "A thorough walkthrough and a hair do that accentuates your personality.",
+    blurb: "A thorough walkthrough and a hair do that accentuates your personality.",
     services: [
       s("w-fringe", "Fringe Cut / Bangs", 350, 1),
       s("w-cut", "Cut & Styling", 1200, 2),
@@ -495,7 +499,13 @@ export type SalonConfig = {
   sound?: Partial<SoundSettings> | null;
 };
 
-export type Stylist = { id: string; name: string; gender: string; specialties: string; services: string[] };
+export type Stylist = {
+  id: string;
+  name: string;
+  gender: string;
+  specialties: string;
+  services: string[];
+};
 export type Closure = { start: string; end: string | null; reason: string };
 
 /** Live stylist list and closures (filled by applyConfig). */
@@ -503,7 +513,8 @@ export const STYLISTS: Stylist[] = [];
 export const CLOSURES: Closure[] = [];
 
 /** The salon closure covering a date, if any. */
-export const closureOn = (iso: string) => CLOSURES.find((c) => c.start <= iso && (!c.end || c.end >= iso)) ?? null;
+export const closureOn = (iso: string) =>
+  CLOSURES.find((c) => c.start <= iso && (!c.end || c.end >= iso)) ?? null;
 
 /** Stylists who can do every one of these services. */
 export const stylistsFor = (serviceIds: string[]) =>

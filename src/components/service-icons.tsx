@@ -278,7 +278,13 @@ export function ServiceIconTile({
   className?: string;
 }) {
   const box =
-    size === "sm" ? "h-14 w-14" : size === "lg" ? "h-24 w-32" : size === "thumb" ? "h-16 w-16" : "h-[4.5rem] w-24";
+    size === "sm"
+      ? "h-14 w-14"
+      : size === "lg"
+        ? "h-24 w-32"
+        : size === "thumb"
+          ? "h-16 w-16"
+          : "h-[4.5rem] w-24";
   if (!photo && icon) {
     return (
       <span
@@ -290,7 +296,14 @@ export function ServiceIconTile({
           className,
         )}
       >
-        <img src={icon} alt="" loading="lazy" decoding="async" className="h-[82%] w-[82%] object-contain" draggable={false} />
+        <img
+          src={icon}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-[82%] w-[82%] object-contain"
+          draggable={false}
+        />
       </span>
     );
   }
@@ -303,12 +316,18 @@ export function ServiceIconTile({
         title="Icon not set"
         className={cn(
           "flex shrink-0 items-center justify-center rounded-md border border-dashed transition-colors duration-300",
-          active ? "border-ink/50 bg-[#f3ece1] text-ink/40" : "border-foreground/20 bg-transparent text-foreground/25",
+          active
+            ? "border-ink/50 bg-[#f3ece1] text-ink/40"
+            : "border-foreground/20 bg-transparent text-foreground/25",
           box,
           className,
         )}
       >
-        <ServiceGlyph kind="scissors" active={false} className={size === "sm" ? "h-5 w-5" : "h-6 w-6"} />
+        <ServiceGlyph
+          kind="scissors"
+          active={false}
+          className={size === "sm" ? "h-5 w-5" : "h-6 w-6"}
+        />
       </span>
     );
   }
@@ -323,10 +342,22 @@ export function ServiceIconTile({
           className,
         )}
       >
-        <img src={photo} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+        <img
+          src={photo}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
         {active && size !== "thumb" ? (
           <span className="pop-in absolute right-1 bottom-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-champagne">
-            <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <svg
+              viewBox="0 0 24 24"
+              className="h-3 w-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
               <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>

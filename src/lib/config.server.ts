@@ -64,7 +64,12 @@ export async function loadConfig() {
           undefined,
         services: (svcs.data ?? [])
           // a category only ever holds its own gender's services
-          .filter((s) => s.category_id === c.id && s.gender === g && !(s as Record<string, unknown>)["archived_at"])
+          .filter(
+            (s) =>
+              s.category_id === c.id &&
+              s.gender === g &&
+              !(s as Record<string, unknown>)["archived_at"],
+          )
           .map((s) => ({
             id: s.id,
             name: s.name,
@@ -129,9 +134,13 @@ export async function loadConfig() {
   // (the store came with the settings read above; only a first visit seeds it)
   const store = storeFromValue(set["staff_store"]) ?? (await loadStore());
   const [st, ss, cl] = await Promise.all([
-    stable("staff", store).select("id, name, gender, specialties, bookable, active, archived_at, display_order").order("display_order"),
+    stable("staff", store)
+      .select("id, name, gender, specialties, bookable, active, archived_at, display_order")
+      .order("display_order"),
     stable("staff_services", store).select("staff_id, service_id"),
-    stable("salon_closures", store).select("start_date, end_date, start_minute, reason, reopened_at"),
+    stable("salon_closures", store).select(
+      "start_date, end_date, start_minute, reason, reopened_at",
+    ),
   ]);
   if (!st.error) {
     const can = new Map<string, string[]>();
@@ -149,8 +158,17 @@ export async function loadConfig() {
   }
   if (!cl.error) {
     config["closures"] = ((cl.data ?? []) as Record<string, unknown>[])
-      .filter((r) => !r["reopened_at"] && r["start_minute"] == null && (!r["end_date"] || (r["end_date"] as string) >= today))
-      .map((r) => ({ start: r["start_date"], end: r["end_date"] ?? null, reason: r["reason"] ?? "" }));
+      .filter(
+        (r) =>
+          !r["reopened_at"] &&
+          r["start_minute"] == null &&
+          (!r["end_date"] || (r["end_date"] as string) >= today),
+      )
+      .map((r) => ({
+        start: r["start_date"],
+        end: r["end_date"] ?? null,
+        reason: r["reason"] ?? "",
+      }));
   }
   const men = menu("men");
   const women = menu("women");

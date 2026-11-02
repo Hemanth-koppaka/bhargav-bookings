@@ -362,7 +362,13 @@ function CatalogueScreen() {
                       key={s.id}
                       className="flex items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 lg:px-5"
                     >
-                      <PhotoTile mediaKey={`svc:${s.id}`} url={s.photo} icon={s.icon} onChange={reload} small />
+                      <PhotoTile
+                        mediaKey={`svc:${s.id}`}
+                        url={s.photo}
+                        icon={s.icon}
+                        onChange={reload}
+                        small
+                      />
                       <button onClick={() => setEditing(s)} className="min-w-0 flex-1 text-left">
                         <span className="flex flex-wrap items-center gap-1.5">
                           <span
@@ -1016,7 +1022,9 @@ function PhotoTile({
       });
       if (!r.ok) toast.error(r.error);
       else {
-        toast.success(file ? "Icon changed for this service only." : "Back to this service's own icon.");
+        toast.success(
+          file ? "Icon changed for this service only." : "Back to this service's own icon.",
+        );
         onChange();
       }
     } catch (e) {

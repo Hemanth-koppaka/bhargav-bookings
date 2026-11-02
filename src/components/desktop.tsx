@@ -1,8 +1,23 @@
 // Laptop / desktop (lg+) building blocks for the booking flow.
 // Mobile keeps using the components in ./screen.tsx.
 import { Link } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Clock, MapPin, Phone } from "lucide-react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  MapPin,
+  Phone,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
@@ -65,7 +80,10 @@ export function DesktopStepHeader({ back, step }: { back: string; step: number }
           <Wordmark className="h-12" />
         </Link>
         <span className="label-caps justify-self-end tabular-nums text-foreground/80">
-          <span key={step} className="tick-in">{pad(step)}</span> / {pad(STEPS.length)}
+          <span key={step} className="tick-in">
+            {pad(step)}
+          </span>{" "}
+          / {pad(STEPS.length)}
         </span>
       </div>
       <ScissorsLine kind="header" step={step} total={STEPS.length} />
@@ -105,7 +123,11 @@ export function DesktopStepperHeader({ step }: { step: number }) {
       <Link to="/" aria-label="Hair by Bhargav" className="inline-flex shrink-0">
         <Wordmark className="h-11 lg:h-14" />
       </Link>
-      <ol ref={list} className="relative flex flex-1 items-start justify-center" aria-label="Booking progress">
+      <ol
+        ref={list}
+        className="relative flex flex-1 items-start justify-center"
+        aria-label="Booking progress"
+      >
         {track ? (
           <ScissorsLine
             kind="stepper"
@@ -140,7 +162,12 @@ export function DesktopStepperHeader({ step }: { step: number }) {
                   on ? "border-bronze bg-bronze" : done ? "border-bronze" : "border-foreground/30",
                 )}
               />
-              <span className={cn("label-caps mt-2.5 transition-colors duration-300", on ? "text-bronze" : "text-foreground/50")}>
+              <span
+                className={cn(
+                  "label-caps mt-2.5 transition-colors duration-300",
+                  on ? "text-bronze" : "text-foreground/50",
+                )}
+              >
                 {label}
               </span>
             </li>
@@ -234,7 +261,9 @@ export function SignaturePanel({ className }: { className?: string }) {
         />
       </div>
       <div className="stagger shrink-0 px-10 pb-12 xl:px-12">
-        <div className="text-[0.7rem] uppercase tracking-[0.32em] text-bronze">Bhargav's Signature</div>
+        <div className="text-[0.7rem] uppercase tracking-[0.32em] text-bronze">
+          Bhargav's Signature
+        </div>
         <div className="mt-5 font-display text-[clamp(2.6rem,4vw,3.9rem)] leading-[1.02]">
           Styled by
           <br />
@@ -377,7 +406,10 @@ export function InfoStrip({ className }: { className?: string }) {
         <a
           key={label}
           href={href}
-          className={cn("group flex items-start gap-4 px-5 first:pl-0 lg:gap-5 lg:px-8", i < 2 && "border-r border-hairline")}
+          className={cn(
+            "group flex items-start gap-4 px-5 first:pl-0 lg:gap-5 lg:px-8",
+            i < 2 && "border-r border-hairline",
+          )}
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-bronze/25 lg:h-12 lg:w-12 text-bronze transition-colors duration-300 group-hover:bg-bronze group-hover:text-ivory">
             <Icon className="h-5 w-5" strokeWidth={1.25} />
@@ -417,7 +449,10 @@ export function ScrollStrip({
   const update = () => {
     const el = ref.current;
     if (!el) return;
-    setEdge({ start: el.scrollLeft < 4, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 4 });
+    setEdge({
+      start: el.scrollLeft < 4,
+      end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 4,
+    });
   };
   useEffect(() => {
     update();

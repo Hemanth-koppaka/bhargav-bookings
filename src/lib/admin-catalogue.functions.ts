@@ -69,13 +69,24 @@ export const adminCatalogue = createServerFn({ method: "POST" })
         .neq("status", "cancelled"),
     ]);
     if (c.error || s.error) throw new Error("Couldn't load the menu");
-    const media = ((st.data ?? []).find((x) => x.key === "media")?.value ?? {}) as Record<string, string>;
+    const media = ((st.data ?? []).find((x) => x.key === "media")?.value ?? {}) as Record<
+      string,
+      string
+    >;
     const { recordIcons } = await import("./service-icons.server");
     const icons = await recordIcons(
       sb as never,
       (st.data ?? []).find((x) => x.key === "service_icons")?.value,
-      ((c.data ?? []) as Row[]).map((r) => ({ id: r["id"] as string, name: r["name"] as string, gender: r["gender"] as string })),
-      ((s.data ?? []) as Row[]).map((r) => ({ id: r["id"] as string, name: r["name"] as string, gender: r["gender"] as string })),
+      ((c.data ?? []) as Row[]).map((r) => ({
+        id: r["id"] as string,
+        name: r["name"] as string,
+        gender: r["gender"] as string,
+      })),
+      ((s.data ?? []) as Row[]).map((r) => ({
+        id: r["id"] as string,
+        name: r["name"] as string,
+        gender: r["gender"] as string,
+      })),
     );
     const upcoming: Record<string, number> = {};
     for (const b of (bk.data ?? []) as Row[]) {
@@ -194,16 +205,14 @@ export const adminDuplicateService = createServerFn({ method: "POST" })
     const r = src as Row;
     const id = `${String(r["gender"])[0]}-copy-${Math.random().toString(36).slice(2, 8)}`;
     const { created_at: _c, updated_at: _u, archived_at: _a, ...rest } = r;
-    const { error } = await sb
-      .from("services")
-      .insert({
-        ...rest,
-        id,
-        name: `${r["name"]} (copy)`,
-        active: false,
-        featured: false,
-        display_order: (r["display_order"] as number) + 1,
-      } as never);
+    const { error } = await sb.from("services").insert({
+      ...rest,
+      id,
+      name: `${r["name"]} (copy)`,
+      active: false,
+      featured: false,
+      display_order: (r["display_order"] as number) + 1,
+    } as never);
     if (error) return { ok: false as const, error: "Couldn't duplicate." };
     await audit({
       action: "service.duplicate",
@@ -285,13 +294,11 @@ export const adminPublishSite = createServerFn({ method: "POST" })
       .maybeSingle();
     const before = resolveContent(cur?.value);
     const after = resolveContent(data.content);
-    const { error } = await sb
-      .from("site_settings")
-      .upsert({
-        key: "content",
-        value: data.content as never,
-        updated_at: new Date().toISOString(),
-      });
+    const { error } = await sb.from("site_settings").upsert({
+      key: "content",
+      value: data.content as never,
+      updated_at: new Date().toISOString(),
+    });
     if (error) return { ok: false as const, error: "Couldn't publish." };
     await sb.from("site_settings").delete().eq("key", "content_draft");
     const b = flat(before);

@@ -32,7 +32,9 @@ export async function recordIcons(
       added++;
     }
   if (added) {
-    const { error } = await sb.from("site_settings").upsert({ key: ICONS_KEY, value: map as never });
+    const { error } = await sb
+      .from("site_settings")
+      .upsert({ key: ICONS_KEY, value: map as never });
     if (error) console.error("service icons: couldn't save", error.message);
   }
   return map;
