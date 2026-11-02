@@ -1,7 +1,7 @@
 import { applyContent } from "./site-content";
 import { sfx } from "./sfx/engine";
 import type { SoundSettings } from "./sfx/tokens";
-import { builtInCategoryIcon, builtInServiceIcon } from "./service-photos";
+import { CATEGORY_ICON_BY_ID, SERVICE_ICON_BY_ID } from "./service-icons";
 
 // Business, menu and availability data for The Hair By Bhargav Unisex Salon.
 // Service names and prices are taken verbatim from the official Service Menu.
@@ -98,7 +98,13 @@ export const WEEK: WeekDay[] = [
   { day: "Sunday", closed: false, breaks: [DEFAULT_LUNCH] },
 ];
 
-const s = (id: string, name: string, price: number, slots: number, extra?: Partial<Service>): Service => ({
+const s = (
+  id: string,
+  name: string,
+  price: number,
+  slots: number,
+  extra?: Partial<Service>,
+): Service => ({
   id,
   name,
   price,
@@ -190,8 +196,7 @@ export const MEN_MENU: Category[] = [
   {
     id: "hair",
     title: "Hairstyles",
-    blurb:
-      "A thorough walkthrough and a hair do that accentuates your personality.",
+    blurb: "A thorough walkthrough and a hair do that accentuates your personality.",
     services: [
       s("m-cut", "Basic Haircut", 500, 1),
       s("m-beard", "Beard Trim", 250, 1),
@@ -260,8 +265,7 @@ export const WOMEN_MENU: Category[] = [
   {
     id: "hair",
     title: "Hairstyles",
-    blurb:
-      "A thorough walkthrough and a hair do that accentuates your personality.",
+    blurb: "A thorough walkthrough and a hair do that accentuates your personality.",
     services: [
       s("w-fringe", "Fringe Cut / Bangs", 350, 1),
       s("w-cut", "Cut & Styling", 1200, 2),
@@ -495,7 +499,13 @@ export type SalonConfig = {
   sound?: Partial<SoundSettings> | null;
 };
 
-export type Stylist = { id: string; name: string; gender: string; specialties: string; services: string[] };
+export type Stylist = {
+  id: string;
+  name: string;
+  gender: string;
+  specialties: string;
+  services: string[];
+};
 export type Closure = { start: string; end: string | null; reason: string };
 
 /** Live stylist list and closures (filled by applyConfig). */
@@ -503,7 +513,8 @@ export const STYLISTS: Stylist[] = [];
 export const CLOSURES: Closure[] = [];
 
 /** The salon closure covering a date, if any. */
-export const closureOn = (iso: string) => CLOSURES.find((c) => c.start <= iso && (!c.end || c.end >= iso)) ?? null;
+export const closureOn = (iso: string) =>
+  CLOSURES.find((c) => c.start <= iso && (!c.end || c.end >= iso)) ?? null;
 
 /** Stylists who can do every one of these services. */
 export const stylistsFor = (serviceIds: string[]) =>
@@ -538,17 +549,24 @@ function replaceArray<T>(target: T[], next: T[]) {
   target.splice(0, target.length, ...next);
 }
 
-/** Fills in the salon's built-in photos where the admin hasn't uploaded one. */
-function withPhotos(audience: Audience, menu: Category[]): Category[] {
-  // admin-uploaded photos stay; everything else uses the salon's icon set
-  return menu.map((c) => ({
-    ...c,
-    icon: builtInCategoryIcon(c.title),
-    services: c.services.map((x) => {
-      const icon = builtInServiceIcon(audience, x.name, c.title);
-      return icon ? { ...x, icon } : x;
-    }),
-  }));
+/**
+ * Each record keeps its own icon: the one sent with it (database records), or
+ * for the built-in menu, the file made for that exact record (by id, per
+ * gender). Never looked up by name and never borrowed from the other gender;
+ * a record without one shows the neutral placeholder.
+ */
+function withIcons(audience: Audience, menu: Category[]): Category[] {
+  return menu.map((c) => {
+    const catIcon = c.icon ?? CATEGORY_ICON_BY_ID[`${audience}:${c.id}`];
+    return {
+      ...c,
+      ...(catIcon ? { icon: catIcon } : {}),
+      services: c.services.map((x) => {
+        const icon = x.icon ?? SERVICE_ICON_BY_ID[x.id];
+        return icon ? { ...x, icon } : x;
+      }),
+    };
+  });
 }
 
 let appliedKey = "";
@@ -562,8 +580,8 @@ export function applyConfig(cfg: SalonConfig | null | undefined) {
   replaceArray(WEEK, full.week);
   for (const k of Object.keys(EXCEPTIONS)) delete EXCEPTIONS[k];
   Object.assign(EXCEPTIONS, full.exceptions);
-  replaceArray(MEN_MENU, withPhotos("men", full.menMenu));
-  replaceArray(WOMEN_MENU, withPhotos("women", full.womenMenu));
+  replaceArray(MEN_MENU, withIcons("men", full.menMenu));
+  replaceArray(WOMEN_MENU, withIcons("women", full.womenMenu));
   OPEN_MINUTE = full.openMinute;
   CLOSE_MINUTE = Math.max(full.closeMinute, full.openMinute + SLOT_MINUTES);
   TOTAL_SLOTS = (CLOSE_MINUTE - OPEN_MINUTE) / SLOT_MINUTES;

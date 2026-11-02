@@ -1,13 +1,28 @@
 // Laptop / desktop (lg+) building blocks for the booking flow.
 // Mobile keeps using the components in ./screen.tsx.
 import { Link } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Clock, MapPin, Phone } from "lucide-react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  MapPin,
+  Phone,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
 import { ScissorsLine, useRewindBack } from "@/components/scissors-line";
-import { BHARGAV_FULL, SIGNATURE_EMBLEM_HD, SIGNATURE_MARK, isSignature } from "@/lib/service-photos";
+import { SIGNATURE_EMBLEM_HD, SIGNATURE_MARK, isSignature } from "@/lib/service-photos";
 
 export const STEPS = ["Who", "Services", "Time", "Details", "Confirm"] as const;
 
@@ -65,7 +80,10 @@ export function DesktopStepHeader({ back, step }: { back: string; step: number }
           <Wordmark className="h-12" />
         </Link>
         <span className="label-caps justify-self-end tabular-nums text-foreground/80">
-          <span key={step} className="tick-in">{pad(step)}</span> / {pad(STEPS.length)}
+          <span key={step} className="tick-in">
+            {pad(step)}
+          </span>{" "}
+          / {pad(STEPS.length)}
         </span>
       </div>
       <ScissorsLine kind="header" step={step} total={STEPS.length} />
@@ -105,7 +123,11 @@ export function DesktopStepperHeader({ step }: { step: number }) {
       <Link to="/" aria-label="Hair by Bhargav" className="inline-flex shrink-0">
         <Wordmark className="h-11 lg:h-14" />
       </Link>
-      <ol ref={list} className="relative flex flex-1 items-start justify-center" aria-label="Booking progress">
+      <ol
+        ref={list}
+        className="relative flex flex-1 items-start justify-center"
+        aria-label="Booking progress"
+      >
         {track ? (
           <ScissorsLine
             kind="stepper"
@@ -140,7 +162,12 @@ export function DesktopStepperHeader({ step }: { step: number }) {
                   on ? "border-bronze bg-bronze" : done ? "border-bronze" : "border-foreground/30",
                 )}
               />
-              <span className={cn("label-caps mt-2.5 transition-colors duration-300", on ? "text-bronze" : "text-foreground/50")}>
+              <span
+                className={cn(
+                  "label-caps mt-2.5 transition-colors duration-300",
+                  on ? "text-bronze" : "text-foreground/50",
+                )}
+              >
                 {label}
               </span>
             </li>
@@ -215,8 +242,8 @@ export function DesktopCTA({
   );
 }
 
-/** Shown while Bhargav's Signature is chosen: an editorial panel — crisp HB crown
- * emblem on warm ivory, a real studio portrait treated as a photograph, then the words. */
+/** Shown while Bhargav's Signature is chosen: the high-resolution HB crown emblem,
+ * large, on warm ivory, with the words below. No photograph. */
 export function SignaturePanel({ className }: { className?: string }) {
   return (
     <aside
@@ -225,39 +252,24 @@ export function SignaturePanel({ className }: { className?: string }) {
         className,
       )}
     >
-      {/* the mark, kept exactly as designed — now served from the high-resolution file */}
-      <div className="soft-fade flex shrink-0 items-center justify-center px-10 pt-11 xl:pt-13">
+      <div className="soft-fade flex min-h-0 flex-1 items-center justify-center px-10 pt-8">
         <img
           src={SIGNATURE_EMBLEM_HD}
           alt="Hair by Bhargav"
-          className="w-36 object-contain xl:w-40"
+          className="photo-pop w-[56%] max-w-[22rem] object-contain drop-shadow-[0_18px_30px_rgba(60,40,20,0.16)]"
           decoding="async"
         />
       </div>
-
-      {/* the artist — a real photograph, cropped to its own aspect, graded warm */}
-      <div className="hairline-t hairline-b relative mt-10 min-h-0 flex-1 overflow-hidden">
-        <span className="soft-fade absolute inset-0">
-          <img
-            src={BHARGAV_FULL}
-            alt="Bhargav at the studio"
-            className="absolute inset-0 h-full w-full object-cover object-[50%_26%] cine-drift-top sepia-[0.32] saturate-[0.85] contrast-[1.03] brightness-[1.04]"
-            decoding="async"
-          />
-        </span>
-        <span className="pointer-events-none absolute inset-0 bg-[#e8d6b8]/25 mix-blend-multiply" />
-        <span className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-b from-transparent via-[#f1e7d8]/35 to-[#f1e7d8]/80" />
-      </div>
-
-      <div className="stagger shrink-0 px-10 pt-8 pb-11 xl:px-12">
-        <div className="text-[0.7rem] uppercase tracking-[0.32em] text-bronze">Bhargav's Signature</div>
-        <span aria-hidden className="mt-5 block h-px w-10 bg-bronze/60" />
-        <div className="mt-5 font-display text-[clamp(2.4rem,3.6vw,3.4rem)] leading-[1.04]">
+      <div className="stagger shrink-0 px-10 pb-12 xl:px-12">
+        <div className="text-[0.7rem] uppercase tracking-[0.32em] text-bronze">
+          Bhargav's Signature
+        </div>
+        <div className="mt-5 font-display text-[clamp(2.6rem,4vw,3.9rem)] leading-[1.02]">
           Styled by
           <br />
           <span className="italic text-bronze">Bhargav</span>.
         </div>
-        <div className="mt-5 max-w-xs text-[0.72rem] uppercase leading-[1.9] tracking-[0.22em] text-ink/70">
+        <div className="mt-6 max-w-sm text-[0.72rem] uppercase leading-[1.9] tracking-[0.26em] text-ink/70">
           Consultation, cut, beard, wash and styling.
         </div>
       </div>
@@ -394,7 +406,10 @@ export function InfoStrip({ className }: { className?: string }) {
         <a
           key={label}
           href={href}
-          className={cn("group flex items-start gap-4 px-5 first:pl-0 lg:gap-5 lg:px-8", i < 2 && "border-r border-hairline")}
+          className={cn(
+            "group flex items-start gap-4 px-5 first:pl-0 lg:gap-5 lg:px-8",
+            i < 2 && "border-r border-hairline",
+          )}
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-bronze/25 lg:h-12 lg:w-12 text-bronze transition-colors duration-300 group-hover:bg-bronze group-hover:text-ivory">
             <Icon className="h-5 w-5" strokeWidth={1.25} />
@@ -434,7 +449,10 @@ export function ScrollStrip({
   const update = () => {
     const el = ref.current;
     if (!el) return;
-    setEdge({ start: el.scrollLeft < 4, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 4 });
+    setEdge({
+      start: el.scrollLeft < 4,
+      end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 4,
+    });
   };
   useEffect(() => {
     update();

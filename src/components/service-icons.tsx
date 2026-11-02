@@ -278,7 +278,13 @@ export function ServiceIconTile({
   className?: string;
 }) {
   const box =
-    size === "sm" ? "h-14 w-14" : size === "lg" ? "h-24 w-32" : size === "thumb" ? "h-16 w-16" : "h-[4.5rem] w-24";
+    size === "sm"
+      ? "h-14 w-14"
+      : size === "lg"
+        ? "h-24 w-32"
+        : size === "thumb"
+          ? "h-16 w-16"
+          : "h-[4.5rem] w-24";
   if (!photo && icon) {
     return (
       <span
@@ -290,21 +296,38 @@ export function ServiceIconTile({
           className,
         )}
       >
-        <img src={icon} alt="" loading="lazy" decoding="async" className="h-[82%] w-[82%] object-contain" draggable={false} />
+        <img
+          src={icon}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-[82%] w-[82%] object-contain"
+          draggable={false}
+        />
       </span>
     );
   }
+  // No icon set for this record: a neutral, obviously-empty placeholder (never
+  // another record's or the other gender's icon), so a missing one is easy to spot.
   if (!photo && framed) {
+    void kind;
     return (
       <span
+        title="Icon not set"
         className={cn(
-          "flex shrink-0 items-center justify-center rounded-md transition-colors duration-300",
-          active ? "bg-ink text-champagne" : "bg-champagne/16 text-bronze",
+          "flex shrink-0 items-center justify-center rounded-md border border-dashed transition-colors duration-300",
+          active
+            ? "border-ink/50 bg-[#f3ece1] text-ink/40"
+            : "border-foreground/20 bg-transparent text-foreground/25",
           box,
           className,
         )}
       >
-        <ServiceGlyph kind={kind} active={active} className={size === "sm" ? "h-6 w-6" : "h-7 w-7"} />
+        <ServiceGlyph
+          kind="scissors"
+          active={false}
+          className={size === "sm" ? "h-5 w-5" : "h-6 w-6"}
+        />
       </span>
     );
   }
@@ -319,10 +342,22 @@ export function ServiceIconTile({
           className,
         )}
       >
-        <img src={photo} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+        <img
+          src={photo}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
         {active && size !== "thumb" ? (
           <span className="pop-in absolute right-1 bottom-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-champagne">
-            <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <svg
+              viewBox="0 0 24 24"
+              className="h-3 w-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
               <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
@@ -331,17 +366,18 @@ export function ServiceIconTile({
     );
   }
   const dims = size === "sm" ? "h-9 w-9" : size === "lg" ? "h-14 w-14" : "h-12 w-12";
-  const glyph = size === "sm" ? "h-[18px] w-[18px]" : size === "lg" ? "h-7 w-7" : "h-6 w-6";
+  const glyph = size === "sm" ? "h-[16px] w-[16px]" : size === "lg" ? "h-6 w-6" : "h-5 w-5";
   return (
     <span
+      title="Icon not set"
       className={cn(
-        "relative flex shrink-0 items-center justify-center rounded-full transition-colors duration-300",
-        active ? "bg-ink text-champagne" : "bg-champagne/16 text-bronze",
+        "relative flex shrink-0 items-center justify-center rounded-full border border-dashed transition-colors duration-300",
+        active ? "border-ink/50 text-ink/40" : "border-foreground/20 text-foreground/25",
         dims,
         className,
       )}
     >
-      <ServiceGlyph kind={kind} active={active} className={glyph} />
+      <ServiceGlyph kind="scissors" active={false} className={glyph} />
     </span>
   );
 }
