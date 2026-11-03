@@ -82,8 +82,8 @@ export const fmtDuration = (min: number) => {
   const m = min % 60;
   return h && m ? `${h} hr ${m} min` : h ? `${h} hour${h > 1 ? "s" : ""}` : `${m} min`;
 };
-export const fmtPrice = (n: number, from = false) =>
-  `₹${n.toLocaleString("en-IN")}${from ? "+" : ""}`;
+// prices are shown plainly (no "+"); the second argument is kept for callers
+export const fmtPrice = (n: number, _from = false) => `₹${n.toLocaleString("en-IN")}`;
 
 /**
  * Indian numbers to E.164 (+91XXXXXXXXXX). Numbers that already carry a

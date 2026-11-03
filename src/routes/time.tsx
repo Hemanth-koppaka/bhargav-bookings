@@ -1108,7 +1108,6 @@ function DesktopTime({
               {draft.date ? shortDate(draft.date) : "Pick a day"} ·{" "}
               {draft.time != null ? minuteLabel(draft.time) : "Pick a time"} ·{" "}
               {stylistLabel(draft.staffId, rawDay)} · {inr(totalPrice)}
-              {hasFromPricing ? "+" : ""}
             </span>
             <span className="hidden text-[0.8rem] text-muted-foreground lg:inline">
               Show summary
@@ -1141,7 +1140,6 @@ function DesktopTime({
               </div>
               <div className="mt-0.5 text-[0.95rem] text-muted-foreground">
                 {formatDuration(totalMinutes)} · {inr(totalPrice)}
-                {hasFromPricing ? "+" : ""}
               </div>
             </div>
           </div>
@@ -1169,7 +1167,6 @@ function DesktopTime({
             <div className="text-[0.85rem] text-muted-foreground">Total</div>
             <div key={totalPrice} className="tick-in font-display text-3xl leading-tight">
               {inr(totalPrice)}
-              {hasFromPricing ? "+" : ""}
             </div>
           </div>
           <DesktopCTA
