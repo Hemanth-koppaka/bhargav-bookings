@@ -6,6 +6,7 @@ import { useState } from "react";
 import { auth, servicesOf, type Booking } from "@/lib/booking-store";
 import { rateMyVisit } from "@/lib/salon.functions";
 import { sfx } from "@/lib/sfx";
+import { googleReviewLink } from "@/lib/salon";
 import { cn } from "@/lib/utils";
 
 const RATED_KEY = (ref: string) => `hb.rated.${ref}`;
@@ -76,7 +77,25 @@ export function RateVisit({ booking, className }: { booking: Booking; className?
   return (
     <section className={cn("rounded-md border border-bronze/30 bg-champagne/15 px-5 py-5 lg:px-6", className)}>
       {thanked ? (
-        <p className="font-display text-[1.3rem] leading-snug">Thank you. Your rating helps other guests choose.</p>
+        <>
+          <p className="font-display text-[1.3rem] leading-snug">Thank you. Your rating helps other guests choose.</p>
+          {/* happy guests: one tap to say it on Google too, where new guests find us */}
+          {Math.max(0, ...Object.values(stars)) >= 4 ? (
+            <div className="mt-4 border-t border-bronze/20 pt-4">
+              <p className="text-[0.9rem] leading-relaxed text-muted-foreground">
+                Would you share it on Google? A few words there help new guests find us.
+              </p>
+              <a
+                href={googleReviewLink()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="press mt-3 inline-flex min-h-11 items-center gap-2.5 rounded-sm bg-foreground px-6 text-[0.7rem] uppercase tracking-[0.2em] text-background"
+              >
+                <span aria-hidden className="text-[1rem] leading-none text-[#f4c542]">★</span> Write a Google review
+              </a>
+            </div>
+          ) : null}
+        </>
       ) : (
         <>
           <div className="text-[0.62rem] uppercase tracking-[0.28em] text-bronze">After your visit</div>

@@ -253,7 +253,7 @@ function EmailSettings({
         <Row title="Emails to guests" hint="Only guests who entered an email address.">
           <Toggle on={s.customerEmail} onChange={(v) => set({ customerEmail: v })} />
         </Row>
-        <Row title="Email alerts to the salon" hint="New bookings, moves and cancellations.">
+        <Row title="Email alerts to the salon" hint="New bookings, moves and cancellations, plus a summary of the day each morning at 8 AM.">
           <Toggle on={s.adminEmail} onChange={(v) => set({ adminEmail: v })} />
         </Row>
       </div>

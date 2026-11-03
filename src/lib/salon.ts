@@ -54,6 +54,12 @@ export const BUSINESS = {
   mapsQuery:
     "The Hair By Bhargav Unisex Salon, Plot No. 1143, Raghava Avasa, Gokul Plots, Venkataramana Colony, KPHB Phase 9, Kukatpally, Hyderabad 500072",
   phones: ["+917981648951", "+918125391998"],
+  /**
+   * The salon's "write a review" link from Google Business Profile ("Ask for
+   * reviews"). Until it's set, guests are sent to the salon on Google Maps,
+   * where they tap "Write a review".
+   */
+  googleReviewUrl: "",
   /** Instagram: the salon's page and Bhargav's own work. */
   instagram: {
     salon: { handle: "the_hairbybhargav_salon", url: "https://www.instagram.com/the_hairbybhargav_salon/" },
@@ -621,3 +627,11 @@ export const isValidMobile = (p: string) => {
   const d = mobileDigits(p);
   return /^[6-9]\d{9}$/.test(d) && !/^(\d)\1{9}$/.test(d);
 };
+
+/** Where guests write a Google review of the salon. */
+export function googleReviewLink() {
+  return (
+    BUSINESS.googleReviewUrl ||
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BUSINESS.mapsQuery)}`
+  );
+}

@@ -798,15 +798,98 @@ export async function dispatchDue(limit = 40) {
       .eq("status", "sending");
     counts.stale++;
   }
+  // the owner's morning summary (once a day, from 8 AM)
+  const summary = await morningSummary(s).catch((e) => {
+    console.error("morning summary failed", e);
+    return "failed";
+  });
   // System health reads this to tell whether the schedule is running
   await sb
     .from("site_settings")
-    .upsert({ key: "job_notify_dispatch", value: { at: Date.now(), ...counts } as never })
+    .upsert({ key: "job_notify_dispatch", value: { at: Date.now(), ...counts, summary } as never })
     .then(
       () => undefined,
       () => undefined,
     );
   return { ok: true, ...counts };
+}
+
+/* ── owner's morning summary ─────────────────────────────────── */
+
+const SUMMARY_KEY = "morning_summary";
+const SUMMARY_FROM_MINUTE = 8 * 60; // 8:00 AM salon time
+
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+const clock = (m: number) => {
+  const h = Math.floor(m / 60);
+  const mm = String(m % 60).padStart(2, "0");
+  return `${((h + 11) % 12) + 1}:${mm} ${h < 12 ? "AM" : "PM"}`;
+};
+
+/**
+ * Once a day from 8 AM (salon time), emails the salon the day's appointments:
+ * time, guest, services, stylist and phone. Sent only when salon email alerts
+ * are on and the email service is set up; at most once per day.
+ */
+export async function morningSummary(s: NotifySettings, force = false): Promise<string> {
+  if (!s.adminEmail || !s.adminEmailAddress) return "off";
+  const { canSendEmail, sendEmail } = await import("./email.server");
+  if (!canSendEmail(s.email).ok) return "email not set up";
+  const now = new Date(Date.now() + 330 * 60_000);
+  const today = now.toISOString().slice(0, 10);
+  const minute = now.getUTCHours() * 60 + now.getUTCMinutes();
+  if (!force && minute < SUMMARY_FROM_MINUTE) return "too early";
+  const { data: last } = await sb.from("site_settings").select("value").eq("key", SUMMARY_KEY).maybeSingle();
+  if (!force && (last?.value as { date?: string } | null)?.date === today) return "already sent";
+  // claim today first, so two runs never send it twice
+  await sb.from("site_settings").upsert({ key: SUMMARY_KEY, value: { date: today, at: Date.now() } as never });
+
+  const { data: rows } = await sb.from("bookings").select("*").eq("date", today).order("time");
+  const list = ((rows ?? []) as Row[]).filter((r) => {
+    const st = ((r["meta"] as Record<string, unknown> | null)?.["status"] as string) ?? "";
+    return r["status"] !== "cancelled" && st !== "cancelled";
+  });
+  const day = new Date(`${today}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  const lines = list.map((r) => {
+    const c = (r["customer"] ?? {}) as { name?: string; phone?: string };
+    const meta = (r["meta"] ?? {}) as Record<string, unknown>;
+    const services = ((r["services_snapshot"] as { name: string }[] | null) ?? []).map((x) => x.name).join(", ");
+    const mins = (r["duration_minutes"] as number | null) ?? ((r["slots"] as number) ?? 1) * 30;
+    return {
+      time: `${clock(r["time"] as number)} – ${clock((r["time"] as number) + mins)}`,
+      name: c.name ?? "",
+      phone: c.phone ?? "",
+      services,
+      stylist: (meta["staff_name"] as string) || "",
+      total: (r["price_total"] as number | null) ?? 0,
+    };
+  });
+  const total = lines.reduce((n, l) => n + l.total, 0);
+  const subject = list.length
+    ? `Today at Hair by Bhargav: ${list.length} appointment${list.length > 1 ? "s" : ""}`
+    : "Today at Hair by Bhargav: no appointments yet";
+  const text = [
+    `${day}`,
+    list.length ? `${list.length} appointment${list.length > 1 ? "s" : ""} · expected ₹${total.toLocaleString("en-IN")}` : "No appointments booked yet.",
+    "",
+    ...lines.map((l) => `${l.time}  ${l.name}${l.stylist ? ` · ${l.stylist}` : ""}\n  ${l.services}${l.phone ? ` · ${l.phone}` : ""}`),
+  ].join("\n");
+  const html = `<div style="font-family:Georgia,serif;color:#1c1611;max-width:560px">
+<p style="font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#8a6a4f;margin:0">Today at the salon</p>
+<h1 style="font-weight:400;font-size:26px;margin:6px 0 4px">${esc(day)}</h1>
+<p style="font-family:Arial,sans-serif;font-size:14px;color:#6b625a;margin:0 0 18px">${
+    list.length ? `${list.length} appointment${list.length > 1 ? "s" : ""} · expected ₹${total.toLocaleString("en-IN")}` : "No appointments booked yet."
+  }</p>
+${lines
+  .map(
+    (l) => `<div style="border-top:1px solid #e8e1d6;padding:10px 0;font-family:Arial,sans-serif;font-size:14px">
+<b>${esc(l.time)}</b> &nbsp; ${esc(l.name)}${l.stylist ? ` <span style="color:#8a6a4f">· ${esc(l.stylist)}</span>` : ""}<br>
+<span style="color:#6b625a">${esc(l.services)}${l.phone ? ` · ${esc(l.phone)}` : ""}</span></div>`,
+  )
+  .join("\n")}
+</div>`;
+  const r = await sendEmail(s.email, { to: s.adminEmailAddress, subject, html, text });
+  return r.ok ? `sent (${list.length})` : "failed";
 }
 
 /* ── delivery reports ────────────────────────────────────────── */
