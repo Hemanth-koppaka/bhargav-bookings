@@ -59,7 +59,7 @@ export const BUSINESS = {
    * reviews"). Until it's set, guests are sent to the salon on Google Maps,
    * where they tap "Write a review".
    */
-  googleReviewUrl: "",
+  googleReviewUrl: "https://share.google/1XYLXWkKdYhTgbDMB",
   /** Instagram: the salon's page and Bhargav's own work. */
   instagram: {
     salon: { handle: "the_hairbybhargav_salon", url: "https://www.instagram.com/the_hairbybhargav_salon/" },
