@@ -432,7 +432,7 @@ export function InfoStrip({ className }: { className?: string }) {
         <a
           key={label}
           href={href}
-          {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
+          {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
           className={cn(
             "tap-icon group flex min-w-0 items-start gap-4 px-5 first:pl-0 lg:gap-4 lg:px-6 xl:gap-5 xl:px-8",
             i < 3 && "border-r border-hairline",

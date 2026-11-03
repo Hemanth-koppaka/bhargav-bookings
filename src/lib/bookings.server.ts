@@ -23,21 +23,26 @@ export async function engine(fresh = false) {
 
 type Sb = Awaited<ReturnType<typeof db>>;
 
-/** Next booking ID (HB-2026-00124); falls back to a random one until the migration is applied. */
+/**
+ * A new booking ID the guest sees, e.g. HB-7KQ2MX: random, so it never tells
+ * anyone how many clients the salon has. The salon's own running number
+ * (booking_no) is kept alongside for the admin console only.
+ */
 async function nextReference(sb: Sb) {
   const { data, error } = await (
     sb.rpc as unknown as (fn: string) => Promise<{ data: unknown; error: unknown }>
   )("next_booking_reference");
-  const row = (Array.isArray(data) ? data[0] : data) as {
-    reference?: string;
-    booking_no?: number;
-  } | null;
-  if (!error && row?.reference)
-    return { reference: row.reference, bookingNo: row.booking_no ?? null };
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "HB-";
-  for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return { reference: out, bookingNo: null };
+  const row = (Array.isArray(data) ? data[0] : data) as { booking_no?: number } | null;
+  const bookingNo = !error && row?.booking_no != null ? row.booking_no : null;
+  // no look-alike characters (0/O, 1/I/L), so it's easy to read out on the phone
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const bytes = crypto.getRandomValues(new Uint8Array(6));
+    const reference = "HB-" + Array.from(bytes, (x) => chars[x % chars.length]).join("");
+    const { data: taken } = await sb.from("bookings").select("reference").eq("reference", reference).maybeSingle();
+    if (!taken) return { reference, bookingNo };
+  }
+  throw new Error("Couldn't issue a booking ID. Please try again.");
 }
 
 /** Finds or creates the customer record for a phone number; returns its id (null before the migration). */

@@ -85,7 +85,7 @@ function ArtistScreen() {
       <a
         href={BUSINESS.instagram.bhargav.url}
         target="_blank"
-        rel="noreferrer"
+        rel="noopener noreferrer"
         className="press tap-icon group mt-6 flex items-center gap-4 rounded-md border border-hairline bg-card p-4 hover:border-foreground/30 lg:p-5"
       >
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f9ce34_0%,#ee2a7b_50%,#6228d7_100%)] text-white">

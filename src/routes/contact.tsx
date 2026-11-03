@@ -81,7 +81,7 @@ function ContactScreen() {
           <li key={label}>
             <a
               href={href}
-              {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
+              {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
               data-sfx={href.startsWith("tel:") || href.includes("wa.me") ? "contact" : "secondary"}
               className="press group flex items-center gap-4 rounded-md border border-hairline bg-card p-4 hover:border-foreground/30 lg:p-5"
             >

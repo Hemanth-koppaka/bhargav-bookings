@@ -268,7 +268,7 @@ function MobileHome() {
             <a
               href={BUSINESS.instagram.salon.url}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               aria-label="The salon on Instagram"
               className="press tap-icon inline-flex h-11 w-11 items-center justify-center rounded-full border border-foreground/15 hover:border-foreground/40"
             >
