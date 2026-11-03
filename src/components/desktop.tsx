@@ -20,10 +20,11 @@ import {
   Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience } from "@/lib/salon";
+import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience, type Service } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
 import { ScissorsLine, useRewindBack } from "@/components/scissors-line";
-import { SIGNATURE_EMBLEM_HD, SIGNATURE_MARK, isSignature } from "@/lib/service-photos";
+import { SIGNATURE_EMBLEM_HD, isSignature } from "@/lib/service-photos";
+import { ServiceIconTile, serviceKind } from "@/components/service-icons";
 
 export const STEPS = ["Who", "Services", "Time", "Details", "Confirm"] as const;
 
@@ -33,15 +34,31 @@ export const AUDIENCE_IMAGE: Record<Audience, { src: string; pos: string }> = {
   women: { src: "/services/women-panel.webp", pos: "50% 20%" },
 };
 
-/** Picture for a booking summary: the first chosen service's photo, else the men/women image. */
-export function selectionImage(
-  selected: { name: string; photo?: string | undefined }[],
-  audience: Audience | null,
-): { src: string; pos: string; fit?: "contain" } {
-  // Bhargav's Signature always shows his HB crown mark, never a stock portrait
-  if (selected.some(isSignature)) return { src: SIGNATURE_MARK, pos: "50% 50%", fit: "contain" };
-  const photo = selected.find((x) => x.photo)?.photo;
-  return photo ? { src: photo, pos: "50% 30%" } : AUDIENCE_IMAGE[audience ?? "men"];
+/**
+ * Picture for a booking summary: the first chosen service's own icon (or its own
+ * photo), exactly as on the Services cards. It comes from the service record
+ * only, never an editorial, stylist or men/women image.
+ */
+export function SelectionThumb({
+  selected,
+  className,
+}: {
+  selected: Pick<Service, "id" | "name" | "icon" | "photo">[];
+  className?: string;
+}) {
+  const s = selected[0];
+  if (!s) return null;
+  return (
+    <ServiceIconTile
+      key={s.id}
+      kind={serviceKind(s)}
+      icon={s.icon}
+      photo={s.photo}
+      framed
+      size="thumb"
+      className={className}
+    />
+  );
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");

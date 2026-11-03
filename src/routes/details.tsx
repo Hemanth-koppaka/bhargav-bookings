@@ -4,17 +4,17 @@ import { ArrowRight, CalendarDays, Lock, MessageCircle, ShieldCheck } from "luci
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
 import { YourAppointment, BookingDock } from "@/components/booking-dock";
+import { ServiceIconTile, serviceKind } from "@/components/service-icons";
 import { sfx } from "@/lib/sfx";
 import { ReferencePhotos } from "@/components/reference-photos";
 import {
-  selectionImage,
+  SelectionThumb,
   Accent,
   DesktopBar,
   DesktopCTA,
   DesktopPage,
   DesktopStepHeader,
   StepTitle,
-  Thumb,
 } from "@/components/desktop";
 import { useBooking, type Customer } from "@/lib/booking-store";
 import { formatDuration, fromISO, inr, isValidMobile, minuteLabel } from "@/lib/salon";
@@ -150,10 +150,9 @@ function DetailsScreen() {
 
 function MobileSummary() {
   const { draft, selected, totalMinutes, totalPrice, hasFromPricing } = useBooking();
-  const img = selectionImage(selected, draft.audience);
   return (
     <div className="mt-5 flex items-center gap-4 rounded-md border border-hairline bg-card p-3.5">
-      <Thumb src={img.src} pos={img.pos} fit={img.fit} className="h-16 w-16" />
+      <SelectionThumb selected={selected} className="h-16 w-16" />
       <div className="min-w-0 flex-1">
         <div className="truncate font-display text-[1.25rem] leading-tight">
           {selected.length > 1 ? `${selected[0]?.name} + ${selected.length - 1} more` : selected[0]?.name}
@@ -311,7 +310,6 @@ function DesktopDetails({
   attempt: number;
 }) {
   const { draft, selected, totalMinutes, totalPrice, hasFromPricing } = useBooking();
-  const img = selectionImage(selected, draft.audience);
 
   const assurances = [
     { icon: ShieldCheck, title: "Your information is safe", body: "Your details are only used to manage your appointment." },
@@ -349,11 +347,24 @@ function DesktopDetails({
                 </Link>
               </div>
               <div className="mt-6 flex gap-6">
-                <Thumb src={img.src} pos={img.pos} fit={img.fit} className="h-28 w-28" />
+                {/* one service: its icon large; several: each with its own icon */}
+                {selected.length === 1 ? <SelectionThumb selected={selected} className="h-28 w-28" /> : null}
                 <div className="min-w-0">
-                  {selected.map((x) => (
-                    <div key={x.id} className="font-display text-[1.6rem] leading-tight">{x.name}</div>
-                  ))}
+                  {selected.length === 1 ? (
+                    <div className="font-display text-[1.6rem] leading-tight">{selected[0]!.name}</div>
+                  ) : (
+                    <ul className="space-y-2.5">
+                      {selected.map((x) => (
+                        <li key={x.id} className="flex items-center gap-3.5">
+                          <ServiceIconTile kind={serviceKind(x)} icon={x.icon} photo={x.photo} framed size="sm" className="!h-12 !w-12" />
+                          <span className="min-w-0">
+                            <span className="block font-display text-[1.4rem] leading-tight">{x.name}</span>
+                            <span className="block text-[0.85rem] text-muted-foreground">{formatDuration(x.minutes)}</span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {draft.date ? (
                     <div className="mt-2 font-display text-[1.25rem] text-foreground/80">
                       {fromISO(draft.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}

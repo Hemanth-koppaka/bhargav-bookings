@@ -5,14 +5,13 @@ import type { ReactNode } from "react";
 import { ArrowUpRight, Lock, MapPin, Pencil, X } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import {
-  selectionImage,
+  SelectionThumb,
   Accent,
   DesktopBar,
   DesktopCTA,
   DesktopPage,
   DesktopStepHeader,
   StepTitle,
-  Thumb,
   prettyPhone,
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
@@ -20,7 +19,7 @@ import { cn, haptic } from "@/lib/utils";
 import { useChangeDeadline } from "@/lib/change-deadline";
 import { BookingDock } from "@/components/booking-dock";
 import { sfx } from "@/lib/sfx";
-import { ServiceGlyph, serviceKind } from "@/components/service-icons";
+import { ServiceIconTile, serviceKind } from "@/components/service-icons";
 import { BUSINESS, SERVICE_RULES, STYLISTS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
 import { preferredFor } from "@/lib/service-rules";
 
@@ -105,8 +104,6 @@ function ReviewScreen() {
     sfx.ambience(); // the room breathes in as the confirmation film begins
     navigate({ to: "/confirmed", search: { ref: res.booking.reference, seq: 1 } });
   };
-
-  const img = selectionImage(selected, draft.audience);
   const c = draft.customer;
 
   return (
@@ -128,13 +125,13 @@ function ReviewScreen() {
             <div className="stagger mt-6 space-y-3">
               <Card title="Appointment" action={<EditLink to="/services" />}>
                 <div className="flex gap-4">
-                  <Thumb src={img.src} pos={img.pos} fit={img.fit} className="h-20 w-20" />
+                  {selected.length === 1 ? <SelectionThumb selected={selected} className="h-20 w-20" /> : null}
                   <div className="min-w-0 flex-1">
                     <ul className="space-y-1">
                       {selected.map((x) => (
                         <li key={x.id} className="flex items-baseline justify-between gap-3">
                           <span className="flex items-center gap-2.5 font-display text-[1.35rem] leading-tight">
-                            <ServiceGlyph kind={serviceKind(x)} className="h-4 w-4 shrink-0 text-bronze" />
+                            <ServiceIconTile kind={serviceKind(x)} icon={x.icon} photo={x.photo} framed size="sm" className="!h-7 !w-7 shrink-0 self-center" />
                             {x.name}
                           </span>
                           {selected.length > 1 ? (
@@ -296,7 +293,6 @@ function DesktopReview({
 }) {
   const { draft, selected, totalMinutes, totalPrice, hasFromPricing, removeService } = useBooking();
   if (!draft.customer || !draft.date || draft.time == null) return null;
-  const img = selectionImage(selected, draft.audience);
   const c = draft.customer;
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(BUSINESS.mapsQuery)}`;
   const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(BUSINESS.mapsQuery)}&z=15&output=embed`;
@@ -321,12 +317,12 @@ function DesktopReview({
             <div className="grid gap-5 [@media(min-width:1024px)_and_(max-height:800px)]:gap-4">
               <Card title="Appointment details" action={<EditLink to="/services" />}>
                 <div className="flex gap-5">
-                  <Thumb src={img.src} pos={img.pos} fit={img.fit} className="h-20 w-20 shrink-0" />
+                  {selected.length === 1 ? <SelectionThumb selected={selected} className="h-20 w-20 shrink-0" /> : null}
                   <div className="min-w-0 flex-1">
                     <ul className="space-y-0.5">
                       {selected.map((x) => (
                         <li key={x.id} className="group flex items-center gap-2.5">
-                          <ServiceGlyph kind={serviceKind(x)} className="h-4 w-4 shrink-0 text-bronze" />
+                          <ServiceIconTile kind={serviceKind(x)} icon={x.icon} photo={x.photo} framed size="sm" className="!h-7 !w-7 shrink-0 self-center" />
                           <span className="min-w-0 truncate font-display text-[1.45rem] leading-tight">{x.name}</span>
                           {selected.length > 1 ? (
                             <button

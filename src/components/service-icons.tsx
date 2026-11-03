@@ -323,7 +323,7 @@ export function ServiceIconTile({
   icon?: string | undefined;
   /** Give icons the same footprint as photos, so mixed lists stay aligned. */
   framed?: boolean | undefined;
-  className?: string;
+  className?: string | undefined;
 }) {
   const box =
     size === "sm"
