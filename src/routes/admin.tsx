@@ -16,6 +16,16 @@ export const Route = createFileRoute("/admin")({
       { name: "robots", content: "noindex" },
       { property: "og:title", content: "Salon operations — Hair by Bhargav" },
       { property: "og:description", content: "Private operations console." },
+      // installable on phones (iPhone needs this for booking alerts)
+      { name: "theme-color", content: "#1c1611" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "HB Salon" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+    ],
+    links: [
+      { rel: "manifest", href: "/admin.webmanifest" },
+      { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
     ],
   }),
   component: AdminLayout,
