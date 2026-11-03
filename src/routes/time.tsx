@@ -1112,7 +1112,8 @@ function DesktopTime({
           </button>
           <div className="hidden min-w-0 flex-1 items-center gap-6 lg:flex">
             <SelectionThumb selected={selected} className="hidden h-12 w-12 xl:flex" />
-            <div className="min-w-0">
+            {/* nothing until the guest's saved services have loaded (never "0 min · ₹0") */}
+            <div className={selected.length ? "min-w-0" : "invisible min-w-0"}>
               <div className="truncate font-display text-[1.6rem] leading-tight">
                 {selected.length > 1 ? `${first?.name} + ${selected.length - 1} more` : first?.name}
               </div>
