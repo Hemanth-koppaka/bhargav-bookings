@@ -52,18 +52,26 @@ const digits = (p: string) => p.replace(/\D/g, "").slice(-10);
 export const waLink = (phone: string) => `https://wa.me/91${digits(phone)}`;
 
 /** Runs a server read for the admin, with loading/error state and a reload(). */
+// Pages the admin already opened show their last data straight away and refresh
+// quietly underneath (no blank "loading" each time you switch screens).
+const adminCache = new Map<string, unknown>();
+
 export function useAdminData<T>(load: (pin: string) => Promise<T>, deps: unknown[]) {
   const { pin, signOut } = useAdmin();
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
+  const key = `${pin.slice(-12)}|${load.toString()}|${JSON.stringify(deps)}`;
+  const [data, setData] = useState<T | null>(() => (adminCache.get(key) as T | undefined) ?? null);
+  const [loading, setLoading] = useState(() => !adminCache.has(key));
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let live = true;
-    setLoading(true);
+    const hit = adminCache.get(key) as T | undefined;
+    if (hit !== undefined) setData(hit);
+    setLoading(hit === undefined);
     load(pin)
       .then((d) => {
         if (!live) return;
+        adminCache.set(key, d);
         setData(d);
         setError("");
       })
@@ -78,7 +86,7 @@ export function useAdminData<T>(load: (pin: string) => Promise<T>, deps: unknown
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin, tick, ...deps]);
+  }, [pin, tick, key]);
   const reload = useCallback(() => setTick((t) => t + 1), []);
   return { data, loading, error, reload };
 }

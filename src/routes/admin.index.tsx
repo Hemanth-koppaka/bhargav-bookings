@@ -1,8 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Ban, CalendarX2, ChevronRight, Info, Plus, UserRoundPlus } from "lucide-react";
-import { AdminShell, Panel, Stat, StatusPill, TinyButton } from "@/components/admin";
+import {
+  AlertTriangle,
+  Ban,
+  CalendarCheck2,
+  CalendarX2,
+  ChevronRight,
+  Info,
+  IndianRupee,
+  Plus,
+  Receipt,
+  TrendingUp,
+  UserRoundPlus,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import { AdminShell, Panel, StatusPill, TinyButton } from "@/components/admin";
+import { AreaTrend, DASH, Donut, StackedBars } from "@/components/dash-charts";
 import {
   BlockTimeDialog,
   BookingDrawer,
@@ -36,6 +51,17 @@ const NEXT: Partial<Record<ApptStatus, { to: ApptStatus; label: string }>> = {
   upcoming: { to: "arrived", label: "Check in" },
   arrived: { to: "in-chair", label: "Start" },
   "in-chair": { to: "completed", label: "Complete" },
+};
+
+/** One colour per appointment state (the same as the diary chart). */
+const STATUS_COLOR: Record<ApptStatus, string> = {
+  pending: DASH.yellow,
+  upcoming: DASH.blue,
+  arrived: DASH.violet,
+  "in-chair": DASH.orange,
+  completed: DASH.aqua,
+  "no-show": DASH.yellow,
+  cancelled: DASH.red,
 };
 
 const isActive = (b: AdminBooking) => b.status !== "cancelled" && b.status !== "no-show";
@@ -139,23 +165,83 @@ function TodayScreen() {
 
       {data ? (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <Stat label="Today" value={String(data.counts.total)} hint="appointments" />
-            <Stat label="Still to come" value={String(data.counts.upcoming)} />
-            <Stat label="Completed" value={String(data.counts.completed)} />
-            <Stat
-              label="No-show / cancelled"
-              value={`${data.counts.noShow} / ${data.counts.cancelled}`}
-              {...(data.counts.noShow ? { tone: "warn" as const } : {})}
+          <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-5">
+            <Tile
+              tone="blue"
+              icon={CalendarCheck2}
+              label="Today"
+              value={String(data.counts.total)}
+              hint={`${data.counts.upcoming} still to come · ${data.counts.completed} done`}
+              delay={0}
             />
-            <Stat label="Collected" value={inr(data.revenue.today)} hint={`Expected ${inr(data.revenue.expectedToday)}`} />
+            <Tile
+              tone="aqua"
+              icon={IndianRupee}
+              label="Collected today"
+              value={inr(data.revenue.today)}
+              hint={`Expected ${inr(data.revenue.expectedToday)}`}
+              delay={60}
+            />
+            <Tile
+              tone="orange"
+              icon={TrendingUp}
+              label="This month"
+              value={inr(data.revenue.month)}
+              hint={`This week ${inr(data.revenue.week)}`}
+              delay={120}
+            />
+            <Tile
+              tone="violet"
+              icon={Users}
+              label="Guests · 30 days"
+              value={String(data.month30.guests)}
+              hint={`${data.month30.visits} completed visits`}
+              delay={180}
+            />
+            <Tile
+              tone="yellow"
+              icon={Receipt}
+              label="Average visit"
+              value={inr(data.month30.average)}
+              hint={
+                data.counts.noShow || data.counts.cancelled
+                  ? `Today: ${data.counts.noShow} no-show · ${data.counts.cancelled} cancelled`
+                  : `${data.month30.noShows} no-shows in 30 days`
+              }
+              delay={240}
+            />
+          </div>
+
+          <div className="mt-5 grid gap-5 lg:grid-cols-2">
+            <ChartCard title="Revenue" hint={`Last 30 days · ${inr(data.revenue.last30)}`}>
+              <AreaTrend
+                label="Revenue per day, last 30 days"
+                color={DASH.blue}
+                points={data.days.filter((d) => d.date <= data.today).map((d) => ({ date: d.date, value: d.revenue }))}
+                format={(n) => (n >= 1000 ? `₹${Math.round(n / 100) / 10}k` : `₹${Math.round(n)}`)}
+              />
+            </ChartCard>
+            <ChartCard title="The diary" hint="Last 2 weeks and the week ahead">
+              <StackedBars
+                label="Appointments per day by outcome"
+                today={data.today}
+                days={data.days.slice(-21)}
+                series={[
+                  { key: "completed", label: "Completed", color: DASH.aqua },
+                  { key: "upcoming", label: "Booked", color: DASH.blue },
+                  { key: "noShow", label: "No-show", color: DASH.yellow },
+                  { key: "cancelled", label: "Cancelled", color: DASH.red },
+                ]}
+              />
+            </ChartCard>
           </div>
 
           <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="min-w-0 space-y-5">
               {data.next ? (
-                <Panel className="border-bronze/35 bg-champagne/10">
-                  <div className="text-[0.62rem] uppercase tracking-[0.2em] text-bronze">
+                <Panel className="rounded-2xl border-0 bg-[linear-gradient(120deg,#1c1611_0%,#3a2a1c_100%)] text-ivory shadow-[0_18px_40px_-26px_rgba(30,20,10,0.8)] [&_.text-muted-foreground]:text-ivory/70">
+                  <div className="flex items-center gap-2 text-[0.62rem] uppercase tracking-[0.2em] text-champagne">
+                    <span className="h-2 w-2 animate-pulse rounded-full" style={{ background: data.next.time <= now ? DASH.orange : DASH.aqua }} />
                     {data.next.time <= now ? "In progress" : "Up next"}
                   </div>
                   <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
@@ -173,9 +259,14 @@ function TodayScreen() {
                         </div>
                       </div>
                       {NEXT[data.next.status] ? (
-                        <TinyButton tone="primary" disabled={busy === data.next.reference} onClick={() => void advance(data.next!)}>
+                        <button
+                          type="button"
+                          disabled={busy === data.next.reference}
+                          onClick={() => void advance(data.next!)}
+                          className="press min-h-10 rounded-lg bg-champagne px-4 text-[0.85rem] font-medium text-ink disabled:opacity-50"
+                        >
                           {NEXT[data.next.status]!.label}
-                        </TinyButton>
+                        </button>
                       ) : null}
                     </div>
                   </div>
@@ -244,23 +335,75 @@ function TodayScreen() {
                   })}
                 </ul>
               </Panel>
-              <Panel>
-                <div className="text-[0.62rem] uppercase tracking-[0.2em] text-muted-foreground">Revenue</div>
-                <dl className="mt-3 space-y-2 text-[0.88rem]">
-                  {[
-                    ["Today", data.revenue.today],
-                    ["This week", data.revenue.week],
-                    ["This month", data.revenue.month],
-                  ].map(([k, v]) => (
-                    <div key={k} className="flex justify-between">
-                      <dt className="text-muted-foreground">{k}</dt>
-                      <dd className="tabular-nums">{inr(v as number)}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <p className="mt-3 text-[0.72rem] text-muted-foreground">Counted from completed appointments.</p>
-              </Panel>
             </div>
+          </div>
+          <div className="mt-5 grid gap-5 lg:grid-cols-2">
+            <ChartCard title="Most booked services" hint="Last 30 days">
+              {data.topServices.length ? (
+                <Donut
+                  centre={String(data.topServices.reduce((n, x) => n + x.count, 0))}
+                  centreHint="services"
+                  items={data.topServices.map((x, i) => ({
+                    label: x.name,
+                    value: x.count,
+                    color: [DASH.blue, DASH.orange, DASH.aqua, DASH.yellow, DASH.magenta, DASH.violet][i]!,
+                  }))}
+                />
+              ) : (
+                <p className="py-10 text-center text-[0.88rem] text-muted-foreground">No bookings in the last 30 days yet.</p>
+              )}
+            </ChartCard>
+            <ChartCard title="Who did what" hint="Last 30 days">
+              {data.team.length ? (
+                <div className="-mx-1 overflow-x-auto">
+                  <table className="w-full min-w-[20rem] text-[0.85rem]">
+                    <thead>
+                      <tr className="border-b border-hairline text-left text-[0.72rem] text-muted-foreground">
+                        <th className="px-1 py-2 font-normal">Stylist</th>
+                        <th className="px-1 py-2 text-right font-normal">Services</th>
+                        <th className="px-1 py-2 text-right font-normal">Brought in</th>
+                        <th className="px-1 py-2 text-right font-normal">No-shows</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.team.map((t, i) => {
+                        const top = Math.max(...data.team.map((x) => x.revenue), 1);
+                        return (
+                          <tr key={t.name + i} className="border-b border-hairline last:border-0">
+                            <td className="px-1 py-2.5">
+                              <span className="flex items-center gap-2.5">
+                                <span
+                                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[0.72rem] font-medium text-white"
+                                  style={{ background: [DASH.violet, DASH.orange, DASH.aqua, DASH.blue, DASH.magenta][i % 5] }}
+                                >
+                                  {t.name.slice(0, 1).toUpperCase()}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block truncate">{t.name}</span>
+                                  <span className="mt-1 block h-1 w-24 overflow-hidden rounded-full bg-foreground/[0.06]">
+                                    <span
+                                      className="block h-full rounded-full"
+                                      style={{ width: `${(t.revenue / top) * 100}%`, background: DASH.aqua }}
+                                    />
+                                  </span>
+                                </span>
+                              </span>
+                            </td>
+                            <td className="px-1 py-2.5 text-right tabular-nums">{t.services}</td>
+                            <td className="px-1 py-2.5 text-right font-medium tabular-nums">{inr(t.revenue)}</td>
+                            <td className={cn("px-1 py-2.5 text-right tabular-nums", t.noShows ? "text-destructive" : "text-muted-foreground")}>
+                              {t.noShows}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="py-10 text-center text-[0.88rem] text-muted-foreground">Nothing yet.</p>
+              )}
+            </ChartCard>
           </div>
         </>
       ) : null}
@@ -308,7 +451,7 @@ function TimelineRow({
     const live = row.start <= now && now < row.end;
     return (
       <li className={cn("relative flex items-center gap-3 border-b border-hairline px-4 py-3 last:border-0 lg:px-5", live && "bg-champagne/10")}>
-        {live ? <span className="absolute inset-y-0 left-0 w-0.5 bg-bronze" /> : null}
+        <span className={cn("absolute inset-y-2 left-1 rounded-full", live ? "w-1" : "w-[3px]")} style={{ background: STATUS_COLOR[b.status] }} />
         {time}
         <button onClick={() => onOpen(b.reference)} className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
@@ -353,5 +496,60 @@ function TimelineRow({
         {row.kind === "break" ? row.label : `Blocked · ${row.label}`}
       </span>
     </li>
+  );
+}
+
+const TONES = {
+  blue: { bg: "linear-gradient(135deg,#2a78d6 0%,#3f8ee8 100%)", ink: "#fff" },
+  aqua: { bg: "linear-gradient(135deg,#118a5f 0%,#1baf7a 100%)", ink: "#fff" },
+  orange: { bg: "linear-gradient(135deg,#dc5524 0%,#f27a45 100%)", ink: "#fff" },
+  violet: { bg: "linear-gradient(135deg,#5141c4 0%,#7465e0 100%)", ink: "#fff" },
+  yellow: { bg: "linear-gradient(135deg,#eda100 0%,#f6bd32 100%)", ink: "#1c1611" },
+} as const;
+
+/** A bold, colourful headline number (the dashboard's top row). */
+function Tile({
+  tone,
+  icon: Icon,
+  label,
+  value,
+  hint,
+  delay,
+}: {
+  tone: keyof typeof TONES;
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  hint: string;
+  delay: number;
+}) {
+  const t = TONES[tone];
+  return (
+    <div
+      className="dash-tile relative min-w-[11.5rem] shrink-0 snap-start overflow-hidden rounded-2xl px-4 py-4 shadow-[0_14px_30px_-20px_rgba(30,20,10,0.55)] transition-transform sm:min-w-0"
+      style={{ background: t.bg, color: t.ink, animationDelay: `${delay}ms` }}
+    >
+      {/* soft rings for texture */}
+      <span className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full border-[14px] border-white/10" />
+      <span className="pointer-events-none absolute -right-2 bottom-[-3.5rem] h-24 w-24 rounded-full bg-white/10" />
+      <span className="dash-tile-icon relative flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
+        <Icon className="h-[18px] w-[18px]" strokeWidth={1.8} />
+      </span>
+      <div className="relative mt-3 text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums">{value}</div>
+      <div className="relative mt-1.5 text-[0.8rem] font-medium opacity-95">{label}</div>
+      <div className="relative mt-0.5 truncate text-[0.72rem] opacity-80">{hint}</div>
+    </div>
+  );
+}
+
+function ChartCard({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-hairline bg-card p-4 shadow-[0_10px_30px_-24px_rgba(30,20,10,0.4)] lg:p-5">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h2 className="text-[1rem] font-medium">{title}</h2>
+        {hint ? <span className="truncate text-[0.75rem] text-muted-foreground">{hint}</span> : null}
+      </div>
+      {children}
+    </section>
   );
 }

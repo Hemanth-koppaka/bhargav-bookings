@@ -628,3 +628,60 @@ html:not(.intro-seen) .after-intro > *:nth-child(n + 6) { animation-delay: 2.75s
 :is(.eyebrow):is(.text-center, .justify-center) {
   text-indent: 0.28em;
 }
+
+/* Icons answer a tap: a quick squeeze, a playful tilt and a settle. */
+.icon-tap {
+  animation: iconTap 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: 50% 60%;
+}
+.icon-untap {
+  animation: iconUntap 320ms ease-out both;
+}
+@keyframes iconTap {
+  0% { transform: scale(1) rotate(0); }
+  22% { transform: scale(0.84) rotate(-9deg); }
+  55% { transform: scale(1.14) rotate(7deg); }
+  78% { transform: scale(0.97) rotate(-2deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+@keyframes iconUntap {
+  0% { transform: scale(1); }
+  40% { transform: scale(0.88); }
+  100% { transform: scale(1); }
+}
+/* any tappable thing holding an icon can borrow the squeeze */
+.tap-icon:active :is(svg, img) {
+  transform: scale(0.86);
+  transition: transform 90ms ease-out;
+}
+
+/* Dashboard charts grow in on first paint. */
+.dash-reveal {
+  animation: dashReveal 900ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes dashReveal {
+  from { width: 0; }
+}
+.dash-bar {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: dashBar 600ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes dashBar {
+  from { transform: scaleY(0); }
+}
+.dash-arc {
+  animation: fadeIn 500ms ease-out both;
+}
+.dash-tile {
+  animation: fadeRise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.dash-tile:active { transform: scale(0.98); }
+.dash-tile:active .dash-tile-icon { animation: iconTap 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-tap, .icon-untap, .dash-reveal, .dash-bar, .dash-arc, .dash-tile, .dash-tile:active .dash-tile-icon {
+    animation: none !important;
+  }
+  .tap-icon:active :is(svg, img) { transform: none; }
+}

@@ -1,7 +1,7 @@
 // Line icons for every service, each with its own small "selected" motion:
 // scissors snip, razor glides, drops fall, steam rises, sparkles twinkle…
 // The motion plays whenever `active` flips on (CSS in styles.css, `.svc-*`).
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { Service } from "@/lib/salon";
 
@@ -254,6 +254,54 @@ export function ServiceGlyph({
   );
 }
 
+/** Re-plays the tap animation each time the tile is selected or unselected. */
+function useTapAnim(active: boolean | undefined) {
+  const first = useRef(true);
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    setN((x) => x + 1);
+  }, [active]);
+  return n === 0 ? { key: 0, cls: "" } : { key: n, cls: active ? "icon-tap" : "icon-untap" };
+}
+
+function TileIcon({
+  icon,
+  active,
+  box,
+  className,
+}: {
+  icon: string;
+  active: boolean | undefined;
+  box: string;
+  className: string | undefined;
+}) {
+  const tap = useTapAnim(active);
+  return (
+    <span
+      className={cn(
+        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-md transition-colors duration-300",
+        active ? "bg-[#f3ece1] ring-1 ring-ink/70" : "bg-champagne/16",
+        box,
+        className,
+      )}
+    >
+      <img
+        key={tap.key}
+        src={icon}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        className={cn("h-[82%] w-[82%] object-contain", tap.cls)}
+        draggable={false}
+      />
+    </span>
+  );
+}
+
 /**
  * Visual for a service or category in lists: the salon's photo when one has
  * been uploaded (admin → Menu), otherwise the animated line icon.
@@ -287,24 +335,7 @@ export function ServiceIconTile({
           : "h-[4.5rem] w-24";
   if (!photo && icon) {
     return (
-      <span
-        className={cn(
-          "relative flex shrink-0 items-center justify-center overflow-hidden rounded-md transition-colors duration-300",
-          active ? "bg-[#f3ece1] ring-1 ring-ink/70" : "bg-champagne/16",
-          active && "photo-pop",
-          box,
-          className,
-        )}
-      >
-        <img
-          src={icon}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="h-[82%] w-[82%] object-contain"
-          draggable={false}
-        />
-      </span>
+      <TileIcon icon={icon} active={active} box={box} className={className} />
     );
   }
   // No icon set for this record: a neutral, obviously-empty placeholder (never

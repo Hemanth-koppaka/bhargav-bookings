@@ -16,8 +16,33 @@ const toMin = (t: string | null | undefined) => {
 
 type PersistedBreaks = Record<string, { start: string; end: string }[]>;
 
+// The configuration changes rarely (an admin edit), but every screen and every
+// availability check needs it. Keep the last build for a few seconds and share
+// one build between requests arriving together; admin edits clear it at once.
+const TTL_MS = 20_000;
+let cached: { at: number; value: Promise<Record<string, unknown>> } | null = null;
+
+/** Forget the cached configuration (call after any admin change). */
+export function invalidateConfig() {
+  cached = null;
+}
+
+/** The live salon configuration (briefly cached; see above). */
+export function loadConfig(): Promise<Record<string, unknown>> {
+  const now = Date.now();
+  if (cached && now - cached.at < TTL_MS) return cached.value;
+  const value = buildConfig();
+  const entry = { at: now, value };
+  cached = entry;
+  // never keep a failed build
+  value.catch(() => {
+    if (cached === entry) cached = null;
+  });
+  return value;
+}
+
 /** Builds the full salon configuration from the online tables. */
-export async function loadConfig() {
+async function buildConfig(): Promise<Record<string, unknown>> {
   const sb = await db();
   const today = new Date().toISOString().slice(0, 10);
   const [cats, svcs, hours, exc, settings, legacy] = await Promise.all([

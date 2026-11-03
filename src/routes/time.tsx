@@ -28,7 +28,7 @@ import {
   Thumb,
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
-import { Basket, BookingDock } from "@/components/booking-dock";
+import { YourAppointment, BookingDock } from "@/components/booking-dock";
 import { getAvailability } from "@/lib/salon.functions";
 import type { DayAvailability } from "@/lib/engine.server";
 import {
@@ -183,7 +183,7 @@ function TimeScreen() {
               ) : undefined
             }
             sheet={
-              <Basket
+              <YourAppointment
                 onAddMore={() => navigate({ to: "/services" })}
                 continueLabel="Done"
                 onContinue={() => setBarOpen(false)}

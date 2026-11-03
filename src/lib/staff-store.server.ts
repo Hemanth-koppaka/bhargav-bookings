@@ -108,6 +108,8 @@ export async function loadStore(): Promise<Store> {
 }
 async function saveStore(s: Store) {
   const { error } = await sb.from("site_settings").upsert({ key: KEY, value: s as never });
+  // staff, leave and closures feed the salon configuration
+  (await import("./config.server")).invalidateConfig();
   return error;
 }
 

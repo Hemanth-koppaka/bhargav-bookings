@@ -8,7 +8,7 @@ import {
   Clock,
   Plus,
   Search,
-  ShoppingBag,
+  CalendarCheck2,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -33,7 +33,7 @@ import {
   SignaturePanel,
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
-import { Basket, BookingDock } from "@/components/booking-dock";
+import { YourAppointment, BookingDock } from "@/components/booking-dock";
 import { getServicePopularity } from "@/lib/salon.functions";
 import { formatDuration, inr, menuFor, type Category } from "@/lib/salon";
 
@@ -58,15 +58,9 @@ function ServicesScreen() {
     useBooking();
   const navigate = useNavigate();
   const [active, setActive] = useState<string | null>(null);
-  // Coming back with services already chosen: open the basket so they're in view.
+  // "Your appointment" opens only when the guest taps it (never by itself).
   const [basketOpen, setBasketOpen] = useState(false);
   const [mSort, setMSort] = useState<SortKey>("popular");
-  const basketInit = useRef(false);
-  useEffect(() => {
-    if (!hydrated || basketInit.current) return;
-    basketInit.current = true;
-    if (selected.length) setBasketOpen(true);
-  }, [hydrated, selected.length]);
   const multiHint = useMultiHint(selected.length);
   const chipRow = useRef<HTMLDivElement>(null);
   const popularity = usePopularity();
@@ -272,12 +266,13 @@ function ServicesScreen() {
                         }}
                         aria-pressed={on}
                         className={
-                          "press flex w-full items-center gap-3 rounded-md border px-4 py-4 text-left max-[374px]:gap-2.5 max-[374px]:px-3.5 " +
+                          "press tap-icon grid w-full grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-3.5 rounded-md border px-4 py-4 text-left max-[374px]:gap-x-3 max-[374px]:px-3.5 " +
                           (on
                             ? "border-foreground/70 bg-card shadow-[0_10px_28px_-18px_color-mix(in_oklab,var(--ink)_45%,transparent)]"
                             : "border-foreground/8 bg-card/60 hover:border-foreground/25")
                         }
                       >
+                        {/* column 1: the icon, a fixed 56px square, centred on the content */}
                         <ServiceIconTile
                           kind={serviceKind(x)}
                           photo={x.photo}
@@ -285,45 +280,29 @@ function ServicesScreen() {
                           framed={listHasPhotos}
                           active={on}
                           size="sm"
+                          className="self-center"
                         />
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[clamp(0.9rem,3.9vw,1rem)] leading-snug [text-wrap:balance]">
-                            {x.name}
-                          </span>
+                        {/* column 2: name, description, details, then price and action */}
+                        <span className="min-w-0">
+                          <span className="block text-[1rem] leading-snug">{x.name}</span>
                           {x.category ? (
                             <span className="mt-0.5 block text-[0.66rem] uppercase tracking-[0.2em] text-bronze">
                               {x.category}
                             </span>
                           ) : null}
                           {x.note ? (
-                            <span className="mt-1 block text-[0.78rem] leading-relaxed text-muted-foreground">
+                            <span className="mt-1 block text-[0.8rem] leading-[1.55] text-muted-foreground">
                               {x.note}
                             </span>
                           ) : null}
-                          {popular.has(x.id) ? <PopularTag className="mt-1" /> : null}
-                          <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.75rem] text-muted-foreground">
-                            <RatingInline rating={x.rating} />
-                            <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
-                            {formatDuration(x.minutes)}
+                          <ServiceMeta rating={x.rating} popular={popular.has(x.id)} minutes={x.minutes} className="mt-1.5 text-[0.75rem]" />
+                          <span className="mt-2.5 flex items-center justify-between gap-3">
+                            <span className="whitespace-nowrap text-[1.05rem] tabular-nums">
+                              {inr(x.price)}
+                              {x.from ? "+" : ""}
+                            </span>
+                            <ActionDot on={on} className="h-10 w-10" />
                           </span>
-                        </span>
-                        <span className="shrink-0 whitespace-nowrap text-[1rem]">
-                          {inr(x.price)}
-                          {x.from ? "+" : ""}
-                        </span>
-                        <span
-                          className={
-                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors duration-300 max-[374px]:h-9 max-[374px]:w-9 " +
-                            (on
-                              ? "ring-pulse border-foreground bg-foreground text-background"
-                              : "border-foreground/25 text-foreground/70")
-                          }
-                        >
-                          {on ? (
-                            <Check className="pop-in h-4 w-4" strokeWidth={1.75} />
-                          ) : (
-                            <Plus className="h-4 w-4" strokeWidth={1.25} />
-                          )}
                         </span>
                       </button>
                     </li>
@@ -340,7 +319,7 @@ function ServicesScreen() {
               open={basketOpen}
               onToggle={() => setBasketOpen((v) => !v)}
               sheet={
-                <Basket
+                <YourAppointment
                   onAddMore={() => setBasketOpen(false)}
                   onContinue={() => navigate({ to: "/time" })}
                   onClose={() => setBasketOpen(false)}
@@ -471,7 +450,7 @@ function DesktopServices({
                     aria-selected={on}
                     onClick={() => onCategory(c.id)}
                     className={
-                      "press flex w-full items-center gap-4 rounded-sm border px-4 py-3.5 text-left " +
+                      "press tap-icon flex w-full items-center gap-4 rounded-sm border px-4 py-3.5 text-left " +
                       (on
                         ? "border-bronze/70 bg-champagne/30 text-foreground shadow-[0_8px_22px_-16px_rgba(60,40,20,0.45)]"
                         : "border-foreground/10 bg-card hover:border-foreground/35")
@@ -595,7 +574,7 @@ function DesktopServices({
             {search && search.length === 0 ? (
               <NoResults query={query} onClear={() => onQuery("")} />
             ) : null}
-            <ul key={sort} className="stagger mt-5 hairline-t">
+            <ul key={sort} className="stagger @container mt-5 hairline-t">
               {sortServices(
                 search ?? category.services.map((x) => ({ ...x, category: "" })),
                 sort,
@@ -611,10 +590,14 @@ function DesktopServices({
                       }}
                       aria-pressed={on}
                       className={
-                        "group -mx-3 flex w-[calc(100%+1.5rem)] items-center gap-5 px-3 py-3.5 text-left transition-colors duration-300 " +
+                        "group -mx-3 grid w-[calc(100%+1.5rem)] grid-cols-[4rem_minmax(0,1fr)_6.75rem_3rem] items-center gap-x-5 px-3 py-4 text-left transition-colors duration-300 " +
                         (on ? "bg-champagne/16" : "hover:bg-foreground/[0.025]")
                       }
                     >
+                      {/* One grid for every card: icon (fixed) → wide content → price (fixed) → action (fixed).
+                          Where the list is narrow (the photo panel beside it), name, price and action share the
+                          first row and the description runs the full width beneath, so it never wraps into a
+                          thin column; where there's room, everything sits in four aligned columns. */}
                       <ServiceIconTile
                         kind={serviceKind(x)}
                         photo={x.photo}
@@ -622,46 +605,37 @@ function DesktopServices({
                         framed
                         active={on}
                         size="thumb"
+                        className="col-start-1 row-[1/span_3] self-center"
                       />
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-display text-[1.3rem] leading-tight">
+                      <span className="contents @min-[46rem]:col-start-2 @min-[46rem]:row-[1/span_3] @min-[46rem]:block @min-[46rem]:min-w-0">
+                        <span className="col-start-2 row-start-1 block min-w-0 self-center font-display text-[1.3rem] leading-tight">
                           {x.name}
+                          {x.category ? (
+                            <span className="mt-0.5 block font-sans text-[0.68rem] uppercase tracking-[0.22em] text-bronze">
+                              {x.category}
+                            </span>
+                          ) : null}
                         </span>
-                        {x.category ? (
-                          <span className="mt-0.5 block text-[0.68rem] uppercase tracking-[0.22em] text-bronze">
-                            {x.category}
-                          </span>
-                        ) : null}
                         {x.note ? (
-                          <span className="mt-0.5 block truncate text-[0.85rem] text-muted-foreground">
+                          <span className="col-start-2 col-end-5 row-start-2 mt-1 block text-[0.86rem] leading-[1.6] text-muted-foreground">
                             {x.note}
                           </span>
                         ) : null}
-                        {popular.has(x.id) ? <PopularTag className="mt-1" /> : null}
-                        <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[0.82rem] text-muted-foreground">
-                          <RatingInline rating={x.rating} />
-                          <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
-                          {formatDuration(x.minutes)}
-                        </span>
+                        <ServiceMeta
+                          rating={x.rating}
+                          popular={popular.has(x.id)}
+                          minutes={x.minutes}
+                          className="col-start-2 col-end-5 row-start-3 mt-1.5 text-[0.8rem]"
+                        />
                       </span>
-                      <span className="shrink-0 whitespace-nowrap font-display text-[1.4rem]">
+                      <span className="col-start-3 row-start-1 whitespace-nowrap text-right font-display text-[1.4rem] leading-none tabular-nums @min-[46rem]:row-[1/span_3]">
                         {inr(x.price)}
                         {x.from ? "+" : ""}
                       </span>
-                      <span
-                        className={
-                          "ml-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border transition-all duration-300 group-active:scale-90 " +
-                          (on
-                            ? "ring-pulse border-foreground bg-foreground text-background"
-                            : "border-foreground/30 group-hover:border-foreground/70")
-                        }
-                      >
-                        {on ? (
-                          <Check className="pop-in h-5 w-5" strokeWidth={1.5} />
-                        ) : (
-                          <Plus className="h-5 w-5" strokeWidth={1.25} />
-                        )}
-                      </span>
+                      <ActionDot
+                        on={on}
+                        className="col-start-4 row-start-1 h-12 w-12 justify-self-end group-active:scale-90 @min-[46rem]:row-[1/span_3]"
+                      />
                     </button>
                   </li>
                 );
@@ -704,7 +678,7 @@ function DesktopServices({
       {basket.open && selected.length ? (
         <div className="relative z-30">
           <div className="absolute bottom-3 left-6 w-[min(26rem,calc(100vw-3rem))] shadow-[0_24px_50px_-28px_rgba(40,25,10,0.55)] lg:left-10 xl:left-16">
-            <Basket onAddMore={() => basket.setOpen(false)} onContinue={() => navigate({ to: "/time" })} />
+            <YourAppointment onAddMore={() => basket.setOpen(false)} onContinue={() => navigate({ to: "/time" })} />
           </div>
         </div>
       ) : null}
@@ -721,7 +695,7 @@ function DesktopServices({
           />
         ) : (
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-foreground/12">
-            <ShoppingBag className="h-6 w-6" strokeWidth={1.1} />
+            <CalendarCheck2 className="h-6 w-6" strokeWidth={1.1} />
           </span>
         )}
         <div className="min-w-0 flex-1">
@@ -904,19 +878,65 @@ function popularIn(menu: Category[], counts: Record<string, number>) {
 }
 
 /** The guests' rating for this service (only once enough guests have rated it). */
-function RatingInline({ rating }: { rating?: { avg: number; count: number } | undefined }) {
-  if (!rating || rating.count < MIN_RATINGS) return null;
+/** One quiet line of details: ★ rating · Popular · duration (only what exists). */
+function ServiceMeta({
+  rating,
+  popular,
+  minutes,
+  className,
+}: {
+  rating?: { avg: number; count: number } | undefined;
+  popular: boolean;
+  minutes: number;
+  className?: string;
+}) {
+  const dot = (
+    <span aria-hidden className="text-foreground/30">
+      ·
+    </span>
+  );
+  const rated = rating && rating.count >= MIN_RATINGS;
   return (
-    <>
-      <span className="flex items-center gap-1" aria-label={`Rated ${rating.avg.toFixed(1)} out of 5 by ${rating.count} guests`}>
-        <span className="text-bronze" aria-hidden>
-          ★
-        </span>
-        <span className="text-foreground/80 tabular-nums">{rating.avg.toFixed(1)}</span>
-        <span className="tabular-nums">({rating.count})</span>
+    <span className={"flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground " + (className ?? "")}>
+      {rated ? (
+        <>
+          <span className="flex items-center gap-1" aria-label={`Rated ${rating.avg.toFixed(1)} out of 5 by ${rating.count} guests`}>
+            <span className="text-bronze" aria-hidden>
+              ★
+            </span>
+            <span className="text-foreground/80 tabular-nums">{rating.avg.toFixed(1)}</span>
+            <span className="tabular-nums">({rating.count})</span>
+          </span>
+          {dot}
+        </>
+      ) : null}
+      {popular ? (
+        <>
+          <PopularTag />
+          {dot}
+        </>
+      ) : null}
+      <span className="flex items-center gap-1">
+        <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
+        {formatDuration(minutes)}
       </span>
-      <span aria-hidden className="h-3 w-px bg-foreground/20" />
-    </>
+    </span>
+  );
+}
+
+/** The + / ✓ button: always the same size and place, selected or not. */
+function ActionDot({ on, className }: { on: boolean; className?: string }) {
+  return (
+    <span
+      className={
+        "flex shrink-0 items-center justify-center rounded-full border transition-colors duration-300 " +
+        (on ? "ring-pulse border-foreground bg-foreground text-background" : "border-foreground/30 text-foreground/70") +
+        " " +
+        (className ?? "")
+      }
+    >
+      {on ? <Check className="pop-in h-4 w-4" strokeWidth={1.75} /> : <Plus className="h-4 w-4" strokeWidth={1.25} />}
+    </span>
   );
 }
 
