@@ -137,7 +137,6 @@ function ReviewScreen() {
                           {selected.length > 1 ? (
                             <span className="flex shrink-0 items-center gap-2 text-[0.82rem] text-muted-foreground">
                               {inr(x.price)}
-                              {x.from ? "+" : ""}
                               <button
                                 onClick={() => removeService(x.id)}
                                 aria-label={`Remove ${x.name}`}
@@ -224,7 +223,6 @@ function ReviewScreen() {
                 </span>
                 <span key={totalPrice} className="tick-in block font-display text-[1.3rem] leading-tight">
                   {inr(totalPrice)}
-                  {hasFromPricing ? "+" : ""}
                 </span>
               </div>
             }
@@ -356,7 +354,6 @@ function DesktopReview({
                     </div>
                     <div className="mt-2 font-display text-[1.9rem] leading-none">
                       {inr(totalPrice)}
-                      {hasFromPricing ? "+" : ""}
                     </div>
                     {selected.length > 1 ? (
                       <div className="mt-1.5 text-[0.78rem] text-muted-foreground">{selected.length} services</div>

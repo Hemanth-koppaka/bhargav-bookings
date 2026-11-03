@@ -299,7 +299,6 @@ function ServicesScreen() {
                           <span className="mt-2.5 flex items-center justify-between gap-3">
                             <span className="whitespace-nowrap text-[1.05rem] tabular-nums">
                               {inr(x.price)}
-                              {x.from ? "+" : ""}
                             </span>
                             <ActionDot on={on} className="h-10 w-10" />
                           </span>
@@ -630,7 +629,6 @@ function DesktopServices({
                       </span>
                       <span className="col-start-3 row-start-1 whitespace-nowrap text-right font-display text-[1.4rem] leading-none tabular-nums @min-[46rem]:row-[1/span_3]">
                         {inr(x.price)}
-                        {x.from ? "+" : ""}
                       </span>
                       <ActionDot
                         on={on}
@@ -727,7 +725,6 @@ function DesktopServices({
           <div className="text-[0.85rem] text-muted-foreground">Total</div>
           <div key={totalPrice} className="tick-in font-display text-3xl leading-tight">
             {inr(totalPrice)}
-            {hasFromPricing ? "+" : ""}
           </div>
         </div>
         <DesktopCTA disabled={selected.length === 0} onClick={() => navigate({ to: "/time" })}>

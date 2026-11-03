@@ -395,7 +395,6 @@ function BookingPanel({
               <span className="text-[1rem]">{x.name}</span>
               <span className="text-[0.9rem] text-muted-foreground">
                 {inr(x.price)}
-                {"from" in x && x.from ? "+" : ""}
               </span>
             </li>
           ))}

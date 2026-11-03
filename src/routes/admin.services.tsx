@@ -395,7 +395,6 @@ function CatalogueScreen() {
                       </button>
                       <span className="shrink-0 text-[0.92rem] tabular-nums">
                         {inr(s.price)}
-                        {s.from ? "+" : ""}
                       </span>
                       <div className="flex shrink-0 items-center gap-0.5">
                         {s.archived ? (

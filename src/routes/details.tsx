@@ -167,7 +167,6 @@ function MobileSummary() {
       <div className="text-right">
         <div className="font-display text-[1.3rem] leading-none">
           {inr(totalPrice)}
-          {hasFromPricing ? "+" : ""}
         </div>
         <Link to="/time" className="mt-1.5 inline-block text-[0.75rem] text-bronze underline underline-offset-4">
           Change
@@ -379,7 +378,6 @@ function DesktopDetails({
                 <span className="text-[0.72rem] uppercase tracking-[0.3em] text-foreground/75">Total</span>
                 <span className="font-display text-[2rem] leading-none">
                   {inr(totalPrice)}
-                  {hasFromPricing ? "+" : ""}
                 </span>
               </div>
             </div>

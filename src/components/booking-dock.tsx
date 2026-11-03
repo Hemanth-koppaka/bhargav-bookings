@@ -57,7 +57,6 @@ export function YourAppointment({
             </span>
             <span className="shrink-0 tabular-nums">
               {inr(x.price)}
-              {x.from ? "+" : ""}
             </span>
             <button
               type="button"
@@ -79,7 +78,6 @@ export function YourAppointment({
         </span>
         <span key={totalPrice} className="tick-in font-display text-[1.35rem] leading-none">
           {inr(totalPrice)}
-          {hasFromPricing ? "+" : ""}
         </span>
       </div>
       <div className="grid grid-cols-2 gap-2 px-4 pb-3.5 lg:px-5">
@@ -187,7 +185,6 @@ export function BookingDock({
                 </span>
                 <span key={totalPrice} className="tick-in block font-display text-[1.25rem] leading-tight">
                   {inr(totalPrice)}
-                  {hasFromPricing ? "+" : ""}
                 </span>
               </span>
               {onToggle ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.5} /> : null}
