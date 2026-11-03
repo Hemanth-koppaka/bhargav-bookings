@@ -11,9 +11,13 @@ async function db() {
 
 const last10 = (p: string) => p.replace(/\D/g, "").slice(-10);
 
-/** Loads the live config into the shared salon model and returns the engine. */
-export async function engine() {
-  applyConfig((await loadConfig()) as SalonConfig);
+/**
+ * Loads the live config into the shared salon model and returns the engine.
+ * Screens may use the briefly cached copy; saving a booking always reads the
+ * latest hours, closures and prices (`fresh`).
+ */
+export async function engine(fresh = false) {
+  applyConfig((await loadConfig(fresh)) as SalonConfig);
   return import("./engine.server");
 }
 
@@ -93,7 +97,7 @@ export async function insertBooking(
   | { ok: false; error: string }
 > {
   const sb = await db();
-  const E = await engine();
+  const E = await engine(true);
   const rules = await E.loadRules();
   if (!options.staff) {
     if (!rules.accepting) return { ok: false, error: rules.pauseMessage };

@@ -145,27 +145,49 @@ function TodayScreen() {
       title={data ? greeting(now) : "Today"}
       subtitle={data ? dateLabel(data.today, { weekday: "long", day: "numeric", month: "long" }) : undefined}
       right={
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-2">
           <TinyButton tone="primary" onClick={() => setNewOpen({ time: null })}>
-            <Plus className="h-4 w-4" /> New booking
+            <Plus className="h-4 w-4" /> <span className="max-sm:hidden">New booking</span>
+            <span className="sm:hidden">New</span>
           </TinyButton>
-          <TinyButton onClick={() => setNewOpen({ time: null })}>
-            <UserRoundPlus className="h-4 w-4" /> Walk-in
-          </TinyButton>
-          <TinyButton onClick={() => setBlockOpen(true)}>
-            <Ban className="h-4 w-4" /> Block time
-          </TinyButton>
-          <TinyButton onClick={() => setCloseOpen(true)}>
-            <CalendarX2 className="h-4 w-4" /> Close a day
-          </TinyButton>
+          <span className="hidden gap-2 lg:flex">
+            <TinyButton onClick={() => setNewOpen({ time: null })}>
+              <UserRoundPlus className="h-4 w-4" /> Walk-in
+            </TinyButton>
+            <TinyButton onClick={() => setBlockOpen(true)}>
+              <Ban className="h-4 w-4" /> Block time
+            </TinyButton>
+            <TinyButton onClick={() => setCloseOpen(true)}>
+              <CalendarX2 className="h-4 w-4" /> Close a day
+            </TinyButton>
+          </span>
         </div>
       }
     >
       <LoadState loading={loading && !data} error={error} onRetry={reload} />
 
+      {/* phones and tablets: the other quick actions, one tap away */}
+      <div className="mb-4 grid grid-cols-3 gap-2 lg:hidden">
+        {[
+          { icon: UserRoundPlus, label: "Walk-in", on: () => setNewOpen({ time: null }) },
+          { icon: Ban, label: "Block time", on: () => setBlockOpen(true) },
+          { icon: CalendarX2, label: "Close a day", on: () => setCloseOpen(true) },
+        ].map((a) => (
+          <button
+            key={a.label}
+            type="button"
+            onClick={a.on}
+            className="press tap-icon flex flex-col items-center gap-1.5 rounded-xl border border-hairline bg-card py-3 text-[0.75rem]"
+          >
+            <a.icon className="h-[18px] w-[18px]" strokeWidth={1.5} />
+            {a.label}
+          </button>
+        ))}
+      </div>
+
       {data ? (
         <>
-          <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 [&>*:last-child]:max-sm:col-span-2">
             <Tile
               tone="blue"
               icon={CalendarCheck2}
@@ -526,7 +548,7 @@ function Tile({
   const t = TONES[tone];
   return (
     <div
-      className="dash-tile relative min-w-[11.5rem] shrink-0 snap-start overflow-hidden rounded-2xl px-4 py-4 shadow-[0_14px_30px_-20px_rgba(30,20,10,0.55)] transition-transform sm:min-w-0"
+      className="dash-tile relative min-w-0 overflow-hidden rounded-2xl px-4 py-4 shadow-[0_14px_30px_-20px_rgba(30,20,10,0.55)] transition-transform sm:min-w-0"
       style={{ background: t.bg, color: t.ink, animationDelay: `${delay}ms` }}
     >
       {/* soft rings for texture */}
@@ -535,7 +557,7 @@ function Tile({
       <span className="dash-tile-icon relative flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
         <Icon className="h-[18px] w-[18px]" strokeWidth={1.8} />
       </span>
-      <div className="relative mt-3 text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums">{value}</div>
+      <div className="relative mt-3 truncate text-[clamp(1.35rem,6vw,1.75rem)] font-semibold leading-none tracking-tight tabular-nums">{value}</div>
       <div className="relative mt-1.5 text-[0.8rem] font-medium opacity-95">{label}</div>
       <div className="relative mt-0.5 truncate text-[0.72rem] opacity-80">{hint}</div>
     </div>

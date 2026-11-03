@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Instagram,
   MapPin,
   Phone,
 } from "lucide-react";
@@ -400,27 +401,35 @@ export function InfoStrip({ className }: { className?: string }) {
     },
     { icon: MapPin, label: "Studio", lines: [`${area},`, rest.join(", ")], href: "/studio" },
     { icon: Phone, label: "Contact", lines: [prettyPhone(phone)], href: `tel:${phone}` },
+    {
+      icon: Instagram,
+      label: "Instagram",
+      lines: [`@${BUSINESS.instagram.salon.handle}`],
+      href: BUSINESS.instagram.salon.url,
+      external: true,
+    },
   ];
   return (
-    <footer className={cn("grid shrink-0 grid-cols-3 hairline-t py-7", className)}>
-      {info.map(({ icon: Icon, label, lines, href }, i) => (
+    <footer className={cn("grid shrink-0 grid-cols-4 hairline-t py-7", className)}>
+      {info.map(({ icon: Icon, label, lines, href, external }, i) => (
         <a
           key={label}
           href={href}
+          {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
           className={cn(
-            "group flex items-start gap-4 px-5 first:pl-0 lg:gap-5 lg:px-8",
-            i < 2 && "border-r border-hairline",
+            "tap-icon group flex min-w-0 items-start gap-4 px-5 first:pl-0 lg:gap-4 lg:px-6 xl:gap-5 xl:px-8",
+            i < 3 && "border-r border-hairline",
           )}
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-bronze/25 lg:h-12 lg:w-12 text-bronze transition-colors duration-300 group-hover:bg-bronze group-hover:text-ivory">
             <Icon className="h-5 w-5" strokeWidth={1.25} />
           </span>
-          <span>
+          <span className="min-w-0">
             <span className="label-caps block text-foreground/85">{label}</span>
             {lines.map((l) => (
               <span
                 key={l}
-                className="mt-1 block whitespace-nowrap text-[0.9rem] text-muted-foreground transition-colors group-hover:text-foreground lg:text-[0.95rem]"
+                className="mt-1 block truncate text-[0.9rem] text-muted-foreground transition-colors group-hover:text-foreground lg:text-[0.95rem]"
               >
                 {l}
               </span>

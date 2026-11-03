@@ -1,7 +1,7 @@
 // Small, dependency-free charts for the admin dashboard (plain SVG, so the
 // console stays quick to load). Each chart has a hover/tap tooltip, a legend
 // when it shows more than one series, and grows in on first paint.
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 /** The dashboard's colours: fixed order, one meaning each. */
@@ -40,8 +40,23 @@ export function Legend({ items }: { items: { label: string; color: string }[] })
   );
 }
 
-const W = 600;
-const H = 220;
+const H = 200;
+
+/** The chart's real width, so labels stay at their true size on phones. */
+function useWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(600);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const set = () => setW(Math.max(260, Math.round(el.clientWidth)));
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, w] as const;
+}
 const PAD = { l: 44, r: 10, t: 12, b: 26 };
 
 /** Revenue over time: one smooth area line. */
@@ -57,6 +72,7 @@ export function AreaTrend({
   label: string;
 }) {
   const id = useId().replace(/:/g, "");
+  const [box, W] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
   const max = niceMax(Math.max(...points.map((p) => p.value), 0));
   const iw = W - PAD.l - PAD.r;
@@ -75,9 +91,9 @@ export function AreaTrend({
     }
     return d;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points, max]);
+  }, [points, max, W]);
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max);
-  const every = Math.max(1, Math.ceil(points.length / 6));
+  const every = Math.max(1, Math.ceil(points.length / Math.max(3, Math.floor(W / 95))));
 
   const move = (e: React.PointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -88,7 +104,7 @@ export function AreaTrend({
   const hp = hover != null ? points[hover] : null;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={box}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full touch-pan-y select-none"
@@ -165,6 +181,7 @@ export function StackedBars({
   today: string;
   label: string;
 }) {
+  const [box, W] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
   const total = (d: (typeof days)[number]) => series.reduce((n, s) => n + Number(d[s.key] ?? 0), 0);
   const max = niceMax(Math.max(...days.map(total), 1));
@@ -174,11 +191,11 @@ export function StackedBars({
   const bw = Math.max(4, Math.min(22, slot * 0.68));
   const y = (v: number) => PAD.t + ih - (v / max) * ih;
   const ticks = [...new Set([0, 0.5, 1].map((f) => Math.round(f * max)))];
-  const every = Math.max(1, Math.ceil(days.length / 6));
+  const every = Math.max(1, Math.ceil(days.length / Math.max(3, Math.floor(W / 95))));
   const hd = hover != null ? days[hover] : null;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={box}>
       <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full select-none" role="img" aria-label={label} onPointerLeave={() => setHover(null)}>
         {ticks.map((t, i) => (
           <g key={i}>

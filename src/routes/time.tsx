@@ -93,14 +93,14 @@ function TimeScreen() {
   const selectedBreaks = day.data?.breaks ?? [];
 
   // Services changed after a time was chosen: check that time again with the new
-  // length and stylist. Keep it if it still works; otherwise say so and clear it.
+  // length and stylist. Keep it quietly if it still works (nothing for the guest
+  // to do); only if it no longer fits, say so and clear it.
   const [timeNote, setTimeNote] = useState("");
   useEffect(() => {
     if (!draft.timeStale || draft.time == null || !day.data || day.loading || day.data.date !== draft.date) return;
     const slot = day.data.slots.find((x) => x.minute === draft.time);
     if (slot?.available) {
       update({ timeStale: false });
-      setTimeNote(`Your ${minuteLabel(draft.time)} time still works with your updated services.`);
     } else {
       update({ time: null, timeStale: false });
       setTimeNote("Your services have changed, so the previously selected time is no longer available. Please choose a new time.");
@@ -151,7 +151,6 @@ function TimeScreen() {
                   </div>
                 </div>
                 {!day.data?.closed ? <StylistPicker day={rawDay} /> : null}
-                {timeNote ? <TimeNote text={timeNote} /> : null}
                 {timeNote ? <TimeNote text={timeNote} /> : null}
               <SlotGroups day={day} />
                 {slots.length > 0 && slots.every((x) => !x.available && !(x as { others?: string[] }).others) ? (

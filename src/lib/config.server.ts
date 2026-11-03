@@ -27,10 +27,10 @@ export function invalidateConfig() {
   cached = null;
 }
 
-/** The live salon configuration (briefly cached; see above). */
-export function loadConfig(): Promise<Record<string, unknown>> {
+/** The live salon configuration (briefly cached; `fresh` skips the cache and refreshes it). */
+export function loadConfig(fresh = false): Promise<Record<string, unknown>> {
   const now = Date.now();
-  if (cached && now - cached.at < TTL_MS) return cached.value;
+  if (!fresh && cached && now - cached.at < TTL_MS) return cached.value;
   const value = buildConfig();
   const entry = { at: now, value };
   cached = entry;
