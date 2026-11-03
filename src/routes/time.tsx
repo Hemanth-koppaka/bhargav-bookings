@@ -28,6 +28,7 @@ import {
   Thumb,
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
+import { Basket, BookingDock } from "@/components/booking-dock";
 import { getAvailability } from "@/lib/salon.functions";
 import type { DayAvailability } from "@/lib/engine.server";
 import {
@@ -76,7 +77,7 @@ function TimeScreen() {
   }, [draft.date, hydrated]);
 
   const days = useMemo(() => calendarDays(56, now), [now]);
-  const [barOpen, setBarOpen] = useState(true);
+  const [barOpen, setBarOpen] = useState(false);
   // the three open days after the chosen one load in the background
   const ahead = useMemo(() => {
     if (!draft.date) return [];
@@ -166,61 +167,30 @@ function TimeScreen() {
             )}
           </Screen>
 
-          <StickyBar>
-            {barOpen ? (
-              <div className="mb-3 flex items-center gap-3 text-[0.88rem]">
-                <span className="flex items-center gap-1.5">
-                  <CalendarDays className="h-4 w-4 text-muted-foreground" strokeWidth={1.25} />
-                  {draft.date ? shortDate(draft.date) : "Pick a day"}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Clock className="h-4 w-4 text-muted-foreground" strokeWidth={1.25} />
-                  <span key={draft.time ?? "none"} className="tick-in">
-                    {draft.time != null ? minuteLabel(draft.time) : "Pick a time"}
-                  </span>
-                </span>
-                {draft.date ? (
-                  <button
-                    type="button"
-                    onClick={goToStylist}
-                    className="flex min-w-0 items-center gap-1.5 underline decoration-foreground/25 underline-offset-4"
-                  >
-                    <UserRound
-                      className="h-4 w-4 shrink-0 text-muted-foreground"
-                      strokeWidth={1.25}
-                    />
-                    <span className="truncate">{stylistLabel(draft.staffId, rawDay)}</span>
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => setBarOpen(false)}
-                  aria-label="Minimise summary"
-                  className="ml-auto -mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground"
-                >
-                  <ChevronDown className="h-4 w-4" strokeWidth={1.5} />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setBarOpen(true)}
-                aria-label="Show summary"
-                className="-mt-2 mb-2 flex w-full items-center justify-center gap-2 py-1 text-[0.75rem] text-muted-foreground"
-              >
-                <ChevronUp className="h-4 w-4" strokeWidth={1.5} />
-                {draft.date ? shortDate(draft.date) : "Pick a day"} ·{" "}
-                {draft.time != null ? minuteLabel(draft.time) : "Pick a time"} ·{" "}
-                {stylistLabel(draft.staffId, rawDay)}
-              </button>
-            )}
-            <PrimaryAction
-              disabled={!draft.date || draft.time == null}
-              onClick={() => navigate({ to: "/details" })}
-            >
-              Your details
-            </PrimaryAction>
-          </StickyBar>
+          <BookingDock
+            action="Continue"
+            disabled={!draft.date || draft.time == null}
+            onAction={() => navigate({ to: "/details" })}
+            open={barOpen}
+            onToggle={() => setBarOpen((v) => !v)}
+            sub={
+              draft.date ? (
+                <>
+                  {shortDate(draft.date)}
+                  {draft.time != null ? ` · ${minuteLabel(draft.time)}` : " · pick a time"}
+                  {draft.date ? ` · ${stylistLabel(draft.staffId, rawDay)}` : ""}
+                </>
+              ) : undefined
+            }
+            sheet={
+              <Basket
+                onAddMore={() => navigate({ to: "/services" })}
+                continueLabel="Done"
+                onContinue={() => setBarOpen(false)}
+                onClose={() => setBarOpen(false)}
+              />
+            }
+          />
         </Page>
       </div>
     </>
@@ -1079,12 +1049,12 @@ function DesktopTime({
           >
             <ChevronDown className="h-4 w-4" strokeWidth={1.5} />
           </button>
-          <div className="flex min-w-0 flex-1 items-center gap-6">
+          <div className="hidden min-w-0 flex-1 items-center gap-6 lg:flex">
             <Thumb
               src={img.src}
               pos={img.pos}
               fit={img.fit}
-              className="hidden h-20 w-20 xl:block"
+              className="hidden h-12 w-12 xl:block"
             />
             <div className="min-w-0">
               <div className="truncate font-display text-[1.6rem] leading-tight">
@@ -1096,7 +1066,7 @@ function DesktopTime({
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-6 border-x border-hairline px-6 py-4 text-[1.05rem] xl:gap-8 xl:px-10">
+          <div className="flex min-w-0 flex-1 items-center gap-6 py-2 text-[1rem] lg:flex-none lg:shrink-0 lg:border-x lg:border-hairline lg:px-6 xl:gap-8 xl:px-10">
             <span className="flex items-center gap-3">
               <CalendarDays className="h-5 w-5" strokeWidth={1.25} />
               {draft.date ? shortDate(draft.date) : "Pick a day"}

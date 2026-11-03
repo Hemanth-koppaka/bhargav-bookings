@@ -9,6 +9,7 @@ import {
   Plus,
   Search,
   ShoppingBag,
+  SlidersHorizontal,
   X,
 } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
@@ -32,6 +33,7 @@ import {
   SignaturePanel,
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
+import { Basket, BookingDock } from "@/components/booking-dock";
 import { getServicePopularity } from "@/lib/salon.functions";
 import { formatDuration, inr, menuFor, type Category } from "@/lib/salon";
 
@@ -58,6 +60,7 @@ function ServicesScreen() {
   const [active, setActive] = useState<string | null>(null);
   // Coming back with services already chosen: open the basket so they're in view.
   const [basketOpen, setBasketOpen] = useState(false);
+  const [mSort, setMSort] = useState<SortKey>("popular");
   const basketInit = useRef(false);
   useEffect(() => {
     if (!hydrated || basketInit.current) return;
@@ -153,12 +156,39 @@ function ServicesScreen() {
               Select your <span className="italic text-bronze">services.</span>
             </StepIntro>
 
-            <SearchBox
-              value={query}
-              onChange={setQuery}
-              className="mt-5"
-              hint={men ? "haircut, beard, colour…" : "haircut, facial, colour…"}
-            />
+            <div className="mt-5 flex items-center gap-2.5">
+              <SearchBox
+                value={query}
+                onChange={setQuery}
+                className="min-w-0 flex-1"
+                hint={men ? "haircut, beard, colour…" : "haircut, facial, colour…"}
+              />
+              {/* sort: a quiet icon over the phone's own picker */}
+              <label
+                className={
+                  "press relative flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full border bg-card transition-colors " +
+                  (mSort === "popular" ? "border-foreground/12" : "border-bronze/60 text-bronze")
+                }
+              >
+                <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={1.25} />
+                <span className="sr-only">Sort services</span>
+                <select
+                  value={mSort}
+                  onChange={(e) => {
+                    sfx.filterPick();
+                    setMSort(e.target.value as SortKey);
+                  }}
+                  className="absolute inset-0 cursor-pointer appearance-none opacity-0"
+                  aria-label="Sort services"
+                >
+                  {SORTS.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
             <div
               ref={chipRow}
@@ -228,7 +258,7 @@ function ServicesScreen() {
               <ul className="stagger mt-4 space-y-2.5">
                 {sortServices(
                   search ?? category.services.map((x) => ({ ...x, category: "" })),
-                  "popular",
+                  mSort,
                   popularity,
                 ).map((x) => {
                   const on = draft.serviceIds.includes(x.id);
@@ -270,10 +300,11 @@ function ServicesScreen() {
                               {x.note}
                             </span>
                           ) : null}
-                          <span className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.75rem] text-muted-foreground">
+                          {popular.has(x.id) ? <PopularTag className="mt-1" /> : null}
+                          <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.75rem] text-muted-foreground">
+                            <RatingInline rating={x.rating} />
                             <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
                             {formatDuration(x.minutes)}
-                            <ServiceSignals rating={x.rating} popular={popular.has(x.id)} />
                           </span>
                         </span>
                         <span className="shrink-0 whitespace-nowrap text-[1rem]">
@@ -303,58 +334,20 @@ function ServicesScreen() {
           </Screen>
 
           {selected.length ? (
-            <StickyBar>
-              <MultiHint hint={multiHint} className="mb-3" />
-              {basketOpen ? (
-                <Basket className="mb-3" onAddMore={() => setBasketOpen(false)} onContinue={() => navigate({ to: "/time" })} />
-              ) : null}
-              <button
-                type="button"
-                onClick={() => setBasketOpen((v) => !v)}
-                aria-expanded={basketOpen}
-                aria-label={basketOpen ? "Hide your services" : "Show your services"}
-                className="fade-rise mb-3 flex w-full items-center justify-between gap-3 text-left"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/12">
-                    <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.1} />
-                    {selected.length ? (
-                      <span
-                        key={selected.length}
-                        className="pop-in absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-bronze px-1 text-[0.65rem] text-ivory tabular-nums"
-                      >
-                        {selected.length}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-[0.9rem]">
-                      {selected.map((x) => x.name).join(", ")}
-                    </span>
-                    <span className="block text-[0.75rem] text-muted-foreground">
-                      {formatDuration(totalMinutes)}
-                    </span>
-                  </span>
-                </div>
-                <span
-                  key={totalPrice}
-                  className="tick-in shrink-0 font-display text-[1.7rem] leading-none"
-                >
-                  {inr(totalPrice)}
-                  {hasFromPricing ? "+" : ""}
-                </span>
-                <ChevronDown
-                  className={"h-4 w-4 shrink-0 text-muted-foreground transition-transform " + (basketOpen ? "" : "rotate-180")}
-                  strokeWidth={1.5}
+            <BookingDock
+              action="Choose a time"
+              onAction={() => navigate({ to: "/time" })}
+              open={basketOpen}
+              onToggle={() => setBasketOpen((v) => !v)}
+              sheet={
+                <Basket
+                  onAddMore={() => setBasketOpen(false)}
+                  onContinue={() => navigate({ to: "/time" })}
+                  onClose={() => setBasketOpen(false)}
                 />
-              </button>
-              {/* the open basket has its own "Choose a time" */}
-              {basketOpen ? null : (
-                <PrimaryAction disabled={selected.length === 0} onClick={() => navigate({ to: "/time" })}>
-                  Choose a time
-                </PrimaryAction>
-              )}
-            </StickyBar>
+              }
+              sub={multiHint.show ? "Added. You can choose more than one." : undefined}
+            />
           ) : null}
         </Page>
       </div>
@@ -367,78 +360,6 @@ function ServicesScreen() {
  * first time someone adds a service, a quiet note says so (once per device,
  * gone after a few seconds, on tap, or when they add a second service).
  */
-/**
- * The appointment basket: what's chosen, each removable, with the live count,
- * time and total. It's the same booking draft every step reads, so nothing
- * here can drift from the time, details or review steps.
- */
-function Basket({ onAddMore, onContinue, className }: { onAddMore: () => void; onContinue: () => void; className?: string }) {
-  const { selected, removeService, totalMinutes, totalPrice, hasFromPricing } = useBooking();
-  return (
-    <div className={"fade-rise rounded-md border border-hairline bg-card " + (className ?? "")}>
-      <div className="flex items-center justify-between px-4 pt-4 lg:px-5">
-        <span className="text-[0.66rem] uppercase tracking-[0.28em] text-muted-foreground">Your services</span>
-        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-bronze px-1.5 text-[0.7rem] text-ivory tabular-nums">
-          {selected.length}
-        </span>
-      </div>
-      <ul className="mt-2 max-h-[34svh] divide-y divide-hairline overflow-y-auto px-4 lg:px-5">
-        {selected.map((x) => (
-          <li key={x.id} className="flex items-center gap-3 py-2.5">
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.95rem]">{x.name}</span>
-              <span className="block text-[0.75rem] text-muted-foreground">{formatDuration(x.minutes ?? x.slots * 30)}</span>
-            </span>
-            <span className="shrink-0 tabular-nums">
-              {inr(x.price)}
-              {x.from ? "+" : ""}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                sfx.serviceSelect(false);
-                removeService(x.id);
-              }}
-              aria-label={`Remove ${x.name}`}
-              className="press -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-            >
-              <X className="h-4 w-4" strokeWidth={1.5} />
-            </button>
-          </li>
-        ))}
-      </ul>
-      <div className="mx-4 flex items-baseline justify-between border-t border-hairline py-3 lg:mx-5">
-        <span className="text-[0.85rem] text-muted-foreground">
-          {selected.length} {selected.length === 1 ? "service" : "services"} · {formatDuration(totalMinutes)}
-        </span>
-        <span className="font-display text-[1.35rem] leading-none">
-          {inr(totalPrice)}
-          {hasFromPricing ? "+" : ""}
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-2 px-4 pb-4 lg:px-5">
-        <button
-          type="button"
-          data-sfx="secondary"
-          onClick={onAddMore}
-          className="press min-h-11 rounded-sm border border-foreground/20 text-[0.66rem] uppercase tracking-[0.2em]"
-        >
-          Add services
-        </button>
-        <button
-          type="button"
-          data-sfx="primary"
-          onClick={onContinue}
-          disabled={!selected.length}
-          className="press min-h-11 rounded-sm bg-foreground text-[0.66rem] uppercase tracking-[0.2em] text-background disabled:opacity-40"
-        >
-          Choose a time
-        </button>
-      </div>
-    </div>
-  );
-}
-
 const MULTI_HINT_KEY = "hb.hint.multi";
 function useMultiHint(count: number) {
   const [show, setShow] = useState(false);
@@ -716,10 +637,11 @@ function DesktopServices({
                             {x.note}
                           </span>
                         ) : null}
-                        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.82rem] text-muted-foreground">
+                        {popular.has(x.id) ? <PopularTag className="mt-1" /> : null}
+                        <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[0.82rem] text-muted-foreground">
+                          <RatingInline rating={x.rating} />
                           <Clock className="h-3.5 w-3.5" strokeWidth={1.25} />
                           {formatDuration(x.minutes)}
-                          <ServiceSignals rating={x.rating} popular={popular.has(x.id)} />
                         </span>
                       </span>
                       <span className="shrink-0 whitespace-nowrap font-display text-[1.4rem]">
@@ -795,10 +717,10 @@ function DesktopServices({
             icon={selected[0].icon}
             framed
             size="thumb"
-            className="pop-in"
+            className="pop-in !h-12 !w-12"
           />
         ) : (
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-foreground/12">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-foreground/12">
             <ShoppingBag className="h-6 w-6" strokeWidth={1.1} />
           </span>
         )}
@@ -935,17 +857,18 @@ function NoResults({ query, onClear }: { query: string; onClear: () => void }) {
   );
 }
 
-type SortKey = "popular" | "price-asc" | "price-desc" | "duration";
+type SortKey = "popular" | "rating" | "price-asc" | "price-desc" | "duration";
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: "popular", label: "Popular" },
+  { key: "rating", label: "Top rated" },
   { key: "price-asc", label: "Price: low to high" },
   { key: "price-desc", label: "Price: high to low" },
   { key: "duration", label: "Quickest first" },
 ];
 
 /** "Popular" follows what guests actually book (recent bookings); ties keep the salon's own order. */
-function sortServices<T extends { id: string; price: number; minutes: number }>(
+function sortServices<T extends { id: string; price: number; minutes: number; rating?: { avg: number; count: number } | undefined }>(
   list: T[],
   key: SortKey,
   popularity: Record<string, number> = {},
@@ -955,6 +878,11 @@ function sortServices<T extends { id: string; price: number; minutes: number }>(
     if (key === "price-asc") return a.x.price - b.x.price || a.i - b.i;
     if (key === "price-desc") return b.x.price - a.x.price || a.i - b.i;
     if (key === "duration") return a.x.minutes - b.x.minutes || a.i - b.i;
+    // top rated: only ratings with enough guests count; then by how many
+    if (key === "rating") {
+      const r = (x: T) => (x.rating && x.rating.count >= MIN_RATINGS ? x.rating.avg : 0);
+      return r(b.x) - r(a.x) || (b.x.rating?.count ?? 0) - (a.x.rating?.count ?? 0) || a.i - b.i;
+    }
     return (popularity[b.x.id] ?? 0) - (popularity[a.x.id] ?? 0) || a.i - b.i;
   });
   return out.map((o) => o.x);
@@ -975,34 +903,34 @@ function popularIn(menu: Category[], counts: Record<string, number>) {
   return new Set(ranked.map((s) => s.id));
 }
 
-/**
- * Two separate signals, kept quiet: the guests' rating (quality) and
- * "Popular" (how often it's booked). Neither is shown without real data.
- */
-function ServiceSignals({ rating, popular }: { rating?: { avg: number; count: number } | undefined; popular: boolean }) {
-  const showRating = rating && rating.count >= MIN_RATINGS;
-  if (!showRating && !popular) return null;
+/** The guests' rating for this service (only once enough guests have rated it). */
+function RatingInline({ rating }: { rating?: { avg: number; count: number } | undefined }) {
+  if (!rating || rating.count < MIN_RATINGS) return null;
   return (
     <>
-      {showRating ? (
-        <span className="flex items-center gap-1" aria-label={`Rated ${rating.avg.toFixed(1)} out of 5 by ${rating.count} guests`}>
-          <span aria-hidden>·</span>
-          <span className="text-bronze" aria-hidden>
-            ★
-          </span>
-          <span className="text-foreground/80 tabular-nums">{rating.avg.toFixed(1)}</span>
-          <span>
-            ({rating.count} {rating.count === 1 ? "rating" : "ratings"})
-          </span>
+      <span className="flex items-center gap-1" aria-label={`Rated ${rating.avg.toFixed(1)} out of 5 by ${rating.count} guests`}>
+        <span className="text-bronze" aria-hidden>
+          ★
         </span>
-      ) : null}
-      {popular ? (
-        <span className="flex items-center gap-1.5">
-          <span aria-hidden>·</span>
-          <span className="text-[0.62rem] uppercase tracking-[0.2em] text-bronze">Popular</span>
-        </span>
-      ) : null}
+        <span className="text-foreground/80 tabular-nums">{rating.avg.toFixed(1)}</span>
+        <span className="tabular-nums">({rating.count})</span>
+      </span>
+      <span aria-hidden className="h-3 w-px bg-foreground/20" />
     </>
+  );
+}
+
+/** Most booked (real bookings): a quiet tag, separate from the rating. */
+function PopularTag({ className }: { className?: string }) {
+  return (
+    <span
+      className={
+        "inline-block rounded-full bg-champagne/30 px-2 py-0.5 text-[0.58rem] uppercase tracking-[0.18em] text-bronze " +
+        (className ?? "")
+      }
+    >
+      Popular
+    </span>
   );
 }
 

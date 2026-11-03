@@ -205,7 +205,8 @@ export function CallButton({ withNumber = true }: { withNumber?: boolean }) {
 export function DesktopBar({ children }: { children: ReactNode }) {
   return (
     <div className="shrink-0 border-t border-hairline bg-card shadow-[0_-12px_32px_-24px_color-mix(in_oklab,var(--ink)_35%,transparent)]">
-      <div className="flex items-center gap-5 px-6 py-4 lg:gap-8 lg:px-10 xl:px-16">{children}</div>
+      {/* compact (~80px): the page content stays dominant */}
+      <div className="flex items-center gap-5 px-6 py-3 lg:gap-8 lg:px-10 xl:px-16">{children}</div>
     </div>
   );
 }
@@ -229,7 +230,7 @@ export function DesktopCTA({
       data-sfx="primary"
       data-sfx-hover=""
       className={cn(
-        "press sheen group flex h-16 shrink-0 items-center justify-center gap-4 rounded-sm bg-foreground px-8 md:min-w-[13rem] lg:h-[4.25rem] lg:min-w-[19rem] lg:px-10 text-[1.05rem] tracking-[0.02em] text-background hover:bg-foreground/88 disabled:bg-foreground/30",
+        "press sheen group flex h-12 shrink-0 items-center justify-center gap-4 rounded-sm bg-foreground px-8 md:min-w-[13rem] lg:h-14 lg:min-w-[19rem] lg:px-10 text-[1rem] tracking-[0.02em] text-background hover:bg-foreground/88 disabled:bg-foreground/30",
         className,
       )}
     >
