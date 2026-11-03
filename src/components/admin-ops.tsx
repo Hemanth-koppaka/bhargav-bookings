@@ -284,6 +284,8 @@ export function BookingDrawer({
             {b ? (
               <>
                 <StatusDot status={b.status} /> {b.reference}
+                {/* the salon's own running number (never shown to guests) */}
+                {b.bookingNo != null ? <span className="text-muted-foreground">· booking #{b.bookingNo}</span> : null}
                 {b.source !== "online" ? <span className="text-muted-foreground">· {b.source}</span> : null}
               </>
             ) : loading ? (
@@ -986,6 +988,8 @@ export function NewBookingDialog({
   const [cust, setCust] = useState({ name: "", phone: "", email: "" });
   const [q, setQ] = useState("");
   const [matches, setMatches] = useState<AdminCustomer[]>([]);
+  const [svcQ, setSvcQ] = useState("");
+  const [known, setKnown] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const first = useRef(true);
@@ -999,8 +1003,32 @@ export function NewBookingDialog({
     setError("");
     setCust(presetCustomer ?? { name: "", phone: "", email: "" });
     setQ("");
+    setSvcQ("");
+    setKnown(false);
     first.current = true;
   }, [open, initialDate, initialTime, initialStaffId, presetCustomer]);
+
+  // a phone number typed in full that belongs to a customer: fill their name and email
+  const phoneKey = cust.phone.replace(/\D/g, "").slice(-10);
+  useEffect(() => {
+    if (phoneKey.length !== 10) return setKnown(false);
+    let live = true;
+    const t = window.setTimeout(() => {
+      adminCustomers({ data: { pin, q: phoneKey, page: 0 } })
+        .then((r) => {
+          const m = r.customers.find((c) => c.phone.replace(/\D/g, "").slice(-10) === phoneKey);
+          if (!live || !m) return setKnown(false);
+          setKnown(true);
+          // only fill what's empty, never overwrite what the admin typed
+          setCust((c) => ({ ...c, name: c.name.trim() ? c.name : m.name, email: c.email.trim() ? c.email : (m.email ?? "") }));
+        })
+        .catch(() => {});
+    }, 300);
+    return () => {
+      live = false;
+      window.clearTimeout(t);
+    };
+  }, [phoneKey, pin]);
 
   useEffect(() => {
     const term = q.trim();
@@ -1014,6 +1042,17 @@ export function NewBookingDialog({
   }, [q, pin]);
 
   const menu = useMemo(() => menuFor(audience), [audience]);
+  // the services search: by service or category name
+  const shownMenu = useMemo(() => {
+    const t = svcQ.trim().toLowerCase();
+    if (!t) return menu;
+    return menu
+      .map((c) => ({
+        ...c,
+        services: c.title.toLowerCase().includes(t) ? c.services : c.services.filter((x) => x.name.toLowerCase().includes(t)),
+      }))
+      .filter((c) => c.services.length);
+  }, [menu, svcQ]);
   const chosen = menu.flatMap((c) => c.services).filter((s) => ids.includes(s.id));
   const total = chosen.reduce((n, s) => n + s.price, 0);
   const minutes = chosen.reduce((n, s) => n + s.minutes, 0);
@@ -1071,7 +1110,8 @@ export function NewBookingDialog({
                       <button
                         key={m.id}
                         onClick={() => {
-                          setCust({ name: m.name, phone: m.phone, email: m.email });
+                          setCust({ name: m.name, phone: m.phone, email: m.email ?? "" });
+                          setKnown(true);
                           setQ("");
                           setMatches([]);
                         }}
@@ -1090,7 +1130,15 @@ export function NewBookingDialog({
               <input className={field} value={cust.email} onChange={(e) => setCust({ ...cust, email: e.target.value })} placeholder="Email (optional)" />
             </div>
             <div className="mt-2 flex items-center gap-1.5 text-[0.75rem] text-muted-foreground">
-              <UserPlus className="h-3.5 w-3.5" /> New numbers create a customer record automatically.
+              {known ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-700" /> Existing customer — details filled in.
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-3.5 w-3.5" /> New numbers create a customer record automatically.
+                </>
+              )}
             </div>
           </div>
 
@@ -1105,6 +1153,7 @@ export function NewBookingDialog({
                       setAudience(a);
                       setIds([]);
                       setTime(null);
+                      setSvcQ("");
                     }}
                     className={cn("press rounded-full border px-3 py-0.5 text-[0.75rem] capitalize", audience === a ? "border-foreground bg-foreground text-background" : "border-foreground/15")}
                   >
@@ -1113,8 +1162,21 @@ export function NewBookingDialog({
                 ))}
               </div>
             </div>
+            <div className="relative mt-2">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
+              <input
+                className={cn(field, "pl-9")}
+                value={svcQ}
+                onChange={(e) => setSvcQ(e.target.value)}
+                placeholder="Search services (e.g. haircut, facial, colour)"
+                aria-label="Search services"
+              />
+            </div>
             <div className="mt-2 max-h-48 space-y-3 overflow-y-auto rounded-md border border-hairline p-3">
-              {menu.map((c) => (
+              {shownMenu.length === 0 ? (
+                <p className="py-3 text-center text-[0.85rem] text-muted-foreground">No services match “{svcQ}”.</p>
+              ) : null}
+              {shownMenu.map((c) => (
                 <div key={c.id}>
                   <div className="text-[0.7rem] uppercase tracking-[0.16em] text-muted-foreground">{c.title}</div>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">

@@ -211,7 +211,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
             },
           });
           if (!res.ok) return { error: res.error };
-          booking.reference = res.reference; // issued by the salon (HB-2026-00124)
+          booking.reference = res.reference; // issued by the salon (random, e.g. HB-7KQ2MX)
           if ("snapshot" in res && res.snapshot) booking.snapshot = res.snapshot;
           if ("stylist" in res) booking.stylist = res.stylist ?? null;
         } catch {
