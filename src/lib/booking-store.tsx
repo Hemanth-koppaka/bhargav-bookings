@@ -189,12 +189,13 @@ export function BookingProvider({ children }: { children: ReactNode }) {
           serviceIds: draft.serviceIds,
           date: draft.date,
           time: draft.time,
-          customer: draft.customer,
+          // remember that this booking carries reference photos ("Your look")
+          customer: draft.photos?.length ? { ...draft.customer, photos: draft.photos.map((x) => x.path) } : draft.customer,
           status: "confirmed",
           createdAt: new Date().toISOString(),
         };
         try {
-          const { reference: _unused, ...payload } = booking;
+          const { reference: _unused, customer: _c, ...payload } = booking;
           const res = await createBooking({
             data: {
               ...payload,

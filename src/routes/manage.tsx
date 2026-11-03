@@ -6,6 +6,7 @@ import { InfoPage, InfoTitle, SectionLabel } from "@/components/info-page";
 import { ScrollStrip, prettyPhone } from "@/components/desktop";
 import { AddToCalendar } from "@/components/add-to-calendar";
 import { RateVisit, visitOver } from "@/components/rate-visit";
+import { BookingLook } from "@/components/my-look";
 import { auth, useBooking, servicesOf, type Booking, type ChangeResult } from "@/lib/booking-store";
 import { getAvailability, getPublicRules } from "@/lib/salon.functions";
 import type { DayAvailability } from "@/lib/engine.server";
@@ -413,6 +414,9 @@ function BookingPanel({
           <span className="font-display text-[1.8rem] leading-none">{inr(total)}</span>
         </div>
       </div>
+
+      {/* the reference photos they booked with, ready for the stylist (until the slot ends) */}
+      {mode === "view" ? <BookingLook booking={booking} className="mt-6" /> : null}
 
       {/* after the visit: rate each service (once) */}
       {mode === "view" ? <RateVisit booking={booking} className="mt-6" /> : null}

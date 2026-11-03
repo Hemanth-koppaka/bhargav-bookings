@@ -415,8 +415,14 @@ export const updateMyBooking = createServerFn({ method: "POST" })
         history: withHistory(row, { by: "guest", action: "cancelled" }),
       });
       if (error) return { ok: false, error: "Couldn't cancel this booking. Please try again." };
+      // a cancelled booking's reference photos are deleted straight away
       const { deleteBookingPhotos } = await import("./photos.server");
       await deleteBookingPhotos(r.reference).catch(() => {});
+      const cust = r.customer as Record<string, unknown> | null;
+      if (cust?.["photos"]) {
+        const { photos: _gone, ...rest } = cust;
+        await sb.from("bookings").update({ customer: rest as never }).eq("reference", r.reference);
+      }
       await E.audit({ actor: "guest", action: "booking.cancel", entity: "booking", entityId: r.reference, summary: `Guest cancelled ${r.reference}` });
       await notify(r.reference, "BOOKING_CANCELLED", { actor: "guest" });
       return { ok: true };
@@ -760,3 +766,42 @@ export const getServicePopularity = createServerFn({ method: "GET" }).handler(as
   for (const r of data ?? []) for (const id of (r.service_ids as string[] | null) ?? []) counts[id] = (counts[id] ?? 0) + 1;
   return { counts };
 });
+
+/**
+ * "Your look": the reference photos a guest attached to their own booking, as
+ * short-lived private links, only until their appointment slot has ended.
+ */
+export const myLookPhotos = createServerFn({ method: "POST" })
+  .inputValidator((d) => lookup.parse(d))
+  .handler(async ({ data }) => {
+    const sb = await db();
+    const { data: r } = await sb.from("bookings").select("*").eq("reference", data.reference.toUpperCase()).maybeSingle();
+    if (!r || !(await owns(r, data))) return { urls: [] as string[], over: true };
+    const row = r as Record<string, unknown>;
+    const st = ((row["meta"] as Record<string, unknown> | null)?.["status"] as string | undefined) ?? "";
+    const minutes = (row["duration_minutes"] as number | null) ?? ((row["slots"] as number | null) ?? 1) * 30;
+    // salon time (UTC+5:30), minutes from the start of the day
+    const now = new Date(Date.now() + 330 * 60_000);
+    const today = now.toISOString().slice(0, 10);
+    const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+    const date = row["date"] as string;
+    const end = (row["time"] as number) + minutes;
+    const over =
+      row["status"] === "cancelled" ||
+      ["cancelled", "no-show", "completed"].includes(st) ||
+      date < today ||
+      (date === today && nowMin >= end);
+    if (over) return { urls: [] as string[], over: true };
+    const when = { date, time: row["time"] as number, minutes };
+    const { REF_BUCKET, ensureBucket } = await import("./photos.server");
+    await ensureBucket(REF_BUCKET, false);
+    const bucket = sb.storage.from(REF_BUCKET);
+    const folder = `bookings/${r.reference}`;
+    const { data: files } = await bucket.list(folder, { limit: 10 });
+    const paths = (files ?? []).filter((f) => f.id).map((f) => `${folder}/${f.name}`);
+    if (!paths.length) return { urls: [] as string[], over: false, ...when };
+    // links last until the slot ends (at least 10 minutes, at most 6 hours)
+    const left = date === today ? (end - nowMin) * 60 : 6 * 3600;
+    const { data: signed } = await bucket.createSignedUrls(paths, Math.max(600, Math.min(left, 6 * 3600)));
+    return { urls: (signed ?? []).map((s) => s.signedUrl).filter((u): u is string => Boolean(u)), over: false, ...when };
+  });
