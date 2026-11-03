@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Lock, MessageCircle, ShieldCheck } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import { haptic } from "@/lib/utils";
+import { Basket, BookingDock } from "@/components/booking-dock";
 import { sfx } from "@/lib/sfx";
 import { ReferencePhotos } from "@/components/reference-photos";
 import {
@@ -45,6 +46,7 @@ function DetailsScreen() {
   const [consent, setConsent] = useState(true);
   const [touched, setTouched] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [dockOpen, setDockOpen] = useState(false);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -119,9 +121,27 @@ function DetailsScreen() {
           </p>
         </Screen>
 
-        <StickyBar>
-          <PrimaryAction onClick={() => submit()}>Review appointment</PrimaryAction>
-        </StickyBar>
+        <BookingDock
+          action="Review"
+          onAction={() => submit()}
+          open={dockOpen}
+          onToggle={() => setDockOpen((v) => !v)}
+          sub={
+            draft.date && draft.time != null ? (
+              <>
+                {fromISO(draft.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · {minuteLabel(draft.time)}
+              </>
+            ) : undefined
+          }
+          sheet={
+            <Basket
+              onAddMore={() => navigate({ to: "/services" })}
+              continueLabel="Done"
+              onContinue={() => setDockOpen(false)}
+              onClose={() => setDockOpen(false)}
+            />
+          }
+        />
       </Page>
     </div>
     </>
@@ -249,14 +269,14 @@ function DetailsFields({
     </div>
 
     <div className="mt-3">
-      <FieldLabel htmlFor={`${idPrefix}notes`}>Note (optional)</FieldLabel>
+      <FieldLabel htmlFor={`${idPrefix}notes`}>Special requests (optional)</FieldLabel>
       <textarea
         id={`${idPrefix}notes`}
         className={box + " resize-none"}
         rows={3}
         value={notes.value}
         onChange={(e) => notes.set(e.target.value)}
-        placeholder="Anything you'd like us to know?"
+        placeholder="e.g. preferred style, notes for your stylist…"
       />
     </div>
 

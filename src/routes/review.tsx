@@ -18,6 +18,7 @@ import {
 import { useBooking } from "@/lib/booking-store";
 import { cn, haptic } from "@/lib/utils";
 import { useChangeDeadline } from "@/lib/change-deadline";
+import { BookingDock } from "@/components/booking-dock";
 import { sfx } from "@/lib/sfx";
 import { ServiceGlyph, serviceKind } from "@/components/service-icons";
 import { BUSINESS, SERVICE_RULES, STYLISTS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
@@ -210,25 +211,27 @@ function ReviewScreen() {
             </div>
           </Screen>
 
-          <StickyBar>
-            <div className="mb-3 flex items-baseline justify-between">
-              <span className="text-[0.62rem] uppercase tracking-[0.28em] text-foreground/65">
-                {hasFromPricing ? "Estimated total" : "Total"}
-              </span>
-              <span key={totalPrice} className="tick-in font-display text-[1.7rem] leading-none">
-                {inr(totalPrice)}
-                {hasFromPricing ? "+" : ""}
-              </span>
-            </div>
-            {saveError ? (
-              <p role="alert" className="shake mb-3 text-[0.85rem] text-destructive">
-                {saveError}
-              </p>
-            ) : null}
-            <PrimaryAction onClick={confirm} disabled={saving}>
-              {saving ? "Confirming…" : "Confirm appointment"}
-            </PrimaryAction>
-          </StickyBar>
+          {saveError ? (
+            <p role="alert" className="shake mx-4 mb-1 text-[0.85rem] text-destructive">
+              {saveError}
+            </p>
+          ) : null}
+          <BookingDock
+            action={saving ? "Confirming…" : "Confirm"}
+            onAction={confirm}
+            disabled={saving}
+            summary={
+              <div className="min-w-0 flex-1 pl-1">
+                <span className="flex items-center gap-1.5 text-[0.72rem] text-muted-foreground">
+                  <Lock className="h-3 w-3" strokeWidth={1.4} /> {hasFromPricing ? "Estimated total" : "Total"}
+                </span>
+                <span key={totalPrice} className="tick-in block font-display text-[1.3rem] leading-tight">
+                  {inr(totalPrice)}
+                  {hasFromPricing ? "+" : ""}
+                </span>
+              </div>
+            }
+          />
         </Page>
       </div>
     </>
