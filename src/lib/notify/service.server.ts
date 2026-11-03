@@ -85,11 +85,14 @@ type LogRow = {
 export function settingsFromRow(r: Row): NotifySettings {
   return {
     provider: (r["provider"] as string) || "msg91",
-    customerWhatsapp: Boolean(r["customer_whatsapp_enabled"]),
-    customerSms: Boolean(r["customer_sms_enabled"]),
-    adminWhatsapp: Boolean(r["admin_whatsapp_enabled"]),
-    adminSms: Boolean(r["admin_sms_enabled"]),
-    fallback: Boolean(r["fallback_enabled"]),
+    // The salon doesn't use paid SMS/WhatsApp messaging: those channels are
+    // always off, whatever older saved settings say. Booking messages go by
+    // free email; guests can still message the salon with one tap on WhatsApp.
+    customerWhatsapp: false,
+    customerSms: false,
+    adminWhatsapp: false,
+    adminSms: false,
+    fallback: false,
     customerConfirmation: Boolean(r["customer_confirmation_enabled"]),
     customerUpdates: Boolean(r["customer_updates_enabled"]),
     adminNewBooking: Boolean(r["admin_new_booking_enabled"]),
