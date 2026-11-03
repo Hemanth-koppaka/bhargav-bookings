@@ -5,6 +5,7 @@ import { ArrowRight, Instagram, Phone } from "lucide-react";
 import { BUSINESS, hoursFor, isClosed, minuteLabel, toISO } from "@/lib/salon";
 import { LogoReveal } from "@/components/motion";
 import { CallButton, InfoStrip } from "@/components/desktop";
+import { MyLookEntry } from "@/components/my-look";
 import { SoundToggle } from "@/components/sound-toggle";
 import { useBooking } from "@/lib/booking-store";
 import { shouldAskRating } from "@/components/rate-visit";
@@ -337,6 +338,7 @@ function MobileHome() {
             >
               Manage a booking
             </Link>
+            <MyLookEntry />
           </div>
         </div>
       </main>
@@ -416,6 +418,7 @@ function DesktopHome() {
               Manage a booking
             </Link>
           </div>
+          <MyLookEntry size="lg" className="mt-5 max-w-md" />
           <ol className="mt-12 hidden items-center gap-6 text-[0.9rem] text-muted-foreground xl:flex">
             {steps.map((t, i) => (
               <li key={t} className="flex items-center gap-3">
