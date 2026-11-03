@@ -16,6 +16,29 @@ const toMin = (t: string | null | undefined) => {
 
 type PersistedBreaks = Record<string, { start: string; end: string }[]>;
 
+// Numbers the salon has retired: never shown anywhere on the site, whatever
+// older saved settings or wording still contain.
+const RETIRED_NUMBERS = ["9642260785"];
+const RETIRED = new RegExp(
+  RETIRED_NUMBERS.map((n) => `(?:\\+?91[\\s-]*)?${n.slice(0, 5)}[\\s-]*${n.slice(5)}`).join("|"),
+  "g",
+);
+/** Removes retired numbers from saved details and wording (phone lists drop them). */
+function scrubRetired<T>(v: T): T {
+  if (typeof v === "string") {
+    RETIRED.lastIndex = 0;
+    if (!RETIRED.test(v)) return v;
+    return v.replace(RETIRED, "").replace(/[ \t]{2,}/g, " ").replace(/\s*([·,/|]\s*)+$/, "").trim() as T;
+  }
+  if (Array.isArray(v))
+    return v
+      .filter((x) => !(typeof x === "string" && RETIRED_NUMBERS.includes(x.replace(/\D/g, "").slice(-10))))
+      .map(scrubRetired) as T;
+  if (v && typeof v === "object")
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, scrubRetired(x)])) as T;
+  return v;
+}
+
 // The configuration changes rarely (an admin edit), but every screen and every
 // availability check needs it. Keep the last build for a few seconds and share
 // one build between requests arriving together; admin edits clear it at once.
@@ -125,11 +148,11 @@ async function buildConfig(): Promise<Record<string, unknown>> {
   const booking = set["booking"] ?? {};
   const config: Record<string, unknown> = {
     ...legacyData,
-    business: set["business"] ?? legacyData["business"],
+    business: scrubRetired(set["business"] ?? legacyData["business"]),
     accepting: booking["accepting"] ?? legacyData["accepting"] ?? true,
     maxAdvanceDays: booking["maxAdvanceDays"] ?? legacyData["maxAdvanceDays"] ?? 56,
     // published wording only; drafts stay in the console
-    content: set["content"] ?? null,
+    content: scrubRetired(set["content"] ?? null),
     sound: set["sound"] ?? null,
     exceptions: Object.fromEntries(
       (exc.data ?? []).map((e) => [
@@ -211,5 +234,6 @@ async function buildConfig(): Promise<Record<string, unknown>> {
   const women = menu("women");
   if (men.length) config["menMenu"] = men;
   if (women.length) config["womenMenu"] = women;
-  return config;
+  // nothing the site shows may carry a retired number
+  return scrubRetired(config);
 }

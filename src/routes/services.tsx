@@ -266,7 +266,7 @@ function ServicesScreen() {
                         }}
                         aria-pressed={on}
                         className={
-                          "press tap-icon grid w-full grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-3.5 rounded-md border px-4 py-4 text-left max-[374px]:gap-x-3 max-[374px]:px-3.5 " +
+                          "press group grid w-full grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-3.5 rounded-md border px-4 py-4 text-left max-[374px]:gap-x-3 max-[374px]:px-3.5 " +
                           (on
                             ? "border-foreground/70 bg-card shadow-[0_10px_28px_-18px_color-mix(in_oklab,var(--ink)_45%,transparent)]"
                             : "border-foreground/8 bg-card/60 hover:border-foreground/25")

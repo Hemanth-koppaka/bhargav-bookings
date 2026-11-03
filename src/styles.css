@@ -685,3 +685,91 @@ html:not(.intro-seen) .after-intro > *:nth-child(n + 6) { animation-delay: 2.75s
   }
   .tap-icon:active :is(svg, img) { transform: none; }
 }
+
+/* ── Service-specific icon motion (see components/service-motion.tsx) ──
+   Idle: nothing moves and the motion layer is invisible. Triggered once by
+   hovering the service (pointer devices) or by selecting it. */
+.sm-el { opacity: 0; transform-box: fill-box; transform-origin: center; }
+.sm-host { --sm-ease: cubic-bezier(0.22, 0.61, 0.36, 1); }
+
+.sm-host.sm-play .sm-draw { animation: smDraw var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-draw-stay { animation: smDrawStay var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-unwave { animation: smUnwave var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-snippet { animation: smSnippet var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-fall { animation: smFall var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-vanish { animation: smVanish var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-drop { animation: smDrop var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-settle { animation: smSettle var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-soft { animation: smSoft var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-sweep { animation: smSweep var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-wash { animation: smSweep var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-strip { animation: smStrip var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-air { animation: smAir var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-converge-l { animation: smConvergeL var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-converge-r { animation: smConvergeR var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .sm-drape { animation: smDrape var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+.sm-host.sm-play .smi-glide { animation: smiGlide 560ms var(--sm-ease) both; }
+.sm-host.sm-play .smi-press { animation: smiPress 600ms var(--sm-ease) both; }
+.sm-host.sm-play .smi-recoil { animation: smiRecoil 460ms var(--sm-ease) both; }
+.sm-host.sm-play .smi-recoil-late { animation: smiRecoilLate 700ms var(--sm-ease) both; }
+.sm-host.sm-play .smi-press-soft { animation: smiPressSoft 520ms var(--sm-ease) both; }
+.sm-host.sm-play .smi-brighten { animation: smiBrighten 640ms var(--sm-ease) both; }
+.sm-host.sm-play .smi-gloss { animation: smiGloss 700ms var(--sm-ease) both; }
+@media (hover: hover) {
+  .group:hover .sm-host .sm-draw { animation: smDraw var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-draw-stay { animation: smDrawStay var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-unwave { animation: smUnwave var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-snippet { animation: smSnippet var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-fall { animation: smFall var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-vanish { animation: smVanish var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-drop { animation: smDrop var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-settle { animation: smSettle var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-soft { animation: smSoft var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-sweep { animation: smSweep var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-wash { animation: smSweep var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-strip { animation: smStrip var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-air { animation: smAir var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-converge-l { animation: smConvergeL var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-converge-r { animation: smConvergeR var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .sm-drape { animation: smDrape var(--t, 520ms) var(--sm-ease) var(--d, 0ms) both; }
+  .group:hover .sm-host .smi-glide { animation: smiGlide 560ms var(--sm-ease) both; }
+  .group:hover .sm-host .smi-press { animation: smiPress 600ms var(--sm-ease) both; }
+  .group:hover .sm-host .smi-recoil { animation: smiRecoil 460ms var(--sm-ease) both; }
+  .group:hover .sm-host .smi-recoil-late { animation: smiRecoilLate 700ms var(--sm-ease) both; }
+  .group:hover .sm-host .smi-press-soft { animation: smiPressSoft 520ms var(--sm-ease) both; }
+  .group:hover .sm-host .smi-brighten { animation: smiBrighten 640ms var(--sm-ease) both; }
+  .group:hover .sm-host .smi-gloss { animation: smiGloss 700ms var(--sm-ease) both; }
+}
+
+@keyframes smDraw { 0% { stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; } 12% { opacity: .9; } 72% { stroke-dashoffset: 0; opacity: .9; } 100% { stroke-dasharray: 1; stroke-dashoffset: 0; opacity: 0; } }
+@keyframes smDrawStay { 0% { stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; } 15% { opacity: .9; } 65% { stroke-dashoffset: 0; opacity: .9; } 85% { opacity: .9; } 100% { stroke-dasharray: 1; stroke-dashoffset: 0; opacity: 0; } }
+@keyframes smUnwave { 0% { opacity: .85; } 45% { opacity: .85; } 100% { opacity: 0; } }
+@keyframes smSnippet { 0%, 35% { opacity: 0; transform: none; } 45% { opacity: .9; } 100% { opacity: 0; transform: translate(-2px, 9px) rotate(-18deg); } }
+@keyframes smFall { 0% { opacity: .9; transform: none; } 100% { opacity: 0; transform: translateY(7px); } }
+@keyframes smVanish { 0% { opacity: .85; transform: none; } 100% { opacity: 0; transform: translateY(-5px) scale(.6); } }
+@keyframes smDrop { 0% { opacity: 0; transform: translateY(-8px); } 25% { opacity: .9; } 80% { opacity: .9; transform: translateY(6px); } 100% { opacity: 0; transform: translateY(8px) scale(.85); } }
+@keyframes smSettle { 0% { opacity: 0; transform: translateY(-8px); } 30% { opacity: .85; } 75% { opacity: .7; transform: translateY(10px) scaleX(1.25) scaleY(.7); } 100% { opacity: 0; transform: translateY(12px) scaleX(1.4) scaleY(.5); } }
+@keyframes smSoft { 0% { opacity: 0; } 45% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes smSweep { 0% { opacity: 0; transform: translateX(0); } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateX(130px); } }
+@keyframes smStrip { 0% { opacity: 0; transform: translateY(3px); } 30% { opacity: 1; transform: none; } 55% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translate(10px, -12px) rotate(-14deg); } }
+@keyframes smAir { 0% { stroke-dasharray: .45 1; stroke-dashoffset: -.1; opacity: 0; transform: none; } 25% { opacity: .8; } 100% { stroke-dasharray: .45 1; stroke-dashoffset: .9; opacity: 0; transform: translateX(-4px); } }
+@keyframes smConvergeL { 0% { opacity: .8; transform: translateX(-8px) rotate(-6deg); } 70% { opacity: .8; transform: none; } 100% { opacity: 0; transform: none; } }
+@keyframes smConvergeR { 0% { opacity: .8; transform: translateX(8px) rotate(6deg); } 70% { opacity: .8; transform: none; } 100% { opacity: 0; transform: none; } }
+@keyframes smDrape { 0% { stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; } 15% { opacity: .22; } 75% { stroke-dashoffset: 0; opacity: .22; } 100% { stroke-dasharray: 1; stroke-dashoffset: 0; opacity: 0; } }
+
+@keyframes smiGlide { 0% { transform: none; } 50% { transform: translateX(2.5px); } 100% { transform: none; } }
+@keyframes smiPress { 0% { transform: none; } 35% { transform: translateY(1.5px) scaleY(.985); } 100% { transform: none; } }
+@keyframes smiRecoil { 0% { transform: none; } 30% { transform: translateX(1.5px); } 100% { transform: none; } }
+@keyframes smiRecoilLate { 0%, 40% { transform: none; } 60% { transform: translateX(1.5px); } 100% { transform: none; } }
+@keyframes smiPressSoft { 0% { transform: none; } 40% { transform: scale(.975); } 100% { transform: none; } }
+@keyframes smiBrighten { 0% { filter: sepia(.35) brightness(.92); } 100% { filter: none; } }
+@keyframes smiGloss { 0% { filter: none; } 55% { filter: brightness(1.06) contrast(1.03); } 100% { filter: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* a soft state change instead of the full motion */
+  .sm-host .sm-el { animation: none !important; opacity: 0 !important; }
+  .sm-host [class*="smi-"] { animation: none !important; }
+  .sm-host.sm-play img { animation: smReduced 300ms ease-out both !important; }
+}
+@keyframes smReduced { from { opacity: .6; } to { opacity: 1; } }
+
