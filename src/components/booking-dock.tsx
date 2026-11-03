@@ -2,17 +2,17 @@
 // guest through Services → Time → Details → Review on phones. It sits in the
 // page flow at the bottom (sticky), so it always has its own space: content
 // can always be scrolled fully above it and is never hidden underneath.
-// Tapping the summary opens the editable basket; it never opens by itself
-// except when the guest comes back to Services to change their appointment.
-import type { ReactNode } from "react";
-import { ArrowRight, ChevronDown, ChevronUp, ShoppingBag, X } from "lucide-react";
+// Tapping the summary opens "Your appointment" (the services chosen, editable);
+// it never opens by itself.
+import { useEffect, useRef, type ReactNode } from "react";
+import { ArrowRight, CalendarCheck2, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useBooking } from "@/lib/booking-store";
 import { formatDuration, inr } from "@/lib/salon";
 import { sfx } from "@/lib/sfx";
 import { cn } from "@/lib/utils";
 
-/** The editable list of chosen services, with live count, time and total. */
-export function Basket({
+/** "Your appointment": the chosen services (editable), with live count, time and total. */
+export function YourAppointment({
   onAddMore,
   onContinue,
   continueLabel = "Choose a time",
@@ -30,7 +30,7 @@ export function Basket({
     <div className={cn("fade-rise rounded-2xl border border-[#DEDAD2] bg-[#FBF9F5]", className)}>
       <div className="flex items-center justify-between px-4 pt-3.5 lg:px-5">
         <span className="flex items-center gap-2 text-[0.66rem] uppercase tracking-[0.28em] text-foreground/70">
-          <ShoppingBag className="h-4 w-4" strokeWidth={1.2} /> Your services
+          <CalendarCheck2 className="h-4 w-4" strokeWidth={1.2} /> Your appointment
         </span>
         <span className="flex items-center gap-2">
           <span className="rounded-full bg-champagne/30 px-2.5 py-0.5 text-[0.66rem] uppercase tracking-[0.16em] tabular-nums">
@@ -40,7 +40,7 @@ export function Basket({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close your services"
+              aria-label="Close your appointment"
               className="press -mr-1.5 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/5"
             >
               <ChevronDown className="h-4 w-4" strokeWidth={1.5} />
@@ -89,7 +89,7 @@ export function Basket({
           onClick={onAddMore}
           className="press min-h-11 rounded-xl border border-foreground/20 text-[0.66rem] uppercase tracking-[0.18em]"
         >
-          Add services
+          Add more
         </button>
         <button
           type="button"
@@ -135,8 +135,21 @@ export function BookingDock({
   className?: string;
 }) {
   const { selected, totalMinutes, totalPrice, hasFromPricing } = useBooking();
+  // an open summary folds away when the guest taps anywhere else on the page
+  const root = useRef<HTMLDivElement>(null);
+  const toggle = useRef(onToggle);
+  toggle.current = onToggle;
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (root.current && !root.current.contains(e.target as Node)) toggle.current?.();
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open]);
   return (
     <div
+      ref={root}
       className={cn(
         "sticky bottom-0 z-30 mt-auto bg-gradient-to-t from-background via-background/95 to-background/0 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden",
         className,
@@ -152,11 +165,11 @@ export function BookingDock({
               onClick={onToggle}
               disabled={!onToggle}
               aria-expanded={onToggle ? open : undefined}
-              aria-label={onToggle ? "Show your services" : undefined}
+              aria-label={onToggle ? "Show your appointment" : undefined}
               className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
             >
-              <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/12">
-                <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.1} />
+              <span className="tap-icon relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/12">
+                <CalendarCheck2 key={selected.length} className="icon-tap h-[18px] w-[18px]" strokeWidth={1.1} />
                 <span
                   key={selected.length}
                   className="pop-in absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-bronze px-1 text-[0.62rem] text-ivory tabular-nums"

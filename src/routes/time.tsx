@@ -18,17 +18,16 @@ import { haptic } from "@/lib/utils";
 import { sfx } from "@/lib/sfx";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
 import {
-  selectionImage,
+  SelectionThumb,
   Accent,
   DesktopBar,
   DesktopCTA,
   DesktopPage,
   DesktopStepHeader,
   StepTitle,
-  Thumb,
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
-import { Basket, BookingDock } from "@/components/booking-dock";
+import { YourAppointment, BookingDock } from "@/components/booking-dock";
 import { getAvailability } from "@/lib/salon.functions";
 import type { DayAvailability } from "@/lib/engine.server";
 import {
@@ -77,6 +76,11 @@ function TimeScreen() {
   }, [draft.date, hydrated]);
 
   const days = useMemo(() => calendarDays(56, now), [now]);
+  // The guest's date is never swapped for another one. Only a saved date that
+  // has since passed is cleared (never replaced), so they choose again.
+  useEffect(() => {
+    if (hydrated && draft.date && draft.date < days[0]!.iso) update({ date: null, time: null });
+  }, [hydrated, draft.date, days, update]);
   const [barOpen, setBarOpen] = useState(false);
   // the three open days after the chosen one load in the background
   const ahead = useMemo(() => {
@@ -93,14 +97,14 @@ function TimeScreen() {
   const selectedBreaks = day.data?.breaks ?? [];
 
   // Services changed after a time was chosen: check that time again with the new
-  // length and stylist. Keep it if it still works; otherwise say so and clear it.
+  // length and stylist. Keep it quietly if it still works (nothing for the guest
+  // to do); only if it no longer fits, say so and clear it.
   const [timeNote, setTimeNote] = useState("");
   useEffect(() => {
     if (!draft.timeStale || draft.time == null || !day.data || day.loading || day.data.date !== draft.date) return;
     const slot = day.data.slots.find((x) => x.minute === draft.time);
     if (slot?.available) {
       update({ timeStale: false });
-      setTimeNote(`Your ${minuteLabel(draft.time)} time still works with your updated services.`);
     } else {
       update({ time: null, timeStale: false });
       setTimeNote("Your services have changed, so the previously selected time is no longer available. Please choose a new time.");
@@ -152,15 +156,7 @@ function TimeScreen() {
                 </div>
                 {!day.data?.closed ? <StylistPicker day={rawDay} /> : null}
                 {timeNote ? <TimeNote text={timeNote} /> : null}
-                {timeNote ? <TimeNote text={timeNote} /> : null}
               <SlotGroups day={day} />
-                {slots.length > 0 && slots.every((x) => !x.available && !(x as { others?: string[] }).others) ? (
-                  <p className="mt-6 text-sm text-muted-foreground">
-                    {draft.staffId
-                      ? "This stylist has no free times on this day. Try any available stylist or another date."
-                      : "No slots left on this day. Please try another date."}
-                  </p>
-                ) : null}
               </div>
             ) : (
               <p className="mt-8 text-sm text-muted-foreground">Select a date to see free slots.</p>
@@ -183,7 +179,7 @@ function TimeScreen() {
               ) : undefined
             }
             sheet={
-              <Basket
+              <YourAppointment
                 onAddMore={() => navigate({ to: "/services" })}
                 continueLabel="Done"
                 onContinue={() => setBarOpen(false)}
@@ -358,6 +354,28 @@ function fetchDay(
   return p;
 }
 
+/**
+ * The earliest free appointment from today, for "Soonest" only: open days in
+ * order, the chosen stylist (or the services' preferred stylist) respected.
+ */
+async function findSoonest(
+  days: { iso: string; selectable: boolean }[],
+  audience: string | null,
+  serviceIds: string[],
+  staffId: string | null,
+): Promise<{ date: string; minute: number } | null> {
+  if (!audience || !serviceIds.length) return null;
+  const key = serviceIds.join(",");
+  for (const d of days.filter((x) => x.selectable)) {
+    const r = await fetchDay(d.iso, audience, key);
+    if (r.closed || r.message) continue;
+    const who = staffId ?? r.preferred?.id ?? null;
+    const slot = r.slots.find((x) => x.available && (!who || !x.staff || x.staff.includes(who)));
+    if (slot) return { date: d.iso, minute: slot.minute };
+  }
+  return null;
+}
+
 /** Warm the cache for a day (e.g. on press, before the tap completes). */
 function prefetchDay(date: string, audience: string | null, serviceIds: string[]) {
   if (audience && serviceIds.length)
@@ -461,7 +479,6 @@ function DayStrip({ days }: { days: { iso: string; date: Date; selectable: boole
         return (
           <button
             key={d.iso}
-            disabled={!d.selectable}
             data-sfx-off=""
             onPointerDown={() =>
               d.selectable && prefetchDay(d.iso, draft.audience, draft.serviceIds)
@@ -471,6 +488,7 @@ function DayStrip({ days }: { days: { iso: string; date: Date; selectable: boole
             onClick={() => {
               haptic();
               if (!on) sfx.dateSelect();
+              // the guest's date is kept exactly, open or closed
               update({ date: d.iso, time: null });
             }}
             className={
@@ -479,7 +497,7 @@ function DayStrip({ days }: { days: { iso: string; date: Date; selectable: boole
                 ? "border-foreground bg-foreground text-background shadow-[0_10px_24px_-14px_color-mix(in_oklab,var(--ink)_70%,transparent)]"
                 : d.selectable
                   ? "border-foreground/12 bg-card hover:border-foreground/45"
-                  : "border-transparent text-foreground/25")
+                  : "border-transparent text-foreground/30 hover:border-foreground/15")
             }
           >
             <span className="text-[0.62rem] uppercase tracking-[0.16em]">
@@ -643,6 +661,16 @@ function OtherStylistChoice({
   );
 }
 
+/** A calm message in place of the times (closed, or nothing that fits). */
+function EmptyDay({ title, sub }: { title: string; sub: string }) {
+  return (
+    <div className="mt-6 rounded-md border border-dashed border-foreground/15 px-5 py-8 text-center">
+      <p className="font-display text-[1.35rem] leading-snug">{title}</p>
+      <p className="mx-auto mt-1.5 max-w-sm text-[0.88rem] text-muted-foreground">{sub}</p>
+    </div>
+  );
+}
+
 function SlotGroups({ day }: { day: DayState }) {
   const { draft, update } = useBooking();
   const [ask, setAsk] = useState<{ minute: number; others: string[] } | null>(null);
@@ -650,6 +678,13 @@ function SlotGroups({ day }: { day: DayState }) {
   if (day.error) return <p className="mt-6 text-sm text-destructive">{day.error}</p>;
   if (day.data?.message)
     return <p className="mt-6 text-[0.95rem] text-muted-foreground">{day.data.message}</p>;
+  if (day.data?.closed)
+    return (
+      <EmptyDay
+        title="We're closed on this day."
+        sub="Please choose another date to find an available appointment."
+      />
+    );
   const slots = day.data?.slots ?? [];
   const interval = day.data?.interval ?? SLOT_MINUTES;
   const breaks = day.data?.breaks ?? [];
@@ -662,6 +697,17 @@ function SlotGroups({ day }: { day: DayState }) {
   const pref = day.data?.preferred;
   const prefFree = slots.some((x) => x.available);
   const othersFree = slots.some((x) => (x as { others?: string[] }).others);
+  if (day.data && !prefFree && !othersFree)
+    return (
+      <EmptyDay
+        title="No times available"
+        sub={
+          draft.staffId
+            ? "This stylist has no suitable time on this day. Try any available stylist, or choose a different date."
+            : "Nothing on this day fits your services. Try another time or choose a different date."
+        }
+      />
+    );
 
   return (
     <>
@@ -810,11 +856,30 @@ function MonthCalendar({
     update({ date: iso, time: null });
     onPicked?.();
   };
-  const jumpToday = () => {
-    const firstOpen = days.find((d) => d.selectable);
-    if (!firstOpen) return;
-    setView(startOf(firstOpen.date));
-    pick(firstOpen.iso);
+  // "Soonest" is the one place the date may change by itself: the guest asked
+  // for the earliest free appointment, so find it (day by day) and select it.
+  const [seeking, setSeeking] = useState(false);
+  const [soonestNote, setSoonestNote] = useState("");
+  const jumpSoonest = async () => {
+    if (seeking) return;
+    setSeeking(true);
+    setSoonestNote("");
+    try {
+      const found = await findSoonest(days, draft.audience, draft.serviceIds, draft.staffId ?? null);
+      if (!found) {
+        setSoonestNote("No free times in the coming weeks. Please call us and we'll fit you in.");
+        return;
+      }
+      haptic();
+      if (found.date !== draft.date) sfx.dateSelect();
+      setView(startOf(fromISO(found.date)));
+      update({ date: found.date, time: found.minute });
+      onPicked?.();
+    } catch {
+      setSoonestNote("Couldn't search right now. Please try again.");
+    } finally {
+      setSeeking(false);
+    }
   };
   const nav =
     "press flex h-11 w-11 items-center justify-center rounded-full border border-foreground/12 bg-card text-foreground/75 hover:border-foreground/40 disabled:opacity-30";
@@ -853,13 +918,16 @@ function MonthCalendar({
         </div>
         <button
           type="button"
-          onClick={jumpToday}
-          className="press inline-flex h-11 items-center gap-2.5 rounded-sm border border-foreground/12 bg-card px-4 text-[0.88rem] hover:border-foreground/40"
+          onClick={() => void jumpSoonest()}
+          disabled={seeking}
+          aria-busy={seeking}
+          className="press inline-flex h-11 items-center gap-2.5 rounded-sm border border-foreground/12 bg-card px-4 text-[0.88rem] hover:border-foreground/40 disabled:opacity-60"
         >
           <CalendarDays className="h-4 w-4" strokeWidth={1.25} />
-          Soonest
+          {seeking ? "Finding…" : "Soonest"}
         </button>
       </div>
+      {soonestNote ? <p className="mt-3 text-[0.85rem] text-muted-foreground">{soonestNote}</p> : null}
 
       <div className="mt-4 grid grid-cols-7 gap-2 text-center text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
         {WEEKDAYS.map((w) => (
@@ -876,7 +944,7 @@ function MonthCalendar({
             <button
               key={iso}
               type="button"
-              disabled={!open}
+              disabled={!inWindow}
               data-sfx-off=""
               onPointerDown={() => open && prefetchDay(iso, draft.audience, draft.serviceIds)}
               aria-pressed={on}
@@ -945,8 +1013,6 @@ function DesktopTime({
       () => slotsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
       120,
     );
-
-  const img = selectionImage(selected, draft.audience);
   const first = selected[0];
   // the summary bar can be minimised to give the calendar and times more room
   const [compact, setCompact] = useState(false);
@@ -1002,11 +1068,6 @@ function DesktopTime({
                 </div>
               ) : null}
               <SlotGroups day={day} />
-              {slots.every((x) => !x.available && !(x as { others?: string[] }).others) ? (
-                <p className="mt-6 text-muted-foreground">
-                  No slots left on this day. Please try another date.
-                </p>
-              ) : null}
             </div>
           )}
         </div>
@@ -1050,13 +1111,9 @@ function DesktopTime({
             <ChevronDown className="h-4 w-4" strokeWidth={1.5} />
           </button>
           <div className="hidden min-w-0 flex-1 items-center gap-6 lg:flex">
-            <Thumb
-              src={img.src}
-              pos={img.pos}
-              fit={img.fit}
-              className="hidden h-12 w-12 xl:block"
-            />
-            <div className="min-w-0">
+            <SelectionThumb selected={selected} className="hidden h-12 w-12 xl:flex" />
+            {/* nothing until the guest's saved services have loaded (never "0 min · ₹0") */}
+            <div className={selected.length ? "min-w-0" : "invisible min-w-0"}>
               <div className="truncate font-display text-[1.6rem] leading-tight">
                 {selected.length > 1 ? `${first?.name} + ${selected.length - 1} more` : first?.name}
               </div>

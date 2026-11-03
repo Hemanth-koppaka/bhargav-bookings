@@ -127,45 +127,90 @@ export const adminDashboard = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ pin }).parse(d))
   .handler(async ({ data }) => {
     const sb = await admin(data.pin);
-    const E = await engine();
-    const L = await lookup();
+    // the configuration, stylist names and messaging settings load together
+    const [E, L, N] = await Promise.all([engine(), lookup(), import("./notify/service.server")]);
     const now = E.salonNow();
     const today = now.iso;
     const dow = new Date(`${today}T00:00:00Z`).getUTCDay();
     const weekStart = addDays(today, -((dow + 6) % 7));
     const monthStart = `${today.slice(0, 8)}01`;
-    const from = weekStart < monthStart ? weekStart : monthStart;
+    const trendFrom = addDays(today, -29);
+    const from = [weekStart, monthStart, trendFrom].sort()[0]!;
+    const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
 
-    const { data: rows } = await sb.from("bookings").select("*").gte("date", from).lte("date", addDays(today, 7)).order("date").order("time");
+    const [{ data: rows }, plan, rules, ns, failed] = await Promise.all([
+      sb.from("bookings").select("*").gte("date", from).lte("date", addDays(today, 7)).order("date").order("time"),
+      E.dayPlan(today),
+      E.loadRules(),
+      N.loadSettings(),
+      sb.from("notification_logs" as never).select("id").eq("status", "failed").gte("created_at", since).neq("recipient_type", "test"),
+    ]);
     const all = (rows ?? []).map((r) => toAdmin(r as Row, L));
     const todays = all.filter((b) => b.date === today);
     const sum = (list: AdminBooking[]) => list.reduce((n, b) => n + revenueOf(b), 0);
-    const plan = await E.dayPlan(today);
-    const rules = await E.loadRules();
 
     // alerts that need a decision
     const alerts: { level: "info" | "warn"; text: string; to?: string }[] = [];
     if (!rules.accepting) alerts.push({ level: "warn", text: "Online bookings are paused.", to: "/admin/settings" });
     const pending = all.filter((b) => b.status === "pending" && b.date >= today).length;
     if (pending) alerts.push({ level: "warn", text: `${pending} booking${pending > 1 ? "s" : ""} waiting for confirmation.`, to: "/admin/appointments" });
-    const overlapping = todays.filter(active).some((a, i, list) => list.some((b, j) => j > i && a.time < b.end && b.time < a.end));
+    const overlapping = todays.filter(active).some((a, i, list) => list.some((b, j) => j > i && a.time < b.end && b.time < a.end && (!a.staffId || !b.staffId || a.staffId === b.staffId)));
     if (overlapping) alerts.push({ level: "warn", text: "Two of today's appointments overlap.", to: "/admin/calendar" });
     const tomorrow = all.filter((b) => b.date === addDays(today, 1) && active(b)).length;
     if (tomorrow) alerts.push({ level: "info", text: `Tomorrow has ${tomorrow} booking${tomorrow > 1 ? "s" : ""}.`, to: "/admin/calendar" });
     // messaging health: provider connected? any messages that didn't go out today?
-    const N = await import("./notify/service.server");
-    const ns = await N.loadSettings();
     if (ns) {
       const { getProvider } = await import("./notify/provider.server");
       const st = (await getProvider(ns.provider)).status(ns.providerConfig);
       if (!st.connected) alerts.push({ level: "info", text: "WhatsApp/SMS not connected yet — booking messages are recorded but not sent.", to: "/admin/notifications" });
-      const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
-      const { data: bad } = await sb.from("notification_logs" as never).select("id").eq("status", "failed").gte("created_at", since).neq("recipient_type", "test");
-      const failedCount = (bad ?? []).length;
+      const failedCount = (failed.data ?? []).length;
       if (st.connected && failedCount) alerts.push({ level: "warn", text: `${failedCount} booking message${failedCount > 1 ? "s" : ""} failed in the last 24 hours.`, to: "/admin/notifications" });
     }
 
-    const live = todays.filter((b) => ["pending", "upcoming", "arrived", "in-chair"].includes(b.status));
+    // ── the charts: the last 30 days and the coming week ──
+    const isLive = (b: AdminBooking) => ["pending", "upcoming", "arrived", "in-chair"].includes(b.status);
+    const days: {
+      date: string;
+      revenue: number;
+      completed: number;
+      upcoming: number;
+      cancelled: number;
+      noShow: number;
+    }[] = [];
+    for (let d = trendFrom; d <= addDays(today, 7); d = addDays(d, 1)) {
+      const list = all.filter((b) => b.date === d);
+      days.push({
+        date: d,
+        revenue: sum(list),
+        completed: list.filter((b) => b.status === "completed").length,
+        upcoming: list.filter(isLive).length,
+        cancelled: list.filter((b) => b.status === "cancelled").length,
+        noShow: list.filter((b) => b.status === "no-show").length,
+      });
+    }
+    const window30 = all.filter((b) => b.date >= trendFrom && b.date <= today && b.status !== "cancelled");
+    const services = new Map<string, { name: string; count: number; revenue: number }>();
+    for (const b of window30)
+      for (const s of b.services) {
+        const k = `${b.audience}:${s.name}`;
+        const x = services.get(k) ?? { name: s.name, count: 0, revenue: 0 };
+        x.count += 1;
+        if (b.status === "completed") x.revenue += s.price;
+        services.set(k, x);
+      }
+    const team = new Map<string, { name: string; services: number; revenue: number; noShows: number }>();
+    for (const b of window30) {
+      const k = b.staffId ?? "salon";
+      const x = team.get(k) ?? { name: b.staffName || "Unassigned", services: 0, revenue: 0, noShows: 0 };
+      if (b.status === "no-show") x.noShows += 1;
+      else x.services += b.services.length;
+      x.revenue += revenueOf(b);
+      team.set(k, x);
+    }
+    const guests = new Set(window30.map((b) => b.customerId ?? b.customer.phone.replace(/\D/g, "").slice(-10)).filter(Boolean));
+    const done30 = window30.filter((b) => b.status === "completed");
+
+    const live = todays.filter(isLive);
     return {
       today,
       nowMinute: now.minute,
@@ -186,7 +231,17 @@ export const adminDashboard = createServerFn({ method: "POST" })
         expectedToday: todays.filter(active).reduce((n, b) => n + (b.amountPaid ?? b.price), 0),
         week: sum(all.filter((b) => b.date >= weekStart && b.date <= today)),
         month: sum(all.filter((b) => b.date >= monthStart && b.date <= today)),
+        last30: sum(window30),
       },
+      month30: {
+        visits: done30.length,
+        guests: guests.size,
+        average: done30.length ? Math.round(sum(done30) / done30.length) : 0,
+        noShows: window30.filter((b) => b.status === "no-show").length,
+      },
+      days,
+      topServices: [...services.values()].sort((a, b) => b.count - a.count).slice(0, 6),
+      team: [...team.values()].sort((a, b) => b.revenue - a.revenue || b.services - a.services),
       alerts,
     };
   });

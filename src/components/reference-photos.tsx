@@ -7,6 +7,7 @@ import { useBooking, type RefPhoto } from "@/lib/booking-store";
 import { removeReferencePhoto, uploadReferencePhoto } from "@/lib/photos.functions";
 import { haptic } from "@/lib/utils";
 import { loadImageFile, shrinkImage } from "@/lib/image";
+import { useMyLook } from "@/components/my-look";
 
 const MAX = 3;
 
@@ -51,6 +52,32 @@ export function ReferencePhotos({ compact }: { compact?: boolean }) {
     if (added.length)
       update((d) => ({ photos: [...(d.photos ?? []), ...added].slice(0, MAX), draftId: id }));
     if (input.current) input.current.value = "";
+  };
+
+  // photos saved under "Your look" on this phone can be attached in one tap
+  const look = useMyLook();
+  const attachSaved = async () => {
+    const list = look.photos.slice(0, Math.max(0, room));
+    if (!list.length) return;
+    setError("");
+    const id = draftId();
+    const added: RefPhoto[] = [];
+    setBusy((n) => n + list.length);
+    for (const p of list) {
+      try {
+        const r = await uploadReferencePhoto({ data: { draftId: id, dataUrl: p.full } });
+        if (!r.ok) throw new Error(r.error);
+        added.push({ path: r.path, thumb: p.thumb });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't add that photo.");
+      } finally {
+        setBusy((n) => n - 1);
+      }
+    }
+    if (added.length) {
+      haptic();
+      update((d) => ({ photos: [...(d.photos ?? []), ...added].slice(0, MAX), draftId: id }));
+    }
   };
 
   const remove = (p: RefPhoto) => {
@@ -111,6 +138,16 @@ export function ReferencePhotos({ compact }: { compact?: boolean }) {
           >
             <ImagePlus className="h-5 w-5" strokeWidth={1.25} />
             <span className="text-[0.68rem] uppercase tracking-[0.16em]">Add</span>
+          </button>
+        ) : null}
+        {room > 0 && look.photos.length && !photos.length && !busy ? (
+          <button
+            type="button"
+            onClick={() => void attachSaved()}
+            className={`press flex flex-col items-center justify-center gap-1.5 overflow-hidden rounded-md border border-bronze/40 bg-champagne/15 px-1 text-center text-bronze hover:border-bronze ${tile}`}
+          >
+            <img src={look.photos[0]!.thumb} alt="" className="h-8 w-8 rounded object-cover" />
+            <span className="text-[0.6rem] uppercase leading-tight tracking-[0.12em]">Use my look</span>
           </button>
         ) : null}
       </div>

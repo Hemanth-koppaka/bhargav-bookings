@@ -16,8 +16,56 @@ const toMin = (t: string | null | undefined) => {
 
 type PersistedBreaks = Record<string, { start: string; end: string }[]>;
 
+// Numbers the salon has retired: never shown anywhere on the site, whatever
+// older saved settings or wording still contain.
+const RETIRED_NUMBERS = ["9642260785"];
+const RETIRED = new RegExp(
+  RETIRED_NUMBERS.map((n) => `(?:\\+?91[\\s-]*)?${n.slice(0, 5)}[\\s-]*${n.slice(5)}`).join("|"),
+  "g",
+);
+/** Removes retired numbers from saved details and wording (phone lists drop them). */
+function scrubRetired<T>(v: T): T {
+  if (typeof v === "string") {
+    RETIRED.lastIndex = 0;
+    if (!RETIRED.test(v)) return v;
+    return v.replace(RETIRED, "").replace(/[ \t]{2,}/g, " ").replace(/\s*([·,/|]\s*)+$/, "").trim() as T;
+  }
+  if (Array.isArray(v))
+    return v
+      .filter((x) => !(typeof x === "string" && RETIRED_NUMBERS.includes(x.replace(/\D/g, "").slice(-10))))
+      .map(scrubRetired) as T;
+  if (v && typeof v === "object")
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, scrubRetired(x)])) as T;
+  return v;
+}
+
+// The configuration changes rarely (an admin edit), but every screen and every
+// availability check needs it. Keep the last build for a few seconds and share
+// one build between requests arriving together; admin edits clear it at once.
+const TTL_MS = 20_000;
+let cached: { at: number; value: Promise<Record<string, unknown>> } | null = null;
+
+/** Forget the cached configuration (call after any admin change). */
+export function invalidateConfig() {
+  cached = null;
+}
+
+/** The live salon configuration (briefly cached; `fresh` skips the cache and refreshes it). */
+export function loadConfig(fresh = false): Promise<Record<string, unknown>> {
+  const now = Date.now();
+  if (!fresh && cached && now - cached.at < TTL_MS) return cached.value;
+  const value = buildConfig();
+  const entry = { at: now, value };
+  cached = entry;
+  // never keep a failed build
+  value.catch(() => {
+    if (cached === entry) cached = null;
+  });
+  return value;
+}
+
 /** Builds the full salon configuration from the online tables. */
-export async function loadConfig() {
+async function buildConfig(): Promise<Record<string, unknown>> {
   const sb = await db();
   const today = new Date().toISOString().slice(0, 10);
   const [cats, svcs, hours, exc, settings, legacy] = await Promise.all([
@@ -100,11 +148,11 @@ export async function loadConfig() {
   const booking = set["booking"] ?? {};
   const config: Record<string, unknown> = {
     ...legacyData,
-    business: set["business"] ?? legacyData["business"],
+    business: scrubRetired(set["business"] ?? legacyData["business"]),
     accepting: booking["accepting"] ?? legacyData["accepting"] ?? true,
     maxAdvanceDays: booking["maxAdvanceDays"] ?? legacyData["maxAdvanceDays"] ?? 56,
     // published wording only; drafts stay in the console
-    content: set["content"] ?? null,
+    content: scrubRetired(set["content"] ?? null),
     sound: set["sound"] ?? null,
     exceptions: Object.fromEntries(
       (exc.data ?? []).map((e) => [
@@ -186,5 +234,6 @@ export async function loadConfig() {
   const women = menu("women");
   if (men.length) config["menMenu"] = men;
   if (women.length) config["womenMenu"] = women;
-  return config;
+  // nothing the site shows may carry a retired number
+  return scrubRetired(config);
 }

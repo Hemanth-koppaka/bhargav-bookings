@@ -1,8 +1,9 @@
 // Line icons for every service, each with its own small "selected" motion:
 // scissors snip, razor glides, drops fall, steam rises, sparkles twinkle…
 // The motion plays whenever `active` flips on (CSS in styles.css, `.svc-*`).
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { IMAGE_MOTION, ServiceMotion, motionFor } from "@/components/service-motion";
 import type { Service } from "@/lib/salon";
 
 export type IconKind =
@@ -254,6 +255,58 @@ export function ServiceGlyph({
   );
 }
 
+/** Counts each time the tile becomes selected (to replay its motion once). */
+function useSelectPlays(active: boolean | undefined) {
+  const first = useRef(true);
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (active) setN((x) => x + 1);
+  }, [active]);
+  return n;
+}
+
+function TileIcon({
+  icon,
+  active,
+  box,
+  className,
+}: {
+  icon: string;
+  active: boolean | undefined;
+  box: string;
+  className: string | undefined;
+}) {
+  // the service's own motion: on hover (CSS, inside a .group card) and once on select
+  const kind = motionFor(icon);
+  const plays = useSelectPlays(active);
+  return (
+    <span
+      className={cn(
+        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-md transition-colors duration-300",
+        active ? "bg-[#f3ece1] ring-1 ring-ink/70" : "bg-champagne/16",
+        box,
+        className,
+      )}
+    >
+      <span key={plays} className={cn("sm-host absolute inset-0 flex items-center justify-center", plays > 0 && "sm-play")}>
+        <img
+          src={icon}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className={cn("h-[82%] w-[82%] object-contain", kind ? IMAGE_MOTION[kind] : undefined)}
+          draggable={false}
+        />
+        {kind ? <ServiceMotion kind={kind} /> : null}
+      </span>
+    </span>
+  );
+}
+
 /**
  * Visual for a service or category in lists: the salon's photo when one has
  * been uploaded (admin → Menu), otherwise the animated line icon.
@@ -275,7 +328,7 @@ export function ServiceIconTile({
   icon?: string | undefined;
   /** Give icons the same footprint as photos, so mixed lists stay aligned. */
   framed?: boolean | undefined;
-  className?: string;
+  className?: string | undefined;
 }) {
   const box =
     size === "sm"
@@ -287,24 +340,7 @@ export function ServiceIconTile({
           : "h-[4.5rem] w-24";
   if (!photo && icon) {
     return (
-      <span
-        className={cn(
-          "relative flex shrink-0 items-center justify-center overflow-hidden rounded-md transition-colors duration-300",
-          active ? "bg-[#f3ece1] ring-1 ring-ink/70" : "bg-champagne/16",
-          active && "photo-pop",
-          box,
-          className,
-        )}
-      >
-        <img
-          src={icon}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="h-[82%] w-[82%] object-contain"
-          draggable={false}
-        />
-      </span>
+      <TileIcon icon={icon} active={active} box={box} className={className} />
     );
   }
   // No icon set for this record: a neutral, obviously-empty placeholder (never

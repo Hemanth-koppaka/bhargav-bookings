@@ -75,7 +75,8 @@ export const getSalonConfig = createServerFn({ method: "GET" }).handler(async ()
 
 // Booking writes live in a server-only module (also exercised by tests).
 const B = () => import("./bookings.server");
-const engine = async () => (await B()).engine();
+/** `fresh` for anything that saves a booking (latest hours, closures, prices). */
+const engine = async (fresh = false) => (await B()).engine(fresh);
 type Sb = Awaited<ReturnType<typeof db>>;
 const insertBooking = async (...a: Parameters<Awaited<ReturnType<typeof B>>["insertBooking"]>) => (await B()).insertBooking(...a);
 const patchBooking = async (_sb: Sb, ...a: Parameters<Awaited<ReturnType<typeof B>>["patchBooking"]>) => (await B()).patchBooking(...a);
@@ -398,7 +399,7 @@ export const updateMyBooking = createServerFn({ method: "POST" })
     if (r.status === "cancelled" || status === "cancelled") return { ok: false, error: "This booking was cancelled." };
     if (status === "completed" || status === "no-show") return { ok: false, error: "This appointment has already taken place." };
 
-    const E = await engine();
+    const E = await engine(true);
     const rules = await E.loadRules();
     const now = E.salonNow();
     const minutesUntil = E.dayDiff(now.iso, r.date) * 1440 + r.time - now.minute;
@@ -520,7 +521,7 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const sb = await assertPin(data.pin);
-    const E = await engine();
+    const E = await engine(true);
     if (data.insert) {
       const i = data.insert;
       const r = await insertBooking(

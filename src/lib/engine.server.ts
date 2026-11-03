@@ -453,6 +453,8 @@ export async function audit(entry: {
   reason?: string;
   actor?: string;
 }) {
+  // an admin change: screens should see it on their next request
+  (await import("./config.server")).invalidateConfig();
   const { error } = await sb.from("audit_log" as never).insert({
     actor: entry.actor ?? "admin",
     action: entry.action,

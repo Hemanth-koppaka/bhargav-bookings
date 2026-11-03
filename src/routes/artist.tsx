@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ArrowUpRight, Instagram } from "lucide-react";
 import { BookCTA, InfoPage } from "@/components/info-page";
 import { BUSINESS } from "@/lib/salon";
 import founder from "@/assets/founder.jpg.asset.json";
@@ -80,6 +81,22 @@ function ArtistScreen() {
           </li>
         ))}
       </ul>
+
+      <a
+        href={BUSINESS.instagram.bhargav.url}
+        target="_blank"
+        rel="noreferrer"
+        className="press tap-icon group mt-6 flex items-center gap-4 rounded-md border border-hairline bg-card p-4 hover:border-foreground/30 lg:p-5"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f9ce34_0%,#ee2a7b_50%,#6228d7_100%)] text-white">
+          <Instagram className="h-[18px] w-[18px]" strokeWidth={1.6} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[0.62rem] uppercase tracking-[0.26em] text-muted-foreground">See his work</span>
+          <span className="mt-1 block text-[0.98rem] leading-snug">@{BUSINESS.instagram.bhargav.handle}</span>
+        </span>
+        <ArrowUpRight className="h-4 w-4 shrink-0 text-foreground/40 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" strokeWidth={1.25} />
+      </a>
 
       <BookCTA className="mt-10">Book with Bhargav</BookCTA>
     </InfoPage>

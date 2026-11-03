@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CONTENT } from "@/lib/site-content";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowRight, Phone } from "lucide-react";
+import { ArrowRight, Instagram, Phone } from "lucide-react";
 import { BUSINESS, hoursFor, isClosed, minuteLabel, toISO } from "@/lib/salon";
 import { LogoReveal } from "@/components/motion";
 import { CallButton, InfoStrip } from "@/components/desktop";
+import { MyLookEntry } from "@/components/my-look";
 import { SoundToggle } from "@/components/sound-toggle";
 import { useBooking } from "@/lib/booking-store";
 import { shouldAskRating } from "@/components/rate-visit";
@@ -265,6 +266,15 @@ function MobileHome() {
           <div className="flex items-center gap-2">
             <SoundToggle />
             <a
+              href={BUSINESS.instagram.salon.url}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="The salon on Instagram"
+              className="press tap-icon inline-flex h-11 w-11 items-center justify-center rounded-full border border-foreground/15 hover:border-foreground/40"
+            >
+              <Instagram className="h-4 w-4" strokeWidth={1.25} />
+            </a>
+            <a
               href={`tel:${BUSINESS.phones[0]}`}
               aria-label="Call the studio"
               data-sfx="contact"
@@ -328,6 +338,7 @@ function MobileHome() {
             >
               Manage a booking
             </Link>
+            <MyLookEntry />
           </div>
         </div>
       </main>
@@ -407,6 +418,7 @@ function DesktopHome() {
               Manage a booking
             </Link>
           </div>
+          <MyLookEntry size="lg" className="mt-5 max-w-md" />
           <ol className="mt-12 hidden items-center gap-6 text-[0.9rem] text-muted-foreground xl:flex">
             {steps.map((t, i) => (
               <li key={t} className="flex items-center gap-3">

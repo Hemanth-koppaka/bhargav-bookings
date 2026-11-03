@@ -15,14 +15,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Instagram,
   MapPin,
   Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience } from "@/lib/salon";
+import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience, type Service } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
 import { ScissorsLine, useRewindBack } from "@/components/scissors-line";
-import { SIGNATURE_EMBLEM_HD, SIGNATURE_MARK, isSignature } from "@/lib/service-photos";
+import { SIGNATURE_EMBLEM_HD, isSignature } from "@/lib/service-photos";
+import { ServiceIconTile, serviceKind } from "@/components/service-icons";
 
 export const STEPS = ["Who", "Services", "Time", "Details", "Confirm"] as const;
 
@@ -32,15 +34,31 @@ export const AUDIENCE_IMAGE: Record<Audience, { src: string; pos: string }> = {
   women: { src: "/services/women-panel.webp", pos: "50% 20%" },
 };
 
-/** Picture for a booking summary: the first chosen service's photo, else the men/women image. */
-export function selectionImage(
-  selected: { name: string; photo?: string | undefined }[],
-  audience: Audience | null,
-): { src: string; pos: string; fit?: "contain" } {
-  // Bhargav's Signature always shows his HB crown mark, never a stock portrait
-  if (selected.some(isSignature)) return { src: SIGNATURE_MARK, pos: "50% 50%", fit: "contain" };
-  const photo = selected.find((x) => x.photo)?.photo;
-  return photo ? { src: photo, pos: "50% 30%" } : AUDIENCE_IMAGE[audience ?? "men"];
+/**
+ * Picture for a booking summary: the first chosen service's own icon (or its own
+ * photo), exactly as on the Services cards. It comes from the service record
+ * only, never an editorial, stylist or men/women image.
+ */
+export function SelectionThumb({
+  selected,
+  className,
+}: {
+  selected: Pick<Service, "id" | "name" | "icon" | "photo">[];
+  className?: string;
+}) {
+  const s = selected[0];
+  if (!s) return null;
+  return (
+    <ServiceIconTile
+      key={s.id}
+      kind={serviceKind(s)}
+      icon={s.icon}
+      photo={s.photo}
+      framed
+      size="thumb"
+      className={className}
+    />
+  );
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -400,27 +418,35 @@ export function InfoStrip({ className }: { className?: string }) {
     },
     { icon: MapPin, label: "Studio", lines: [`${area},`, rest.join(", ")], href: "/studio" },
     { icon: Phone, label: "Contact", lines: [prettyPhone(phone)], href: `tel:${phone}` },
+    {
+      icon: Instagram,
+      label: "Instagram",
+      lines: [`@${BUSINESS.instagram.salon.handle}`],
+      href: BUSINESS.instagram.salon.url,
+      external: true,
+    },
   ];
   return (
-    <footer className={cn("grid shrink-0 grid-cols-3 hairline-t py-7", className)}>
-      {info.map(({ icon: Icon, label, lines, href }, i) => (
+    <footer className={cn("grid shrink-0 grid-cols-4 hairline-t py-7", className)}>
+      {info.map(({ icon: Icon, label, lines, href, external }, i) => (
         <a
           key={label}
           href={href}
+          {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
           className={cn(
-            "group flex items-start gap-4 px-5 first:pl-0 lg:gap-5 lg:px-8",
-            i < 2 && "border-r border-hairline",
+            "tap-icon group flex min-w-0 items-start gap-4 px-5 first:pl-0 lg:gap-4 lg:px-6 xl:gap-5 xl:px-8",
+            i < 3 && "border-r border-hairline",
           )}
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-bronze/25 lg:h-12 lg:w-12 text-bronze transition-colors duration-300 group-hover:bg-bronze group-hover:text-ivory">
             <Icon className="h-5 w-5" strokeWidth={1.25} />
           </span>
-          <span>
+          <span className="min-w-0">
             <span className="label-caps block text-foreground/85">{label}</span>
             {lines.map((l) => (
               <span
                 key={l}
-                className="mt-1 block whitespace-nowrap text-[0.9rem] text-muted-foreground transition-colors group-hover:text-foreground lg:text-[0.95rem]"
+                className="mt-1 block truncate text-[0.9rem] text-muted-foreground transition-colors group-hover:text-foreground lg:text-[0.95rem]"
               >
                 {l}
               </span>

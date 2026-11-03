@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowUpRight, Clock, MapPin, MessageCircle, Phone } from "lucide-react";
+import { ArrowUpRight, Clock, MapPin, Instagram, MessageCircle, Phone } from "lucide-react";
 import { BookCTA, InfoPage, InfoTitle } from "@/components/info-page";
 import { openDaysLabel, prettyPhone } from "@/components/desktop";
 import { CLOSE_MINUTE, OPEN_MINUTE, minuteLabel } from "@/lib/salon";
@@ -33,6 +33,20 @@ function ContactScreen() {
       external: false,
     })),
     { icon: MessageCircle, label: "WhatsApp", value: "Message us", href: wa, external: true },
+    {
+      icon: Instagram,
+      label: "Instagram · the salon",
+      value: `@${BUSINESS.instagram.salon.handle}`,
+      href: BUSINESS.instagram.salon.url,
+      external: true,
+    },
+    {
+      icon: Instagram,
+      label: "Instagram · Bhargav's work",
+      value: `@${BUSINESS.instagram.bhargav.handle}`,
+      href: BUSINESS.instagram.bhargav.url,
+      external: true,
+    },
     { icon: MapPin, label: "Visit", value: BUSINESS.address, href: maps, external: true },
     {
       icon: Clock,
