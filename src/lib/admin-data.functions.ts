@@ -158,13 +158,14 @@ export const adminDashboard = createServerFn({ method: "POST" })
     if (overlapping) alerts.push({ level: "warn", text: "Two of today's appointments overlap.", to: "/admin/calendar" });
     const tomorrow = all.filter((b) => b.date === addDays(today, 1) && active(b)).length;
     if (tomorrow) alerts.push({ level: "info", text: `Tomorrow has ${tomorrow} booking${tomorrow > 1 ? "s" : ""}.`, to: "/admin/calendar" });
-    // messaging health: provider connected? any messages that didn't go out today?
+    // booking emails (free): set up, and did any fail in the last day?
     if (ns) {
-      const { getProvider } = await import("./notify/provider.server");
-      const st = (await getProvider(ns.provider)).status(ns.providerConfig);
-      if (!st.connected) alerts.push({ level: "info", text: "WhatsApp/SMS not connected yet — booking messages are recorded but not sent.", to: "/admin/notifications" });
+      const { canSendEmail } = await import("./notify/email.server");
+      const emailOn = ns.customerEmail || ns.adminEmail;
+      if (emailOn && !canSendEmail(ns.email).ok)
+        alerts.push({ level: "info", text: "Booking emails are switched on but the email service isn't set up yet.", to: "/admin/notifications" });
       const failedCount = (failed.data ?? []).length;
-      if (st.connected && failedCount) alerts.push({ level: "warn", text: `${failedCount} booking message${failedCount > 1 ? "s" : ""} failed in the last 24 hours.`, to: "/admin/notifications" });
+      if (failedCount) alerts.push({ level: "warn", text: `${failedCount} booking email${failedCount > 1 ? "s" : ""} failed in the last 24 hours.`, to: "/admin/notifications" });
     }
 
     // ── the charts: the last 30 days and the coming week ──

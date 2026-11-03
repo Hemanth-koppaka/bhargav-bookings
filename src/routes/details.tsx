@@ -42,7 +42,7 @@ function DetailsScreen() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
-  // booking messages on WhatsApp/SMS: on unless the guest unticks it
+  // booking emails: on unless the guest unticks it
   const [consent, setConsent] = useState(true);
   const [touched, setTouched] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -292,7 +292,7 @@ function DetailsFields({
         className="mt-0.5 h-[1.125rem] w-[1.125rem] shrink-0 accent-[var(--bronze)]"
       />
       <span className="text-[0.88rem] leading-relaxed">
-        Send my booking confirmation, changes and reminders on WhatsApp/SMS.
+        Email me my booking confirmation, changes and reminders (when I add an email).
         <span className="mt-0.5 block text-[0.76rem] text-muted-foreground">Booking messages only — never promotions. You can still book if you untick this.</span>
       </span>
     </label>

@@ -23,7 +23,7 @@ export const Route = createFileRoute("/admin/notifications")({
       { title: "Notifications — Hair by Bhargav" },
       {
         name: "description",
-        content: "WhatsApp and SMS booking messages, reminders and delivery status.",
+        content: "Booking emails, reminders and delivery status.",
       },
       { name: "robots", content: "noindex" },
     ],
@@ -53,8 +53,6 @@ function NotificationsScreen() {
 
   const dirty = Boolean(s && saved && JSON.stringify(s) !== JSON.stringify(saved));
   const set = (p: Partial<NotifySettings>) => setS((c) => (c ? { ...c, ...p } : c));
-  const setCfg = (p: Partial<NotifySettings["providerConfig"]>) =>
-    setS((c) => (c ? { ...c, providerConfig: { ...c.providerConfig, ...p } } : c));
 
   const save = async () => {
     if (!s) return;
@@ -80,7 +78,7 @@ function NotificationsScreen() {
   return (
     <AdminShell
       title="Notifications"
-      subtitle="Booking messages on WhatsApp and SMS. Bookings never depend on a message going out."
+      subtitle="Booking emails to guests and the salon (free). Bookings never depend on a message going out."
       right={
         dirty ? (
           <div className="flex gap-2">
@@ -100,37 +98,6 @@ function NotificationsScreen() {
       {s && info ? (
         <div className="space-y-4 pb-24 lg:pb-0">
           <ProviderStatus info={info} />
-
-          <Panel>
-            <h2 className="font-display text-[1.35rem]">Channels</h2>
-            <p className="mt-1 text-[0.8rem] text-muted-foreground">
-              WhatsApp is tried first. SMS is used when WhatsApp is off, or as a fallback when it
-              fails.
-            </p>
-            <div className="mt-3 divide-y divide-hairline">
-              <Row
-                title="WhatsApp to guests"
-                hint="Only guests who ticked the consent box on the details step."
-              >
-                <Toggle on={s.customerWhatsapp} onChange={(v) => set({ customerWhatsapp: v })} />
-              </Row>
-              <Row title="SMS to guests">
-                <Toggle on={s.customerSms} onChange={(v) => set({ customerSms: v })} />
-              </Row>
-              <Row title="WhatsApp to the salon">
-                <Toggle on={s.adminWhatsapp} onChange={(v) => set({ adminWhatsapp: v })} />
-              </Row>
-              <Row title="SMS to the salon">
-                <Toggle on={s.adminSms} onChange={(v) => set({ adminSms: v })} />
-              </Row>
-              <Row
-                title="Fallback SMS"
-                hint="If a WhatsApp message fails, send the same message by SMS."
-              >
-                <Toggle on={s.fallback} onChange={(v) => set({ fallback: v })} />
-              </Row>
-            </div>
-          </Panel>
 
           <Panel>
             <h2 className="font-display text-[1.35rem]">Messages</h2>
@@ -160,26 +127,8 @@ function NotificationsScreen() {
           </Panel>
 
           <Panel>
-            <h2 className="font-display text-[1.35rem]">Numbers</h2>
+            <h2 className="font-display text-[1.35rem]">Links</h2>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Field label="Salon alert number" hint="Where new-booking alerts go (WhatsApp/SMS).">
-                <input
-                  className={inputClass}
-                  value={s.adminPhone}
-                  onChange={(e) => set({ adminPhone: e.target.value })}
-                  placeholder="+91 98765 43210"
-                  inputMode="tel"
-                />
-              </Field>
-              <Field label="Test number" hint="Test messages only go here.">
-                <input
-                  className={inputClass}
-                  value={s.testPhone}
-                  onChange={(e) => set({ testPhone: e.target.value })}
-                  placeholder="+91 98765 43210"
-                  inputMode="tel"
-                />
-              </Field>
               <Field
                 label="Public site address (optional)"
                 hint="Used in “Manage your booking” links when the booking has none. Normally taken from the site the guest booked on."
@@ -192,13 +141,9 @@ function NotificationsScreen() {
                 />
               </Field>
             </div>
-            <p className="mt-2 text-[0.75rem] text-muted-foreground">
-              Numbers are stored in international format (+91…).
-            </p>
           </Panel>
 
           <EmailSettings s={s} info={info} set={set} />
-          <ProviderSetup s={s} info={info} setCfg={setCfg} />
           <TestPanel dirty={dirty} />
           <MessageLog />
         </div>
@@ -236,34 +181,6 @@ function ProviderStatus({ info }: { info: Info }) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const lines: { label: string; ok: boolean; text: string; detail?: string }[] = [
     {
-      label: "Messaging provider",
-      ok: st.connected,
-      text: st.connected ? `${st.provider} · Connected` : `${st.provider} · Not configured`,
-      ...(st.connected
-        ? {}
-        : { detail: "Add the MSG91_AUTH_KEY secret to the project (server secrets)." }),
-    },
-    {
-      label: "WhatsApp",
-      ok: st.whatsapp.configured,
-      text: st.whatsapp.configured ? "Configured" : "Not configured",
-      ...(st.whatsapp.missing.length
-        ? { detail: `Missing: ${st.whatsapp.missing.join(", ")}` }
-        : {}),
-    },
-    {
-      label: "SMS",
-      ok: st.sms.configured,
-      text: st.sms.configured ? "Configured" : "Not configured",
-      ...(st.sms.missing.length ? { detail: `Missing: ${st.sms.missing.join(", ")}` } : {}),
-    },
-    {
-      label: "Delivery reports",
-      ok: st.webhookSecret,
-      text: st.webhookSecret ? "Ready" : "Not configured",
-      detail: `In MSG91, set the delivery-report webhook to ${origin}/api/notifications/webhook?key=<MSG91_WEBHOOK_SECRET>`,
-    },
-    {
       label: "Reminder schedule",
       ok: st.cronSecret,
       text: st.cronSecret ? "Ready" : "Not configured",
@@ -272,12 +189,14 @@ function ProviderStatus({ info }: { info: Info }) {
     {
       label: "Email (free)",
       ok: st.email.configured,
-      text: st.email.configured ? `${st.email.provider} · Ready` : `${st.email.provider} · Not configured`,
+      text: st.email.configured
+        ? `${st.email.provider} · Ready`
+        : `${st.email.provider} · Not configured`,
       ...(st.email.missing.length ? { detail: `Missing: ${st.email.missing.join(", ")}.` } : {}),
     },
   ];
   return (
-    <Panel className={cn(!st.connected && "border-amber-600/35 bg-amber-500/[0.05]")}>
+    <Panel className={cn(!st.email.configured && "border-amber-600/35 bg-amber-500/[0.05]")}>
       <h2 className="font-display text-[1.35rem]">Connection</h2>
       {!st.connected ? (
         <p className="mt-1 text-[0.82rem]">
@@ -306,7 +225,15 @@ function ProviderStatus({ info }: { info: Info }) {
 
 /* ── email (free) ─────────────────────────────────────────── */
 
-function EmailSettings({ s, info, set }: { s: NotifySettings; info: Info; set: (p: Partial<NotifySettings>) => void }) {
+function EmailSettings({
+  s,
+  info,
+  set,
+}: {
+  s: NotifySettings;
+  info: Info;
+  set: (p: Partial<NotifySettings>) => void;
+}) {
   const st = info.status.email;
   const free = s.email.provider === "brevo" ? "300 emails a day free" : "3,000 emails a month free";
   return (
@@ -314,17 +241,19 @@ function EmailSettings({ s, info, set }: { s: NotifySettings; info: Info; set: (
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-display text-[1.35rem]">Email</h2>
         <span className="flex items-center gap-2 text-[0.8rem]">
-          <Dot on={st.configured} warn={!st.configured} /> {st.configured ? "Ready" : "Not configured"}
+          <Dot on={st.configured} warn={!st.configured} />{" "}
+          {st.configured ? "Ready" : "Not configured"}
         </span>
       </div>
       <p className="mt-1 text-[0.8rem] text-muted-foreground">
-        Free and automatic: confirmations, changes and reminders go to guests who gave an email ({free}).
+        Free and automatic: confirmations, changes and reminders go to guests who gave an email (
+        {free}).
       </p>
       <div className="mt-3 divide-y divide-hairline">
         <Row title="Emails to guests" hint="Only guests who entered an email address.">
           <Toggle on={s.customerEmail} onChange={(v) => set({ customerEmail: v })} />
         </Row>
-        <Row title="Email alerts to the salon" hint="New bookings, moves and cancellations.">
+        <Row title="Email alerts to the salon" hint="New bookings, moves and cancellations, plus a summary of the day each morning at 8 AM.">
           <Toggle on={s.adminEmail} onChange={(v) => set({ adminEmail: v })} />
         </Row>
       </div>
@@ -333,25 +262,54 @@ function EmailSettings({ s, info, set }: { s: NotifySettings; info: Info; set: (
           <select
             className={inputClass}
             value={s.email.provider}
-            onChange={(e) => set({ email: { ...s.email, provider: e.target.value === "resend" ? "resend" : "brevo" } })}
+            onChange={(e) =>
+              set({
+                email: { ...s.email, provider: e.target.value === "resend" ? "resend" : "brevo" },
+              })
+            }
           >
             <option value="brevo">Brevo — works with a Gmail sender</option>
             <option value="resend">Resend — needs your own domain</option>
           </select>
         </Field>
         <Field label="Salon email" hint="Gets salon alerts and test emails.">
-          <input className={inputClass} value={s.adminEmailAddress} onChange={(e) => set({ adminEmailAddress: e.target.value })} placeholder="salon@example.com" inputMode="email" />
+          <input
+            className={inputClass}
+            value={s.adminEmailAddress}
+            onChange={(e) => set({ adminEmailAddress: e.target.value })}
+            placeholder="salon@example.com"
+            inputMode="email"
+          />
         </Field>
-        <Field label="Send from (email)" hint={s.email.provider === "brevo" ? "Verify this address in Brevo first." : "An address on your verified domain."}>
-          <input className={inputClass} value={s.email.from} onChange={(e) => set({ email: { ...s.email, from: e.target.value } })} placeholder="bookings@example.com" inputMode="email" />
+        <Field
+          label="Send from (email)"
+          hint={
+            s.email.provider === "brevo"
+              ? "Verify this address in Brevo first."
+              : "An address on your verified domain."
+          }
+        >
+          <input
+            className={inputClass}
+            value={s.email.from}
+            onChange={(e) => set({ email: { ...s.email, from: e.target.value } })}
+            placeholder="bookings@example.com"
+            inputMode="email"
+          />
         </Field>
         <Field label="Send from (name)">
-          <input className={inputClass} value={s.email.fromName} onChange={(e) => set({ email: { ...s.email, fromName: e.target.value } })} placeholder="Hair by Bhargav" />
+          <input
+            className={inputClass}
+            value={s.email.fromName}
+            onChange={(e) => set({ email: { ...s.email, fromName: e.target.value } })}
+            placeholder="Hair by Bhargav"
+          />
         </Field>
       </div>
       {!st.configured ? (
         <p className="mt-2 text-[0.75rem] text-muted-foreground">
-          Missing: {st.missing.join(", ")}. The API key is added as a project secret ({s.email.provider === "resend" ? "RESEND_API_KEY" : "BREVO_API_KEY"}), never here.
+          Missing: {st.missing.join(", ")}. The API key is added as a project secret (
+          {s.email.provider === "resend" ? "RESEND_API_KEY" : "BREVO_API_KEY"}), never here.
         </p>
       ) : null}
     </Panel>
@@ -359,137 +317,6 @@ function EmailSettings({ s, info, set }: { s: NotifySettings; info: Info; set: (
 }
 
 /* ── provider setup (templates) ───────────────────────────── */
-
-function ProviderSetup({
-  s,
-  info,
-  setCfg,
-}: {
-  s: NotifySettings;
-  info: Info;
-  setCfg: (p: Partial<NotifySettings["providerConfig"]>) => void;
-}) {
-  const [open, setOpen] = useState<string | null>(null);
-  const cfg = s.providerConfig;
-  const setTemplate = (slot: string, channel: "whatsapp" | "sms", v: string) =>
-    setCfg({
-      templates: {
-        ...(cfg.templates ?? {}),
-        [slot]: { ...(cfg.templates?.[slot] ?? {}), [channel]: v },
-      },
-    });
-  return (
-    <Panel>
-      <h2 className="font-display text-[1.35rem]">MSG91 setup</h2>
-      <p className="mt-1 text-[0.8rem] text-muted-foreground">
-        Not secret, so it lives here. The API key stays in the server secrets and is never shown in
-        the console.
-      </p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        <Field label="WhatsApp sender number" hint="The business number connected in MSG91.">
-          <input
-            className={inputClass}
-            value={cfg.whatsappNumber ?? ""}
-            onChange={(e) => setCfg({ whatsappNumber: e.target.value })}
-            placeholder="+91 …"
-            inputMode="tel"
-          />
-        </Field>
-        <Field label="Template language">
-          <input
-            className={inputClass}
-            value={cfg.whatsappLanguage ?? ""}
-            onChange={(e) => setCfg({ whatsappLanguage: e.target.value })}
-            placeholder="en"
-          />
-        </Field>
-        <Field label="SMS variable name" hint="var → var1, var2… (match your DLT flow).">
-          <input
-            className={inputClass}
-            value={cfg.smsVarPrefix ?? ""}
-            onChange={(e) => setCfg({ smsVarPrefix: e.target.value })}
-            placeholder="var"
-          />
-        </Field>
-      </div>
-
-      <div className="mt-5 text-[0.62rem] uppercase tracking-[0.2em] text-muted-foreground">
-        Templates
-      </div>
-      <p className="mt-1 text-[0.78rem] text-muted-foreground">
-        Register each template with MSG91 (WhatsApp templates need Meta approval; SMS needs a DLT
-        template). Use the variables in the order shown.
-      </p>
-      <ul className="mt-2 divide-y divide-hairline rounded-md border border-hairline">
-        {info.slots.map((t) => {
-          const v = cfg.templates?.[t.slot] ?? {};
-          const isOpen = open === t.slot;
-          return (
-            <li key={t.slot} className="px-3 py-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => setOpen(isOpen ? null : t.slot)}
-                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-[0.88rem]"
-                >
-                  <ChevronDown
-                    className={cn("h-4 w-4 shrink-0 transition-transform", isOpen && "rotate-180")}
-                    strokeWidth={1.5}
-                  />
-                  {t.label}
-                  <Dot on={Boolean(v.whatsapp || v.sms)} />
-                </button>
-              </div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <input
-                  className={cn(inputClass, "py-2 text-[0.85rem]")}
-                  value={v.whatsapp ?? ""}
-                  onChange={(e) => setTemplate(t.slot, "whatsapp", e.target.value)}
-                  placeholder="WhatsApp template name"
-                  aria-label={`${t.label} WhatsApp template`}
-                />
-                <input
-                  className={cn(inputClass, "py-2 text-[0.85rem]")}
-                  value={v.sms ?? ""}
-                  onChange={(e) => setTemplate(t.slot, "sms", e.target.value)}
-                  placeholder="SMS template id (DLT)"
-                  aria-label={`${t.label} SMS template`}
-                />
-              </div>
-              {isOpen ? (
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <div className="text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
-                      Variables, in order
-                    </div>
-                    <ol className="mt-1 space-y-0.5 text-[0.8rem]">
-                      {t.vars.map((name, i) => (
-                        <li key={name}>
-                          <code className="text-bronze">{`{{${i + 1}}}`}</code> /{" "}
-                          <code className="text-bronze">
-                            ##{(cfg.smsVarPrefix || "var") + (i + 1)}##
-                          </code>{" "}
-                          — {name.replace(/_/g, " ")}
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                  <div>
-                    <div className="text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">
-                      Sample
-                    </div>
-                    <pre className="mt-1 whitespace-pre-wrap rounded bg-foreground/[0.03] p-2.5 font-sans text-[0.78rem] leading-relaxed">
-                      {t.sample}
-                    </pre>
-                  </div>
-                </div>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-    </Panel>
-  );
-}
 
 /* ── test messages ────────────────────────────────────────── */
 
@@ -517,15 +344,7 @@ function TestPanel({ dirty }: { dirty: boolean }) {
         Sends a sample to the test number only. {dirty ? "Save your changes first." : ""}
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {(
-          [
-            ["customer", "whatsapp", "Test guest message · WhatsApp"],
-            ["customer", "sms", "Test guest message · SMS"],
-            ["admin", "whatsapp", "Test salon alert · WhatsApp"],
-            ["admin", "sms", "Test salon alert · SMS"],
-            ["customer", "email", "Test guest email"],
-          ] as const
-        ).map(([k, c, label]) => (
+        {([["customer", "email", "Test guest email"]] as const).map(([k, c, label]) => (
           <TinyButton
             key={`${k}-${c}`}
             disabled={dirty || busy !== null}
@@ -635,7 +454,8 @@ function MessageLog() {
               <span className="w-28 shrink-0 font-medium">{l.bookingId}</span>
               <span className="min-w-0 flex-1">
                 {l.recipient === "admin" ? "Salon" : l.recipient === "test" ? "Test" : "Guest"} ·{" "}
-                {l.eventLabel} · {l.channel === "whatsapp" ? "WhatsApp" : l.channel === "email" ? "Email" : "SMS"}
+                {l.eventLabel} ·{" "}
+                {l.channel === "whatsapp" ? "WhatsApp" : l.channel === "email" ? "Email" : "SMS"}
                 {l.fallback ? " (fallback)" : ""}
                 {l.errorMessage && ["failed", "skipped"].includes(l.status) ? (
                   <span className="block text-[0.75rem] text-muted-foreground">

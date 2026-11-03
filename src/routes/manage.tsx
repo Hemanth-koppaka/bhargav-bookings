@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { CalendarDays, ChevronRight, Clock, Search } from "lucide-react";
+import { CalendarDays, ChevronRight, Clock, RotateCcw, Search } from "lucide-react";
 import { GhostAction, PrimaryAction } from "@/components/screen";
 import { InfoPage, InfoTitle, SectionLabel } from "@/components/info-page";
 import { ScrollStrip, prettyPhone } from "@/components/desktop";
@@ -10,7 +10,7 @@ import { BookingLook } from "@/components/my-look";
 import { auth, useBooking, servicesOf, type Booking, type ChangeResult } from "@/lib/booking-store";
 import { getAvailability, getPublicRules } from "@/lib/salon.functions";
 import type { DayAvailability } from "@/lib/engine.server";
-import { BUSINESS, calendarDays, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
+import { BUSINESS, calendarDays, findService, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
 import { haptic } from "@/lib/utils";
 import portrait from "@/assets/portrait.jpg.asset.json";
 
@@ -415,6 +415,9 @@ function BookingPanel({
         </div>
       </div>
 
+      {/* regulars: the same services again, straight to choosing a time */}
+      {mode === "view" ? <BookAgain booking={booking} className="mt-6" /> : null}
+
       {/* the reference photos they booked with, ready for the stylist (until the slot ends) */}
       {mode === "view" ? <BookingLook booking={booking} className="mt-6" /> : null}
 
@@ -545,5 +548,57 @@ function BookingPanel({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * "Book the same again": the same services (those still on the menu) and the
+ * same name, then straight to choosing a new date and time.
+ */
+function BookAgain({ booking, className }: { booking: Booking; className?: string }) {
+  const { update } = useBooking();
+  const navigate = useNavigate();
+  const still = booking.serviceIds.filter((id) => findService(booking.audience, id));
+  const masked = booking.customer.phone.includes("•");
+  const go = () => {
+    haptic();
+    update({
+      audience: booking.audience,
+      serviceIds: still,
+      date: null,
+      time: null,
+      staffId: null,
+      timeStale: false,
+      photos: [],
+      // the name always; the phone only when this device has it in full
+      customer: {
+        name: booking.customer.name,
+        phone: masked ? "" : booking.customer.phone,
+        email: booking.customer.email ?? "",
+      },
+    });
+    void navigate({ to: still.length ? "/time" : "/services" });
+  };
+  return (
+    <button
+      type="button"
+      onClick={go}
+      data-sfx="primary"
+      className={
+        "press group flex min-h-14 w-full items-center gap-3 rounded-sm border border-foreground/15 bg-card px-4 text-left hover:border-foreground/40 " +
+        (className ?? "")
+      }
+    >
+      <RotateCcw className="h-4 w-4 shrink-0 text-bronze transition-transform duration-500 group-hover:-rotate-180" strokeWidth={1.5} />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[0.95rem]">Book the same again</span>
+        <span className="block truncate text-[0.75rem] text-muted-foreground">
+          {still.length
+            ? `${still.length === booking.serviceIds.length ? "Same services" : "The services still on our menu"} · pick a new date and time`
+            : "These services have changed · choose from today's menu"}
+        </span>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+    </button>
   );
 }
