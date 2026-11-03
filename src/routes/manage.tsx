@@ -15,7 +15,7 @@ import { haptic } from "@/lib/utils";
 import portrait from "@/assets/portrait.jpg.asset.json";
 
 export const Route = createFileRoute("/manage")({
-  // links in booking messages carry the booking ID: /manage?ref=HB-2026-00124
+  // links in booking messages carry the booking ID: /manage?ref=HB-7KQ2MX
   validateSearch: (s: Record<string, unknown>): { ref?: string } =>
     typeof s["ref"] === "string" && /^[A-Z0-9-]{4,20}$/i.test(s["ref"]) ? { ref: s["ref"].toUpperCase() } : {},
   head: () => ({
@@ -158,7 +158,7 @@ function ManageScreen() {
                       setQuery(e.target.value);
                       setError("");
                     }}
-                    placeholder="HB-2026-00124 or 98765 43210"
+                    placeholder="HB-7KQ2MX or 98765 43210"
                     autoCapitalize="characters"
                     autoComplete="off"
                     spellCheck={false}

@@ -62,7 +62,7 @@ const toLog = (r: Record<string, unknown>): NotifyLog => ({
 });
 
 const SAMPLE: BookingFacts = {
-  reference: "HB-2026-01042",
+  reference: "HB-7KQ2MX",
   customerName: "Arjun",
   customerPhone: "+919876543210",
   date: "2026-11-12",
@@ -72,7 +72,7 @@ const SAMPLE: BookingFacts = {
   price: 1000,
   priceFrom: false,
   location: "KPHB Phase 9, Kukatpally, Hyderabad",
-  manageUrl: "https://your-site/manage?ref=HB-2026-01042",
+  manageUrl: "https://your-site/manage?ref=HB-7KQ2MX",
   previous: { date: "2026-11-11", time: 15 * 60 },
 };
 
