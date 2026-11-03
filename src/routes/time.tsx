@@ -256,6 +256,10 @@ function StylistPicker({ day }: { day: DayState }) {
   const slot =
     draft.time != null ? day.data?.slots.find((x) => x.minute === draft.time) : undefined;
   const status = (id: string) => (slot ? (slot.staff?.includes(id) ? "Available" : "Busy") : null);
+  // before a time is chosen: how many free times each stylist has that day
+  const freeCount = (id: string) =>
+    (day.data?.slots ?? []).filter((x) => x.available && x.staff?.includes(id)).length;
+  const at = draft.time != null ? minuteLabel(draft.time) : "";
   const pick = (id: string | null) => {
     haptic();
     if (id !== chosen) sfx.selection();
@@ -284,14 +288,32 @@ function StylistPicker({ day }: { day: DayState }) {
               "text-[0.72rem] " + (!chosen ? "text-background/65" : "text-muted-foreground")
             }
           >
-            {slot ? (slot.available ? "Available" : "Busy") : "First free stylist"}
+            {slot ? (slot.available ? `Available at ${at}` : `Unavailable at ${at}`) : "First free stylist"}
           </span>
         </button>
         {team.map((t) => {
           const on = chosen === t.id;
           const st = status(t.id);
+          const free = day.data ? freeCount(t.id) : null;
+          const label =
+            st === "Available"
+              ? `Available at ${at}`
+              : st === "Busy"
+                ? `Unavailable at ${at}`
+                : free === 0
+                  ? "Not available this day"
+                  : free != null
+                    ? `${free} ${free === 1 ? "time" : "times"} free`
+                    : STYLISTS.find((x) => x.id === t.id)?.specialties || "Stylist";
+          const away = st === "Busy" || (st == null && free === 0);
           return (
-            <button key={t.id} aria-pressed={on} onClick={() => pick(t.id)} className={chip(on)}>
+            <button
+              key={t.id}
+              aria-pressed={on}
+              onClick={() => pick(t.id)}
+              aria-label={`${t.name}: ${label}`}
+              className={chip(on) + (away && !on ? " opacity-60" : "")}
+            >
               <span className="truncate text-[0.95rem]">{t.name}</span>
               <span
                 className={
@@ -303,15 +325,15 @@ function StylistPicker({ day }: { day: DayState }) {
                       : "text-muted-foreground")
                 }
               >
-                {st ? (
+                {st || free != null ? (
                   <span
                     className={
-                      "h-1.5 w-1.5 rounded-full " +
-                      (st === "Available" ? "bg-emerald-600" : "bg-foreground/30")
+                      "h-1.5 w-1.5 shrink-0 rounded-full " +
+                      (away ? "bg-[#c2554a]" : "bg-emerald-600")
                     }
                   />
                 ) : null}
-                {st ?? (STYLISTS.find((x) => x.id === t.id)?.specialties || "Stylist")}
+                <span className="truncate">{label}</span>
               </span>
             </button>
           );
