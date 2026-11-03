@@ -28,6 +28,7 @@ import {
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
 import { YourAppointment, BookingDock } from "@/components/booking-dock";
+import { DayArc } from "@/components/day-arc";
 import { getAvailability } from "@/lib/salon.functions";
 import type { DayAvailability } from "@/lib/engine.server";
 import {
@@ -76,6 +77,30 @@ function TimeScreen() {
   }, [draft.date, hydrated]);
 
   const days = useMemo(() => calendarDays(56, now), [now]);
+  // No date chosen yet: open on today, or the first day with free times, so
+  // the guest sees real times straight away (never replaces a chosen date).
+  const opening = useRef(false);
+  useEffect(() => {
+    if (!hydrated || draft.date || opening.current || !draft.audience || !draft.serviceIds.length) return;
+    opening.current = true;
+    const open = days.filter((d) => d.selectable).slice(0, 14);
+    const key = draft.serviceIds.join(",");
+    void (async () => {
+      for (const d of open) {
+        try {
+          const r = await fetchDay(d.iso, draft.audience!, key);
+          if (!r.closed && !r.message && r.slots.some((x) => x.available)) {
+            update((cur) => (cur.date ? {} : { date: d.iso, time: null }));
+            return;
+          }
+        } catch {
+          break;
+        }
+      }
+      if (open[0]) update((cur) => (cur.date ? {} : { date: open[0]!.iso, time: null }));
+    })();
+  }, [hydrated, draft.date, draft.audience, draft.serviceIds, days, update]);
+
   // The guest's date is never swapped for another one. Only a saved date that
   // has since passed is cleared (never replaced), so they choose again.
   useEffect(() => {
@@ -731,8 +756,21 @@ function SlotGroups({ day }: { day: DayState }) {
       />
     );
 
+  const freeTimes = visible.filter((x) => x.available).map((x) => x.minute);
+  const salonToday = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
+
   return (
     <>
+      {day.data ? (
+        <DayArc
+          className="mt-5"
+          open={day.data.open}
+          close={day.data.close}
+          free={freeTimes}
+          selected={draft.time ?? null}
+          today={day.data.date === salonToday}
+        />
+      ) : null}
       {pref && !draft.staffId && !prefFree && othersFree ? (
         <p className="mt-5 text-[0.9rem] text-muted-foreground">
           {pref.name} isn't available on this day. Pick a time to continue with another stylist, or choose another date.
@@ -783,7 +821,7 @@ function SlotGroups({ day }: { day: DayState }) {
                       update({ time: x.minute });
                     }}
                     className={
-                      "press flex min-h-13 flex-col items-center justify-center rounded-md border px-1 py-2 text-[0.92rem] tabular-nums lg:min-h-14 lg:text-[1rem] " +
+                      "press relative flex min-h-13 flex-col items-center justify-center overflow-hidden rounded-md border px-1 py-2 text-[0.92rem] tabular-nums lg:min-h-14 lg:text-[1rem] " +
                       (on
                         ? "ring-pulse border-foreground bg-foreground text-background"
                         : x.available
@@ -793,11 +831,13 @@ function SlotGroups({ day }: { day: DayState }) {
                             : "border-transparent bg-foreground/[0.045] text-foreground/35")
                     }
                   >
-                    <span className={x.available || others ? "" : "line-through decoration-foreground/25"}>
+                    {/* the chosen time: a soft bubble spreads from its centre */}
+                    {on ? <span key={`bubble-${x.minute}`} aria-hidden className="slot-bubble" /> : null}
+                    <span className={"relative " + (x.available || others ? "" : "line-through decoration-foreground/25")}>
                       {minuteLabel(x.minute)}
                     </span>
                     {!x.available ? (
-                      <span className="text-[0.66rem] lg:text-[0.72rem]">
+                      <span className="relative text-[0.66rem] lg:text-[0.72rem]">
                         {others ? "Other stylists" : x.reason === "booked" ? "Booked" : "Unavailable"}
                       </span>
                     ) : null}

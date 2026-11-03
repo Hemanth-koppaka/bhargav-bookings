@@ -773,3 +773,28 @@ html:not(.intro-seen) .after-intro > *:nth-child(n + 6) { animation-delay: 2.75s
 }
 @keyframes smReduced { from { opacity: .6; } to { opacity: 1; } }
 
+
+/* Time step: the day arc's sky and sun move smoothly; the chosen time's bubble. */
+.day-arc { transition: background-color 700ms ease, color 700ms ease; }
+.day-arc-sun { transition: transform 900ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.slot-bubble {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 140%;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  background: radial-gradient(circle, color-mix(in oklab, var(--champagne) 70%, transparent) 0%, color-mix(in oklab, var(--champagne) 25%, transparent) 55%, transparent 70%);
+  transform: translate(-50%, -50%) scale(0);
+  animation: slotBubble 650ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  pointer-events: none;
+}
+@keyframes slotBubble {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0.9; }
+  70% { opacity: 0.55; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .day-arc, .day-arc-sun { transition: none; }
+  .slot-bubble { animation: none; opacity: 0; }
+}

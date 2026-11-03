@@ -364,13 +364,14 @@ function MobileHome() {
 function DesktopHome() {
   return (
     <div className="hidden min-h-[100svh] flex-col bg-background lg:flex">
-      <header className="mx-8 flex shrink-0 items-center justify-between gap-8 hairline-b px-6 py-5 xl:mx-10 xl:px-16">
-        <Link to="/" aria-label="Hair by Bhargav" className="inline-flex">
+      {/* three columns, so the menu sits at the true centre of the page */}
+      <header className="mx-8 grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-8 hairline-b px-6 py-5 xl:mx-10 xl:px-16">
+        <Link to="/" aria-label="Hair by Bhargav" className="inline-flex justify-self-start">
           <span data-hero-logo className="after-intro-logo inline-flex">
             <LogoReveal className="h-14" />
           </span>
         </Link>
-        <nav className="flex items-center gap-10" aria-label="Main">
+        <nav className="flex items-center gap-10 [&>a]:[text-indent:var(--tw-tracking,0.22em)]" aria-label="Main">
           {quickLinks.map((l) => (
             <Link
               key={l.to}
@@ -381,7 +382,7 @@ function DesktopHome() {
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 justify-self-end">
           <SoundToggle className="lg:h-14 lg:w-14" />
           <CallButton />
         </div>
