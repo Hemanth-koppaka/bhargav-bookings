@@ -53,7 +53,8 @@ export const BUSINESS = {
     "Plot No. 1143, Raghava Avasa, Gokul Plots, Venkataramana Colony, KPHB Phase 9, Kukatpally, Hyderabad – 500072",
   mapsQuery:
     "The Hair By Bhargav Unisex Salon, Plot No. 1143, Raghava Avasa, Gokul Plots, Venkataramana Colony, KPHB Phase 9, Kukatpally, Hyderabad 500072",
-  phones: ["+917981648951", "+918125391998"],
+  // the business number only
+  phones: ["+917981648951"],
   /**
    * The salon's "write a review" link from Google Business Profile ("Ask for
    * reviews"). Until it's set, guests are sent to the salon on Google Maps,

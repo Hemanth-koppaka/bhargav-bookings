@@ -131,7 +131,7 @@ function ReviewScreen() {
                       {selected.map((x) => (
                         <li key={x.id} className="flex items-baseline justify-between gap-3">
                           <span className="flex items-center gap-2.5 font-display text-[1.35rem] leading-tight">
-                            <ServiceIconTile kind={serviceKind(x)} icon={x.icon} photo={x.photo} framed size="sm" className="!h-7 !w-7 shrink-0 self-center" />
+                            {selected.length > 1 ? <ServiceIconTile kind={serviceKind(x)} icon={x.icon} photo={x.photo} framed size="sm" className="!h-7 !w-7 shrink-0 self-center" /> : null}
                             {x.name}
                           </span>
                           {selected.length > 1 ? (
@@ -158,7 +158,7 @@ function ReviewScreen() {
                         {minuteLabel(draft.time)} · {formatDuration(totalMinutes)}
                         {STYLISTS.length ? ` · ${stylistLabel(draft.staffId, draft.serviceIds)}` : ""}
                       </span>
-                      <Link to="/time" className="text-[0.8rem] text-bronze underline underline-offset-4">
+                      <Link to="/time" className="shrink-0 whitespace-nowrap text-[0.8rem] text-bronze underline underline-offset-4">
                         Change time
                       </Link>
                     </div>
@@ -322,7 +322,7 @@ function DesktopReview({
                     <ul className="space-y-0.5">
                       {selected.map((x) => (
                         <li key={x.id} className="group flex items-center gap-2.5">
-                          <ServiceIconTile kind={serviceKind(x)} icon={x.icon} photo={x.photo} framed size="sm" className="!h-7 !w-7 shrink-0 self-center" />
+                          {selected.length > 1 ? <ServiceIconTile kind={serviceKind(x)} icon={x.icon} photo={x.photo} framed size="sm" className="!h-7 !w-7 shrink-0 self-center" /> : null}
                           <span className="min-w-0 truncate font-display text-[1.45rem] leading-tight">{x.name}</span>
                           {selected.length > 1 ? (
                             <button
@@ -346,7 +346,7 @@ function DesktopReview({
                       {formatDuration(totalMinutes)}
                       {STYLISTS.length ? ` · ${stylistLabel(draft.staffId, draft.serviceIds)}` : ""}
                     </div>
-                    <Link to="/time" className="mt-1 inline-block text-[0.88rem] text-bronze underline underline-offset-4">
+                    <Link to="/time" className="mt-1 inline-block whitespace-nowrap text-[0.88rem] text-bronze underline underline-offset-4">
                       Change time
                     </Link>
                   </div>

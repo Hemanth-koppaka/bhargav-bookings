@@ -18,7 +18,7 @@ type PersistedBreaks = Record<string, { start: string; end: string }[]>;
 
 // Numbers the salon has retired: never shown anywhere on the site, whatever
 // older saved settings or wording still contain.
-const RETIRED_NUMBERS = ["9642260785"];
+const RETIRED_NUMBERS = ["9642260785", "8125391998"];
 const RETIRED = new RegExp(
   RETIRED_NUMBERS.map((n) => `(?:\\+?91[\\s-]*)?${n.slice(0, 5)}[\\s-]*${n.slice(5)}`).join("|"),
   "g",

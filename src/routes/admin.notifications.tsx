@@ -16,6 +16,7 @@ import {
 } from "@/lib/admin-notify.functions";
 import type { NotifySettings } from "@/lib/notify/service.server";
 import { cn } from "@/lib/utils";
+import { PhoneAlertsPanel } from "@/components/phone-alerts";
 
 export const Route = createFileRoute("/admin/notifications")({
   head: () => ({
@@ -143,6 +144,7 @@ function NotificationsScreen() {
             </div>
           </Panel>
 
+          <PhoneAlertsPanel />
           <EmailSettings s={s} info={info} set={set} />
           <TestPanel dirty={dirty} />
           <MessageLog />

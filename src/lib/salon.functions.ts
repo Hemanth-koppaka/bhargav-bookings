@@ -121,9 +121,25 @@ async function requestOrigin(): Promise<string> {
   }
 }
 
-/** Booking notifications run after the booking is saved and never affect it. */
-const notify = async (...a: Parameters<typeof import("./notify/service.server").notifySoon>) =>
-  (await import("./notify/service.server")).notifySoon(...a).catch(() => undefined);
+/**
+ * Booking notifications run after the booking is saved and never affect it.
+ * A guest's own booking, move or cancellation also pops up on the salon's
+ * phones (free web push), never waiting more than a few seconds.
+ */
+const notify = async (...a: Parameters<typeof import("./notify/service.server").notifySoon>) => {
+  const [reference, event, ctx] = a;
+  const phone =
+    ctx?.actor === "guest"
+      ? Promise.race([
+          import("./push.server").then((P) => P.pushBookingEvent(reference, event)),
+          new Promise((r) => setTimeout(r, 5000)),
+        ]).catch(() => undefined)
+      : Promise.resolve();
+  await Promise.all([
+    (await import("./notify/service.server")).notifySoon(...a).catch(() => undefined),
+    phone,
+  ]);
+};
 
 export const createBooking = createServerFn({ method: "POST" })
   .inputValidator((d) => bookingInput.parse(d))

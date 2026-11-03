@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { AdminShell, Panel, StatusPill, TinyButton } from "@/components/admin";
 import { AreaTrend, DASH, Donut, StackedBars } from "@/components/dash-charts";
+import { PhoneAlertsNudge } from "@/components/phone-alerts";
 import {
   BlockTimeDialog,
   BookingDrawer,
@@ -165,6 +166,8 @@ function TodayScreen() {
       }
     >
       <LoadState loading={loading && !data} error={error} onRetry={reload} />
+
+      <PhoneAlertsNudge />
 
       {/* phones and tablets: the other quick actions, one tap away */}
       <div className="mb-4 grid grid-cols-3 gap-2 lg:hidden">
