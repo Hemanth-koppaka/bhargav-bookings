@@ -2,14 +2,19 @@
 // pocket) cut into the reserved chair lighting up. Both shots and their own
 // sound are joined offline into one file, with the transition (zoom push,
 // warm light flash, whoosh) baked in so picture and sound never drift apart.
-// Plays with sound when the guest and the salon have sound on; if the phone
-// won't allow sound it plays silently. Always skippable; never blocks the booking.
+//
+// Phones only let a page start a video (and its sound) from a tap, and some
+// (iPhone Low Power Mode, Android Data Saver) refuse even a silent one. So the
+// guest's own tap on "Confirm booking" readies the film and the logo's sound
+// (primeBookingFilm), and the confirmation page plays those same, already
+// allowed elements by themselves. Tap anywhere to skip; never blocks the booking.
 import { useEffect, useRef, useState } from "react";
 import { sfx } from "@/lib/sfx";
 
 export const FILM_SRC = "/media/booking-film.mp4";
 export const FILM_WEBM = "/media/booking-film.webm";
 export const FILM_POSTER = "/media/booking-film-poster.webp";
+const STING_SRC = "/media/logo-sting.mp3";
 
 const CHAIR_AT = 9.75; // s: the cut into the chair
 const TEXT_IN = 11.0; // s: "Your chair is being reserved"
@@ -17,15 +22,71 @@ const TEXT_OUT = 14.2;
 const EXIT_BEFORE_END = 0.5; // s: start the push into the confirmation
 const EXIT_MS = 480;
 
-let warm: HTMLVideoElement | null = null;
-/** Starts downloading the film ahead of time (e.g. on the review page). */
+// one film and one logo sound per visit, shared from the review page to the
+// confirmation page so the permission from the guest's tap carries over
+let film: HTMLVideoElement | null = null;
+let sting: HTMLAudioElement | null = null;
+
+function filmElement() {
+  if (!film) {
+    const v = (film = document.createElement("video"));
+    v.preload = "auto";
+    v.muted = true;
+    v.playsInline = true;
+    v.setAttribute("playsinline", "");
+    v.setAttribute("webkit-playsinline", "");
+    v.disablePictureInPicture = true;
+    v.poster = FILM_POSTER;
+    v.src = v.canPlayType("video/mp4") ? FILM_SRC : FILM_WEBM;
+    v.load();
+  }
+  return film;
+}
+function stingElement() {
+  if (!sting) {
+    sting = new Audio(STING_SRC);
+    sting.preload = "auto";
+    sting.load();
+  }
+  return sting;
+}
+
+/** Starts downloading the film and the logo sound ahead of time (the review page). */
 export function warmBookingFilm() {
-  if (warm) return;
-  const v = (warm = document.createElement("video"));
-  v.preload = "auto";
-  v.muted = true;
-  v.src = v.canPlayType("video/mp4") ? FILM_SRC : FILM_WEBM;
-  v.load();
+  filmElement();
+  stingElement();
+}
+
+/** Start-and-stop inside the guest's tap: the phone then lets them play later by themselves. */
+function prime(el: HTMLMediaElement, withSound: boolean) {
+  el.muted = !withSound;
+  try {
+    const p = el.play();
+    el.pause();
+    p?.catch(() => {});
+    el.currentTime = 0;
+  } catch {
+    /* nothing to ready; the film still tries to play */
+  }
+}
+
+/** Call synchronously from the "Confirm booking" tap, before anything is awaited. */
+export function primeBookingFilm() {
+  if (typeof document === "undefined") return;
+  prime(filmElement(), sfx.active);
+  if (sfx.active) prime(stingElement(), true);
+}
+
+/** The logo's sound as it appears after the film. False if it couldn't play. */
+export function playLogoSting(): boolean {
+  if (!sfx.active || !sting) return false;
+  const a = sting;
+  a.muted = false;
+  a.volume = 1;
+  a.currentTime = 0;
+  const p = a.play();
+  p?.catch(() => {});
+  return true;
 }
 
 export function BookingFilm({
@@ -42,12 +103,10 @@ export function BookingFilm({
   onDone: () => void;
   className?: string;
 }) {
-  const video = useRef<HTMLVideoElement>(null);
+  const host = useRef<HTMLDivElement>(null);
+  const video = useRef<HTMLVideoElement | null>(null);
   const [phase, setPhase] = useState<"enter" | "play" | "exit">("enter");
   const [text, setText] = useState<"hidden" | "in" | "out">("hidden");
-  // the phone refused to start the film by itself (iPhone Low Power Mode,
-  // Android Data Saver…): show a play button instead of skipping it
-  const [blocked, setBlocked] = useState(false);
   const done = useRef(onDone);
   done.current = onDone;
   const chair = useRef(onChair);
@@ -60,8 +119,13 @@ export function BookingFilm({
   };
 
   useEffect(() => {
-    const v = video.current;
-    if (!v) return finish();
+    const box = host.current;
+    if (!box) return finish();
+    const v = filmElement();
+    video.current = v;
+    v.setAttribute("aria-label", "Bhargav getting ready, then the reserved chair at Hair by Bhargav");
+    v.className = "absolute inset-0 h-full w-full object-cover will-change-transform";
+    box.prepend(v);
     let begun = false;
     let atChair = false;
     let exiting = false;
@@ -93,23 +157,19 @@ export function BookingFilm({
     const ended = () => {
       if (!exiting) finish();
     };
-    v.addEventListener("playing", begin, { once: true });
+    v.addEventListener("playing", begin);
     v.addEventListener("ended", ended);
     // if the film can't start at all (very slow connection), go straight to
     // the confirmation; the guest can also tap to skip while it loads
-    let refused = false;
-    const giveUp = window.setTimeout(() => !begun && !refused && finish(), 7000);
+    const giveUp = window.setTimeout(() => !begun && finish(), 7000);
 
+    v.currentTime = 0;
     v.muted = !sfx.active;
     v.volume = 1;
     v.play().catch(() => {
-      // the phone won't play sound without a tap: play the picture silently
+      // sound not allowed: play the picture silently
       v.muted = true;
-      v.play().catch(() => {
-        // it won't play at all without a tap: wait for the guest to press play
-        refused = true;
-        setBlocked(true);
-      });
+      v.play().catch(() => finish());
     });
     return () => {
       window.clearTimeout(giveUp);
@@ -118,8 +178,26 @@ export function BookingFilm({
       v.removeEventListener("playing", begin);
       v.removeEventListener("ended", ended);
       v.pause();
+      v.remove();
     };
   }, []);
+
+  const filmStyle =
+    phase === "enter"
+      ? { transform: "scale(1.04)", filter: "brightness(0.8)", opacity: "0" }
+      : phase === "play"
+        ? { transform: "none", filter: "brightness(1)", opacity: "1" }
+        : // leaving: a gentle forward push, softening into the confirmation
+          { transform: "scale(1.07)", filter: "blur(7px) brightness(0.55)", opacity: "0" };
+  const transition =
+    phase === "exit"
+      ? `transform ${EXIT_MS}ms cubic-bezier(0.4,0,0.7,0.2), filter ${EXIT_MS}ms ease-in, opacity ${EXIT_MS}ms ease-in`
+      : "transform 420ms cubic-bezier(0.16,1,0.3,1), filter 420ms ease-out, opacity 300ms ease-out";
+  useEffect(() => {
+    const v = video.current;
+    if (v) Object.assign(v.style, filmStyle, { transition });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   // skipping: fade the sound rather than cutting it
   useEffect(() => {
@@ -138,63 +216,8 @@ export function BookingFilm({
     return () => cancelAnimationFrame(raf);
   }, [stopping]);
 
-  const filmStyle =
-    phase === "enter"
-      ? { transform: "scale(1.04)", filter: "brightness(0.8)", opacity: blocked ? 1 : 0 }
-      : phase === "play"
-        ? { transform: "none", filter: "brightness(1)", opacity: 1 }
-        : // leaving: a gentle forward push, softening into the confirmation
-          { transform: "scale(1.07)", filter: "blur(7px) brightness(0.55)", opacity: 0 };
-
   return (
-    <div className={"overflow-hidden bg-[#0B0B0B] " + (className ?? "relative")}>
-      <video
-        ref={video}
-        poster={FILM_POSTER}
-        muted
-        playsInline
-        preload="auto"
-        disablePictureInPicture
-        aria-label="Bhargav getting ready, then the reserved chair at Hair by Bhargav"
-        className="absolute inset-0 h-full w-full object-cover will-change-transform"
-        style={{
-          ...filmStyle,
-          transition:
-            phase === "exit"
-              ? `transform ${EXIT_MS}ms cubic-bezier(0.4,0,0.7,0.2), filter ${EXIT_MS}ms ease-in, opacity ${EXIT_MS}ms ease-in`
-              : "transform 420ms cubic-bezier(0.16,1,0.3,1), filter 420ms ease-out, opacity 300ms ease-out",
-        }}
-      >
-        <source src={FILM_SRC} type="video/mp4" />
-        <source src={FILM_WEBM} type="video/webm" />
-      </video>
-      {blocked && phase === "enter" ? (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 bg-[#0B0B0B]/40">
-          <button
-            type="button"
-            aria-label="Play the film"
-            onClick={(e) => {
-              e.stopPropagation(); // a tap elsewhere skips the film
-              const v = video.current;
-              if (!v) return finish();
-              setBlocked(false);
-              v.muted = !sfx.active;
-              v.play().catch(() => {
-                v.muted = true;
-                v.play().catch(() => finish());
-              });
-            }}
-            className="press flex h-20 w-20 items-center justify-center rounded-full border border-[#C9A96A]/60 bg-black/45 backdrop-blur-sm"
-          >
-            <svg viewBox="0 0 24 24" className="ml-1 h-8 w-8 fill-[#F4EEE5]" aria-hidden>
-              <path d="M8 5.5v13l10.5-6.5z" />
-            </svg>
-          </button>
-          <span className="text-[0.62rem] uppercase tracking-[0.3em] text-[#E8E1D8]/70">
-            Play · or tap anywhere to skip
-          </span>
-        </div>
-      ) : null}
+    <div ref={host} className={"overflow-hidden bg-[#0B0B0B] " + (className ?? "relative")}>
       {/* a quiet title, like a film card: never over the chair */}
       <div className="pointer-events-none absolute inset-x-0 bottom-[max(3.5%,env(safe-area-inset-bottom))] z-10 flex flex-col items-center px-6 pb-2 text-center">
         <p
