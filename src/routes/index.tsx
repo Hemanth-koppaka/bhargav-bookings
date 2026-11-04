@@ -290,7 +290,7 @@ function MobileHome() {
         <Link
           to="/artist"
           className="press group relative min-h-[120px] flex-1 overflow-hidden rounded-xl bg-ink"
-          aria-label="Meet D. Bhargav"
+          aria-label="Meet B. Bhargav"
         >
           <img
             src={founder.url}
@@ -436,7 +436,7 @@ function DesktopHome() {
         <Link
           to="/artist"
           className="group relative h-[clamp(420px,64svh,640px)] overflow-hidden rounded-xl bg-ink shadow-[0_40px_80px_-48px_color-mix(in_oklab,var(--ink)_80%,transparent)]"
-          aria-label="Meet D. Bhargav — read the story"
+          aria-label="Meet B. Bhargav — read the story"
         >
           <img
             src={founder.url}
