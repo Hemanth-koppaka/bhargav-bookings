@@ -92,8 +92,9 @@ export function BookingFilm({
     };
     v.addEventListener("playing", begin, { once: true });
     v.addEventListener("ended", ended);
-    // if the film can't start quickly, go straight to the confirmation
-    const giveUp = window.setTimeout(() => !begun && finish(), 2500);
+    // if the film can't start at all (very slow connection), go straight to
+    // the confirmation; the guest can also tap to skip while it loads
+    const giveUp = window.setTimeout(() => !begun && finish(), 7000);
 
     v.muted = !sfx.active;
     v.volume = 1;
