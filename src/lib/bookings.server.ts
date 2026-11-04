@@ -231,6 +231,8 @@ export async function insertBooking(
 
 /** Most upcoming online bookings one phone number may hold (more: call the salon). */
 export const MAX_UPCOMING_PER_PHONE = 3;
+/** No-shows in the last 12 months after which a number books by phone only. */
+export const MAX_NO_SHOWS = 2;
 /** Most online bookings from one internet connection per hour. */
 export const MAX_PER_HOUR_PER_CONNECTION = 6;
 
@@ -290,6 +292,27 @@ async function guestGuard(sb: Sb, b: NewBooking, minutes: number): Promise<Booke
       return {
         ok: false,
         error: `You already have a booking at this time (${r["reference"] as string}). Change it in Manage booking, or call us.`,
+      };
+  }
+  // repeat no-shows book by calling the salon (who can still book them in)
+  {
+    const since = new Date(now.getTime() - 365 * 86_400_000).toISOString().slice(0, 10);
+    const { data: past } = await sb
+      .from("bookings")
+      .select("customer, meta")
+      .gte("date", since)
+      .lt("date", today)
+      .ilike("customer->>phone" as never, `%${phone.slice(-4)}%`)
+      .limit(500);
+    const noShows = ((past ?? []) as Record<string, unknown>[]).filter(
+      (r) =>
+        last10(((r["customer"] as { phone?: string }) ?? {}).phone ?? "") === phone &&
+        (r["meta"] as Record<string, unknown> | null)?.["status"] === "no-show",
+    ).length;
+    if (noShows >= MAX_NO_SHOWS)
+      return {
+        ok: false,
+        error: "We couldn't book this online. Please call us and we'll find you a time.",
       };
   }
   if (mine.length >= MAX_UPCOMING_PER_PHONE)

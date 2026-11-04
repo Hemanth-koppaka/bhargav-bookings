@@ -437,6 +437,28 @@ export function BookingDrawer({
                     ) : null}
                   </div>
                   {b.customer.notes ? <p className="mt-3 text-[0.85rem]">Guest note: “{b.customer.notes}”</p> : null}
+                  {/* their track record (other bookings): helps spot repeat no-shows */}
+                  {data?.record ? (
+                    <div
+                      className={cn(
+                        "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded px-3 py-2 text-[0.8rem]",
+                        data.record.noShows ? "bg-destructive/[0.07] text-destructive" : "bg-foreground/[0.04] text-muted-foreground",
+                      )}
+                    >
+                      <span>
+                        {data.record.visits} {data.record.visits === 1 ? "visit" : "visits"}
+                      </span>
+                      <span aria-hidden>·</span>
+                      <span className={data.record.noShows ? "font-medium" : ""}>
+                        {data.record.noShows} {data.record.noShows === 1 ? "no-show" : "no-shows"}
+                      </span>
+                      <span aria-hidden>·</span>
+                      <span>
+                        {data.record.lateCancels} late {data.record.lateCancels === 1 ? "cancellation" : "cancellations"}
+                      </span>
+                      {data.record.noShows >= 2 ? <span className="w-full text-[0.74rem]">Books by phone only (2+ no-shows this year).</span> : null}
+                    </div>
+                  ) : null}
                   {data?.customerNotes ? (
                     <p className="mt-2 rounded bg-champagne/15 px-3 py-2 text-[0.85rem]">Internal: {data.customerNotes}</p>
                   ) : null}
