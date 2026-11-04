@@ -106,6 +106,23 @@ const bookingInput = z.object({
   staffId: z.string().uuid().optional(),
 });
 
+/**
+ * A scrambled code for the guest's internet connection (never the address
+ * itself), used only to limit bookings per hour from one connection.
+ */
+async function connectionCode(): Promise<string> {
+  try {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const h = getRequest().headers;
+    const ip = (h.get("cf-connecting-ip") ?? h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0] ?? "").trim();
+    if (!ip) return "";
+    const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`hb-salon:${ip}`)));
+    return Array.from(d.slice(0, 8), (x) => x.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return "";
+  }
+}
+
 /** The site address the request came from (for links in messages); "" if unknown. */
 async function requestOrigin(): Promise<string> {
   try {
@@ -155,6 +172,7 @@ export const createBooking = createServerFn({ method: "POST" })
         notifyConsent: Boolean(data.consent),
         siteOrigin: await requestOrigin(),
         staffChoice: data.staffId ?? "any",
+        meta: { ip: await connectionCode() },
       },
       { staff: false, ...(data.photos?.length ? { photos: data.photos } : {}) },
     );
@@ -246,6 +264,17 @@ async function owns(r: { reference: string; customer: unknown }, auth: { phone?:
     return checkManageToken(r.reference, auth.token);
   }
   return false;
+}
+
+/** The appointment has ended (or was cancelled): nothing left to change. */
+function visitOverRow(row: Record<string, unknown>) {
+  const meta = (row["meta"] ?? {}) as Record<string, unknown>;
+  if (row["status"] === "cancelled" || ["cancelled", "no-show", "completed"].includes(meta["status"] as string)) return true;
+  const now = new Date(Date.now() + 330 * 60_000);
+  const today = now.toISOString().slice(0, 10);
+  const minute = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const end = (row["time"] as number) + ((row["duration_minutes"] as number | null) ?? ((row["slots"] as number) ?? 1) * 30);
+  return (row["date"] as string) < today || ((row["date"] as string) === today && end <= minute);
 }
 
 /** A finished, uncancelled visit that hasn't been rated yet (salon time, UTC+5:30). */
@@ -367,7 +396,13 @@ export const findMyBookings = createServerFn({ method: "POST" })
             : null,
           meta: {},
           customer: { ...b.customer, phone: maskPhone(b.customer.phone), email: "" },
-          token: await manageToken(b.reference),
+          // Knowing a phone number is not proof of being that guest: a phone
+          // lookup shows upcoming bookings view-only. Changing or cancelling
+          // needs the booking ID (from the guest's own confirmation). Finished
+          // visits keep a key so they can still be rated.
+          ...(isPhone && !visitOverRow(row) ? { readOnly: true as const } : { token: await manageToken(b.reference) }),
+          // view-only: the booking ID stays the guest's secret too
+          ...(isPhone && !visitOverRow(row) ? { reference: `${b.reference.slice(0, 5)}••••` } : {}),
         };
       }),
     );

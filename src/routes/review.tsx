@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { CONTENT } from "@/lib/site-content";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowUpRight, Lock, MapPin, Pencil, X } from "lucide-react";
 import { Page, PrimaryAction, Screen, StepHeader, StepIntro, StickyBar } from "@/components/screen";
@@ -69,9 +69,11 @@ function ReviewScreen() {
   const [pledged, setPledged] = useState(false);
   const [nudge, setNudge] = useState(0);
 
+  // a second tap in the same instant never sends a second booking
+  const sending = useRef(false);
   if (!ready || !draft.customer || !draft.date || draft.time == null) return null;
   const confirm = async () => {
-    if (saving) return;
+    if (saving || sending.current) return;
     // services changed after the time was chosen: check the time again first
     if (draft.timeStale) {
       navigate({ to: "/time" });
@@ -91,8 +93,10 @@ function ReviewScreen() {
       return;
     }
     setSaving(true);
+    sending.current = true;
     setSaveError("");
     const res = await commitBooking();
+    sending.current = false;
     setSaving(false);
     if ("error" in res) {
       haptic(30);

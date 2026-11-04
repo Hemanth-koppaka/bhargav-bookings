@@ -118,6 +118,12 @@ export async function insertBooking(
       ok: false,
       error: "One of the selected services is no longer offered. Please choose again.",
     };
+  // online guests: no accidental doubles, no overlapping bookings of their own,
+  // and limits that stop prank or spam bookings filling the diary
+  if (!options.staff) {
+    const g = await guestGuard(sb, b, q.minutes);
+    if (g) return g;
+  }
   const choice = b.staffChoice && b.staffChoice !== "any" ? b.staffChoice : "any";
   const checkOpts = { staff: options.staff, serviceIds: b.serviceIds, choice };
   let check = await E.checkTime(b.date, b.time, q, rules, checkOpts);
@@ -221,6 +227,88 @@ export async function insertBooking(
     staffId,
     staffName,
   };
+}
+
+/** Most upcoming online bookings one phone number may hold (more: call the salon). */
+export const MAX_UPCOMING_PER_PHONE = 3;
+/** Most online bookings from one internet connection per hour. */
+export const MAX_PER_HOUR_PER_CONNECTION = 6;
+
+type Booked = {
+  ok: true;
+  reference: string;
+  price: number;
+  minutes: number;
+  services: { name: string; price: number; minutes: number }[];
+  staffId: string | null;
+  staffName: string | null;
+};
+
+/**
+ * Checks an online guest's booking before it's made:
+ *  • the same booking sent twice (double tap, retry after a dropped
+ *    connection) within 15 minutes returns the booking already made;
+ *  • a different booking overlapping one of their own is refused;
+ *  • at most MAX_UPCOMING_PER_PHONE upcoming bookings per phone number;
+ *  • at most MAX_PER_HOUR_PER_CONNECTION bookings an hour from one connection.
+ * Returns the response to send, or null to carry on.
+ */
+async function guestGuard(sb: Sb, b: NewBooking, minutes: number): Promise<Booked | { ok: false; error: string } | null> {
+  const phone = last10(b.customer.phone);
+  const now = new Date(Date.now() + 330 * 60_000);
+  const today = now.toISOString().slice(0, 10);
+  const { data: rows } = await sb
+    .from("bookings")
+    .select("*")
+    .gte("date", today)
+    .neq("status", "cancelled")
+    .ilike("customer->>phone" as never, `%${phone.slice(-4)}%`);
+  const mine = ((rows ?? []) as Record<string, unknown>[]).filter((r) => {
+    const st = ((r["meta"] as Record<string, unknown> | null)?.["status"] as string) ?? "";
+    return last10(((r["customer"] as { phone?: string }) ?? {}).phone ?? "") === phone && !["cancelled", "no-show", "completed"].includes(st);
+  });
+  const sameIds = (r: Record<string, unknown>) =>
+    [...((r["service_ids"] as string[]) ?? [])].sort().join(",") === [...b.serviceIds].sort().join(",");
+  for (const r of mine) {
+    if (r["date"] !== b.date) continue;
+    const start = r["time"] as number;
+    const end = (r["ends_at_minute"] as number | null) ?? start + ((r["duration_minutes"] as number | null) ?? 30);
+    if (start === b.time && sameIds(r) && Date.now() - Date.parse(r["created_at"] as string) < 15 * 60_000) {
+      // the same booking again: answer with the one already made
+      const snap = (r["services_snapshot"] as { name: string; price: number; minutes?: number }[] | null) ?? [];
+      return {
+        ok: true,
+        reference: r["reference"] as string,
+        price: (r["price_total"] as number | null) ?? snap.reduce((n, x) => n + x.price, 0),
+        minutes: (r["duration_minutes"] as number | null) ?? minutes,
+        services: snap.map((x) => ({ name: x.name, price: x.price, minutes: x.minutes ?? 30 })),
+        staffId: (r["staff_id"] as string | null) ?? ((r["meta"] as Record<string, unknown> | null)?.["staff_id"] as string | null) ?? null,
+        staffName: ((r["meta"] as Record<string, unknown> | null)?.["staff_name"] as string | null) ?? null,
+      };
+    }
+    if (start < b.time + minutes && b.time < end)
+      return {
+        ok: false,
+        error: `You already have a booking at this time (${r["reference"] as string}). Change it in Manage booking, or call us.`,
+      };
+  }
+  if (mine.length >= MAX_UPCOMING_PER_PHONE)
+    return {
+      ok: false,
+      error: `You already have ${mine.length} upcoming bookings. Please call us to book more.`,
+    };
+  const ip = (b.meta?.["ip"] as string | undefined) ?? "";
+  if (ip) {
+    const since = new Date(Date.now() - 3_600_000).toISOString();
+    const { data: recent } = await sb
+      .from("bookings")
+      .select("reference")
+      .eq("meta->>ip" as never, ip)
+      .gte("created_at", since);
+    if ((recent ?? []).length >= MAX_PER_HOUR_PER_CONNECTION)
+      return { ok: false, error: "Too many bookings from this connection. Please try again later, or call us." };
+  }
+  return null;
 }
 
 /** Applies a patch; columns from the Admin OS migration are dropped if it isn't applied yet. */

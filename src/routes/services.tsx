@@ -266,13 +266,14 @@ function ServicesScreen() {
                         }}
                         aria-pressed={on}
                         className={
-                          "press group grid w-full grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-3.5 rounded-md border px-4 py-4 text-left max-[374px]:gap-x-3 max-[374px]:px-3.5 " +
+                          "press group grid w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-md border px-3.5 py-3 text-left max-[374px]:gap-x-2.5 max-[374px]:px-3 " +
                           (on
                             ? "border-foreground/70 bg-card shadow-[0_10px_28px_-18px_color-mix(in_oklab,var(--ink)_45%,transparent)]"
                             : "border-foreground/8 bg-card/60 hover:border-foreground/25")
                         }
                       >
-                        {/* column 1: the icon, a fixed 56px square, centred on the content */}
+                        {/* compact: icon · name and details · price and action on one row;
+                            only a description makes the card taller */}
                         <ServiceIconTile
                           kind={serviceKind(x)}
                           photo={x.photo}
@@ -280,28 +281,25 @@ function ServicesScreen() {
                           framed={listHasPhotos}
                           active={on}
                           size="sm"
-                          className="self-center"
+                          className="!h-12 !w-12 self-center"
                         />
-                        {/* column 2: name, description, details, then price and action */}
                         <span className="min-w-0">
-                          <span className="block text-[1rem] leading-snug">{x.name}</span>
+                          <span className="block text-[0.98rem] leading-snug">{x.name}</span>
                           {x.category ? (
-                            <span className="mt-0.5 block text-[0.66rem] uppercase tracking-[0.2em] text-bronze">
+                            <span className="mt-0.5 block text-[0.64rem] uppercase tracking-[0.2em] text-bronze">
                               {x.category}
                             </span>
                           ) : null}
                           {x.note ? (
-                            <span className="mt-1 block text-[0.8rem] leading-[1.55] text-muted-foreground">
+                            <span className="mt-0.5 block text-[0.78rem] leading-[1.5] text-muted-foreground">
                               {x.note}
                             </span>
                           ) : null}
-                          <ServiceMeta rating={x.rating} popular={popular.has(x.id)} minutes={x.minutes} className="mt-1.5 text-[0.75rem]" />
-                          <span className="mt-2.5 flex items-center justify-between gap-3">
-                            <span className="whitespace-nowrap text-[1.05rem] tabular-nums">
-                              {inr(x.price)}
-                            </span>
-                            <ActionDot on={on} className="h-10 w-10" />
-                          </span>
+                          <ServiceMeta rating={x.rating} popular={popular.has(x.id)} minutes={x.minutes} className="mt-1 text-[0.74rem]" />
+                        </span>
+                        <span className="flex items-center gap-2.5 self-center">
+                          <span className="whitespace-nowrap text-[0.98rem] tabular-nums">{inr(x.price)}</span>
+                          <ActionDot on={on} className="h-9 w-9" />
                         </span>
                       </button>
                     </li>

@@ -131,11 +131,18 @@ const BY_ICON: Record<string, MotionKind> = {
   ethereal: "signature",
 };
 
+/**
+ * Motions taken out: the light sweeps that read as a "scan" over the icon
+ * (shave, keratin, colour, clean-up, D-tan, signature/packages) and the weaker
+ * ones (face pack, colour protect). Those icons simply stay still.
+ */
+const OFF: ReadonlySet<MotionKind> = new Set<MotionKind>(["shave", "keratin", "colour", "cleanup", "detan", "pack", "protect", "signature"]);
+
 /** The motion for a service, from its own icon file (none for an unknown icon). */
 export function motionFor(icon: string | undefined): MotionKind | null {
   if (!icon) return null;
   const slug = icon.split("/").pop()?.replace(/\.[a-z0-9]+(\?.*)?$/i, "") ?? "";
-  if (BY_ICON[slug]) return BY_ICON[slug]!;
+  if (BY_ICON[slug]) return OFF.has(BY_ICON[slug]!) ? null : BY_ICON[slug]!;
   if (slug.startsWith("waxing-")) return "wax";
   return null;
 }

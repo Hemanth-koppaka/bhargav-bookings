@@ -50,6 +50,8 @@ export type Booking = {
   createdAt: string;
   /** Manage key from a lookup by booking ID or phone (the phone isn't sent back). */
   token?: string;
+  /** Found by phone number only: view-only until the booking ID is entered. */
+  readOnly?: boolean;
   /** From the salon: a finished visit the guest hasn't rated yet. */
   rateable?: boolean;
   /** What was booked, as stored by the salon (never re-read from today's menu). */
@@ -232,12 +234,34 @@ export function BookingProvider({ children }: { children: ReactNode }) {
             customer: r.customer,
             status: r.status,
             createdAt: r.createdAt,
-            token: r.token,
+            ...("token" in r && r.token ? { token: r.token } : {}),
+            ...("readOnly" in r && r.readOnly ? { readOnly: true } : {}),
             rateable: r.rateable,
             ...(r.snapshot ? { snapshot: r.snapshot } : {}),
           }));
           const refs = new Set(found.map((f) => f.reference));
-          setBookings((b) => [...found, ...b.filter((x) => !refs.has(x.reference))]);
+          setBookings((b) => {
+            // a booking made (or unlocked) on this device keeps its full access
+            const merged = found.map((f) => {
+              // view-only results carry a hidden ID: match this device's own copy by its appointment
+              const same = (x: Booking) =>
+                f.readOnly
+                  ? x.date === f.date && x.time === f.time && x.reference.slice(0, 5) === f.reference.slice(0, 5)
+                  : x.reference === f.reference;
+              const mine = b.find((x) => same(x) && !x.readOnly);
+              const canManage = mine && (mine.token || !mine.customer.phone.includes("•"));
+              if (!canManage) return f;
+              const { readOnly: _ro, ...rest } = f;
+              return {
+                ...rest,
+                reference: mine.reference,
+                customer: { ...f.customer, phone: mine.customer.phone },
+                ...(mine.token ? { token: mine.token } : {}),
+              };
+            });
+            const kept = new Set([...refs, ...merged.map((m) => m.reference)]);
+            return [...merged, ...b.filter((x) => !kept.has(x.reference))];
+          });
           return found;
         } catch {
           return null;

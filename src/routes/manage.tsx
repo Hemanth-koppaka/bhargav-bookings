@@ -428,7 +428,17 @@ function BookingPanel({
       {mode === "view" && !visitOver(booking, minutesNeeded) ? <AddToCalendar booking={booking} tone="light" className="mt-6" /> : null}
       {mode === "view" && !visitOver(booking, minutesNeeded) ? <RemindMe booking={booking} className="mt-3" /> : null}
 
-      {cancelled ? null : mode === "view" ? (
+      {cancelled ? null : mode === "view" && booking.readOnly && !visitOver(booking, minutesNeeded) ? (
+        // found by phone number only: changes need the booking ID
+        <p className="mt-6 rounded-md border border-hairline bg-card px-4 py-3.5 text-[0.88rem] leading-relaxed text-muted-foreground">
+          For your security, a phone number alone can't change a booking. To reschedule or cancel, look it up with the
+          booking ID from your confirmation (it starts <b className="font-medium text-foreground">{booking.reference.slice(0, 5)}</b>), or call us on{" "}
+          <a href={`tel:${BUSINESS.phones[0]}`} className="text-bronze underline underline-offset-4">
+            {BUSINESS.phones[0]}
+          </a>
+          .
+        </p>
+      ) : mode === "view" ? (
         <ChangeWindow booking={booking}>
           {(canMove, canCancel) => (
             <div className="mt-6 grid gap-2.5 sm:grid-cols-2">

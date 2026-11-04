@@ -168,7 +168,7 @@ export function BookingDock({
               className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
             >
               <span className="tap-icon relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-foreground/12">
-                <CalendarCheck2 key={selected.length} className="icon-tap h-[18px] w-[18px]" strokeWidth={1.1} />
+                <CalendarCheck2 key={`icon-${selected.length}`} className="icon-tap h-[18px] w-[18px]" strokeWidth={1.1} />
                 <span
                   key={selected.length}
                   className="pop-in absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-bronze px-1 text-[0.62rem] text-ivory tabular-nums"
