@@ -845,3 +845,23 @@ html:not(.intro-seen) .after-intro > *:nth-child(n + 6) { animation-delay: 2.75s
 .desk-pill [data-sfx="primary"] { height: 3rem; min-width: 12rem; border-radius: 0.85rem; padding-inline: 1.5rem; font-size: 0.92rem; }
 .desk-pill > .border-l, .desk-pill .lg\:border-x { border-color: var(--hairline); }
 .desk-pill .pl-8 { padding-left: 1.25rem; }
+
+/* Scrollbars: on laptops and desktops (mouse or trackpad) a slim, always
+   visible capsule (warm beige track, muted bronze thumb, 5px) so guests see
+   there is more below; phones and tablets keep their own native scrolling.
+   It's the browser's own scrollbar, restyled, so dragging, the mouse wheel,
+   the trackpad and keyboard scrolling all work as usual. */
+@layer base {
+@media (pointer: fine) {
+  html,
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--bronze) 70%, transparent) color-mix(in oklab, var(--champagne) 18%, var(--background));
+  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: color-mix(in oklab, var(--champagne) 18%, var(--background)); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--bronze) 70%, transparent); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--bronze); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+}
+}
