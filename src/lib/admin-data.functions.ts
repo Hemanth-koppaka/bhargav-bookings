@@ -216,7 +216,10 @@ export const adminDashboard = createServerFn({ method: "POST" })
     const done30 = window30.filter((b) => b.status === "completed");
 
     const live = todays.filter(isLive);
+    const { journey } = await import("./visits.server");
+    const visits = await journey(7).catch(() => null);
     return {
+      visits,
       today,
       nowMinute: now.minute,
       plan,
@@ -379,8 +382,39 @@ export const adminBooking = createServerFn({ method: "POST" })
       .eq("entity_id", data.reference)
       .order("at", { ascending: false })
       .limit(20);
-    return { booking: b, customerNotes, activity: ((log ?? []) as { at: string; summary: string }[]) };
+    const record = await reliability(sb, b.customer.phone, b.reference);
+    return { booking: b, customerNotes, activity: ((log ?? []) as { at: string; summary: string }[]), record };
   });
+
+/**
+ * A guest's track record by phone number (other bookings only): finished
+ * visits, no-shows, and late cancellations (cancelled less than 2 hours
+ * before the appointment).
+ */
+async function reliability(sb: Awaited<ReturnType<typeof admin>>, phone: string, except: string) {
+  const key = phone.replace(/\D/g, "").slice(-10);
+  if (key.length < 10) return { visits: 0, noShows: 0, lateCancels: 0 };
+  const { data } = await sb
+    .from("bookings")
+    .select("reference, date, time, status, meta, customer, cancelled_at")
+    .ilike("customer->>phone" as never, `%${key.slice(-4)}%`)
+    .limit(500);
+  let visits = 0;
+  let noShows = 0;
+  let lateCancels = 0;
+  for (const r of (data ?? []) as Row[]) {
+    if (r["reference"] === except) continue;
+    if (((r["customer"] as { phone?: string } | null)?.phone ?? "").replace(/\D/g, "").slice(-10) !== key) continue;
+    const st = ((r["meta"] as Row | null)?.["status"] as string) ?? "";
+    if (st === "completed") visits++;
+    else if (st === "no-show") noShows++;
+    else if (r["status"] === "cancelled" && r["cancelled_at"]) {
+      const start = Date.parse(`${r["date"] as string}T00:00:00Z`) + ((r["time"] as number) - 330) * 60_000;
+      if (start - Date.parse(r["cancelled_at"] as string) < 2 * 3_600_000) lateCancels++;
+    }
+  }
+  return { visits, noShows, lateCancels };
+}
 
 /** Bookable times for a booking the salon is making or moving (no online-only limits). */
 export const adminAvailability = createServerFn({ method: "POST" })

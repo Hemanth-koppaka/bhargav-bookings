@@ -362,6 +362,8 @@ function TodayScreen() {
               </Panel>
             </div>
           </div>
+          {data.visits ? <JourneyCard visits={data.visits} /> : null}
+
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             <ChartCard title="Most booked services" hint="Last 30 days">
               {data.topServices.length ? (
@@ -576,5 +578,63 @@ function ChartCard({ title, hint, children }: { title: string; hint?: string; ch
       </div>
       {children}
     </section>
+  );
+}
+
+const JOURNEY: { key: "home" | "book" | "services" | "time" | "details" | "review" | "booked"; label: string }[] = [
+  { key: "home", label: "Visited the site" },
+  { key: "book", label: "Started booking" },
+  { key: "services", label: "Chose services" },
+  { key: "time", label: "Picked a time" },
+  { key: "details", label: "Entered details" },
+  { key: "review", label: "Reviewed" },
+  { key: "booked", label: "Booked" },
+];
+
+/** How far visitors get through booking (last 7 days, no cookies, no personal data). */
+function JourneyCard({ visits }: { visits: Record<string, number> }) {
+  const top = Math.max(1, ...JOURNEY.map((j) => visits[j.key] ?? 0));
+  let biggest = { at: -1, drop: 0 };
+  JOURNEY.forEach((j, i) => {
+    if (!i) return;
+    const prev = visits[JOURNEY[i - 1]!.key] ?? 0;
+    const drop = prev ? 1 - (visits[j.key] ?? 0) / prev : 0;
+    if (prev >= 5 && drop > biggest.drop) biggest = { at: i, drop };
+  });
+  return (
+    <div className="mt-5">
+      <ChartCard title="Booking journey" hint="Last 7 days · visitors who reached each step">
+        <ol className="space-y-2">
+          {JOURNEY.map((j, i) => {
+            const n = visits[j.key] ?? 0;
+            const prev = i ? (visits[JOURNEY[i - 1]!.key] ?? 0) : 0;
+            const pct = i && prev ? Math.round((n / prev) * 100) : null;
+            return (
+              <li key={j.key} className="grid grid-cols-[8.5rem_minmax(0,1fr)_4.5rem] items-center gap-3 text-[0.82rem] sm:grid-cols-[10rem_minmax(0,1fr)_5rem]">
+                <span className="truncate text-muted-foreground">{j.label}</span>
+                <span className="h-5 overflow-hidden rounded bg-foreground/[0.05]">
+                  <span
+                    className="dash-bar block h-full rounded"
+                    style={{ width: `${(n / top) * 100}%`, background: i === biggest.at ? DASH.orange : j.key === "booked" ? DASH.aqua : DASH.blue }}
+                  />
+                </span>
+                <span className="text-right tabular-nums">
+                  {n}
+                  {pct != null ? <span className="ml-1.5 text-[0.72rem] text-muted-foreground">{pct}%</span> : null}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+        {biggest.at > 0 ? (
+          <p className="mt-3 text-[0.8rem] text-muted-foreground">
+            Most people leave between <b className="font-medium text-foreground">{JOURNEY[biggest.at - 1]!.label.toLowerCase()}</b> and{" "}
+            <b className="font-medium text-foreground">{JOURNEY[biggest.at]!.label.toLowerCase()}</b> ({Math.round(biggest.drop * 100)}% stop there).
+          </p>
+        ) : (
+          <p className="mt-3 text-[0.8rem] text-muted-foreground">Counts build up as people visit. No cookies, no personal data.</p>
+        )}
+      </ChartCard>
+    </div>
   );
 }
