@@ -837,3 +837,11 @@ html:not(.intro-seen) .after-intro > *:nth-child(n + 6) { animation-delay: 2.75s
   color: var(--foreground);
 }
 @media (prefers-reduced-motion: reduce) { .sky-layer { animation: none; clip-path: none; } }
+
+/* Laptop booking summary pill: the same content, sized for a compact pill. */
+.desk-pill .text-3xl { font-size: 1.5rem; line-height: 1.1; }
+.desk-pill .text-\[1\.6rem\], .desk-pill .text-\[1\.35rem\] { font-size: 1.15rem; }
+.desk-pill .text-\[0\.95rem\], .desk-pill .text-\[1rem\] { font-size: 0.88rem; }
+.desk-pill [data-sfx="primary"] { height: 3rem; min-width: 12rem; border-radius: 0.85rem; padding-inline: 1.5rem; font-size: 0.92rem; }
+.desk-pill > .border-l, .desk-pill .lg\:border-x { border-color: var(--hairline); }
+.desk-pill .pl-8 { padding-left: 1.25rem; }
