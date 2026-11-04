@@ -2,7 +2,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  BellRing,
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -29,7 +31,7 @@ import {
 import { useBooking } from "@/lib/booking-store";
 import { YourAppointment, BookingDock } from "@/components/booking-dock";
 import { SkyReveal, skyFrom, useDaySky, useNight } from "@/components/day-arc";
-import { getAvailability } from "@/lib/salon.functions";
+import { getAvailability, joinWaitlist, pushPublicKey } from "@/lib/salon.functions";
 import type { DayAvailability } from "@/lib/engine.server";
 import {
   calendarDays,
@@ -713,12 +715,88 @@ function OtherStylistChoice({
 }
 
 /** A calm message in place of the times (closed, or nothing that fits). */
-function EmptyDay({ title, sub }: { title: string; sub: string }) {
+function EmptyDay({ title, sub, children }: { title: string; sub: string; children?: React.ReactNode }) {
   return (
     <div className="mt-6 rounded-md border border-dashed border-foreground/15 px-5 py-8 text-center">
       <p className="font-display text-[1.35rem] leading-snug">{title}</p>
       <p className="mx-auto mt-1.5 max-w-sm text-[0.88rem] text-muted-foreground">{sub}</p>
+      {children}
     </div>
+  );
+}
+
+const keyBytes = (b64: string) => {
+  const t = b64.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(t + "===".slice((t.length + 3) % 4));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+};
+
+/** A full day: "Tell me if a time opens up" (a free phone notification, first come first served). */
+function WaitForTime({ date }: { date: string }) {
+  const { draft } = useBooking();
+  const [state, setState] = useState<"hidden" | "off" | "busy" | "on" | "blocked">("hidden");
+  useEffect(() => {
+    const ok = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    if (!ok) return setState("hidden");
+    if (Notification.permission === "denied") return setState("blocked");
+    let on = false;
+    try {
+      on = localStorage.getItem(`hb.wait.${date}.${draft.serviceIds.join(",")}`) === "1";
+    } catch {
+      /* ignore */
+    }
+    setState(on ? "on" : "off");
+  }, [date, draft.serviceIds]);
+  if (state === "hidden" || !draft.audience) return null;
+  const join = async () => {
+    setState("busy");
+    try {
+      if ((await Notification.requestPermission()) !== "granted") return setState("blocked");
+      const reg = await navigator.serviceWorker.register("/admin-sw.js");
+      await navigator.serviceWorker.ready;
+      const { publicKey } = await pushPublicKey();
+      const sub =
+        (await reg.pushManager.getSubscription()) ??
+        (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) as BufferSource }));
+      const j = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
+      const r = await joinWaitlist({
+        data: {
+          date,
+          audience: draft.audience!,
+          serviceIds: draft.serviceIds,
+          ...(draft.staffId ? { staffId: draft.staffId } : {}),
+          endpoint: j.endpoint,
+          p256dh: j.keys.p256dh,
+          auth: j.keys.auth,
+          origin: location.origin,
+        },
+      });
+      if (!r.ok) return setState("off");
+      try {
+        localStorage.setItem(`hb.wait.${date}.${draft.serviceIds.join(",")}`, "1");
+      } catch {
+        /* ignore */
+      }
+      haptic();
+      setState("on");
+    } catch {
+      setState("off");
+    }
+  };
+  return state === "on" ? (
+    <p className="mx-auto mt-4 flex max-w-sm items-center justify-center gap-2 text-[0.85rem] text-emerald-700">
+      <Check className="h-4 w-4" strokeWidth={2} /> We'll tell you on this phone if a time opens up.
+    </p>
+  ) : state === "blocked" ? null : (
+    <button
+      type="button"
+      onClick={() => void join()}
+      disabled={state === "busy"}
+      className="press mx-auto mt-4 flex min-h-11 items-center justify-center gap-2 rounded-sm border border-foreground/20 px-5 text-[0.72rem] uppercase tracking-[0.18em] hover:border-foreground/45 disabled:opacity-60"
+    >
+      <BellRing className="h-4 w-4 text-bronze" strokeWidth={1.5} />
+      Tell me if a time opens up
+    </button>
   );
 }
 
@@ -757,7 +835,9 @@ function SlotGroups({ day }: { day: DayState }) {
             ? "This stylist has no suitable time on this day. Try any available stylist, or choose a different date."
             : "Nothing on this day fits your services. Try another time or choose a different date."
         }
-      />
+      >
+        {day.data ? <WaitForTime date={day.data.date} /> : null}
+      </EmptyDay>
     );
 
 

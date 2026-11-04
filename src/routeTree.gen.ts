@@ -19,6 +19,7 @@ import { Route as DetailsRouteImport } from './routes/details'
 import { Route as FilmRouteImport } from './routes/film'
 import { Route as HoursRouteImport } from './routes/hours'
 import { Route as ManageRouteImport } from './routes/manage'
+import { Route as OpenTimeRouteImport } from './routes/open-time'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ServicesRouteImport } from './routes/services'
@@ -92,6 +93,11 @@ const HoursRoute = HoursRouteImport.update({
 const ManageRoute = ManageRouteImport.update({
   id: '/manage',
   path: '/manage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OpenTimeRoute = OpenTimeRouteImport.update({
+  id: '/open-time',
+  path: '/open-time',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReviewRoute = ReviewRouteImport.update({
@@ -227,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/film': typeof FilmRoute
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
+  '/open-time': typeof OpenTimeRoute
   '/review': typeof ReviewRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/services': typeof ServicesRoute
@@ -262,6 +269,7 @@ export interface FileRoutesByTo {
   '/film': typeof FilmRoute
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
+  '/open-time': typeof OpenTimeRoute
   '/review': typeof ReviewRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/services': typeof ServicesRoute
@@ -299,6 +307,7 @@ export interface FileRoutesById {
   '/film': typeof FilmRoute
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
+  '/open-time': typeof OpenTimeRoute
   '/review': typeof ReviewRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/services': typeof ServicesRoute
@@ -337,6 +346,7 @@ export interface FileRouteTypes {
     | '/film'
     | '/hours'
     | '/manage'
+    | '/open-time'
     | '/review'
     | '/robots.txt'
     | '/services'
@@ -372,6 +382,7 @@ export interface FileRouteTypes {
     | '/film'
     | '/hours'
     | '/manage'
+    | '/open-time'
     | '/review'
     | '/robots.txt'
     | '/services'
@@ -408,6 +419,7 @@ export interface FileRouteTypes {
     | '/film'
     | '/hours'
     | '/manage'
+    | '/open-time'
     | '/review'
     | '/robots.txt'
     | '/services'
@@ -445,6 +457,7 @@ export interface RootRouteChildren {
   FilmRoute: typeof FilmRoute
   HoursRoute: typeof HoursRoute
   ManageRoute: typeof ManageRoute
+  OpenTimeRoute: typeof OpenTimeRoute
   ReviewRoute: typeof ReviewRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   ServicesRoute: typeof ServicesRoute
@@ -527,6 +540,13 @@ declare module '@tanstack/react-router' {
       path: '/manage'
       fullPath: '/manage'
       preLoaderRoute: typeof ManageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/open-time': {
+      id: '/open-time'
+      path: '/open-time'
+      fullPath: '/open-time'
+      preLoaderRoute: typeof OpenTimeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/review': {
@@ -747,6 +767,7 @@ const rootRouteChildren: RootRouteChildren = {
   FilmRoute: FilmRoute,
   HoursRoute: HoursRoute,
   ManageRoute: ManageRoute,
+  OpenTimeRoute: OpenTimeRoute,
   ReviewRoute: ReviewRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   ServicesRoute: ServicesRoute,
