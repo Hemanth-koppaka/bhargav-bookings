@@ -3,13 +3,14 @@
 // sound are joined offline into one file, with the transition (zoom push,
 // warm light flash, whoosh) baked in so picture and sound never drift apart.
 //
+// The film and the logo's sound always play with sound (they're the salon's
+// soundtrack, not interface sounds), even with the iPhone silent switch on.
 // Phones only let a page start a video (and its sound) from a tap, and some
 // (iPhone Low Power Mode, Android Data Saver) refuse even a silent one. So the
 // guest's own tap on "Confirm booking" readies the film and the logo's sound
 // (primeBookingFilm), and the confirmation page plays those same, already
 // allowed elements by themselves. Tap anywhere to skip; never blocks the booking.
 import { useEffect, useRef, useState } from "react";
-import { sfx } from "@/lib/sfx";
 
 export const FILM_SRC = "/media/booking-film.mp4";
 export const FILM_WEBM = "/media/booking-film.webm";
@@ -57,6 +58,25 @@ export function warmBookingFilm() {
   stingElement();
 }
 
+// The site's small interface sounds use the iPhone "ambient" audio mode (they
+// follow the silent switch). The film and the logo's sound are the salon's own
+// soundtrack: while they play, use normal media playback so they're heard.
+type Session = { type: string };
+function audioSession(type: "playback" | "ambient") {
+  try {
+    const s = (navigator as unknown as { audioSession?: Session }).audioSession;
+    if (s) s.type = type;
+  } catch {
+    /* not supported */
+  }
+}
+let soundtrackDone = 0;
+/** Back to the interface sounds' mode once the film and logo sound have finished. */
+function endSoundtrack(afterMs: number) {
+  window.clearTimeout(soundtrackDone);
+  soundtrackDone = window.setTimeout(() => audioSession("ambient"), afterMs);
+}
+
 /** Start-and-stop inside the guest's tap: the phone then lets them play later by themselves. */
 function prime(el: HTMLMediaElement, withSound: boolean) {
   el.muted = !withSound;
@@ -73,14 +93,17 @@ function prime(el: HTMLMediaElement, withSound: boolean) {
 /** Call synchronously from the "Confirm booking" tap, before anything is awaited. */
 export function primeBookingFilm() {
   if (typeof document === "undefined") return;
-  prime(filmElement(), sfx.active);
-  if (sfx.active) prime(stingElement(), true);
+  audioSession("playback");
+  prime(filmElement(), true);
+  prime(stingElement(), true);
 }
 
 /** The logo's sound as it appears after the film. False if it couldn't play. */
 export function playLogoSting(): boolean {
-  if (!sfx.active || !sting) return false;
+  if (!sting) return false;
   const a = sting;
+  audioSession("playback");
+  endSoundtrack(4500);
   a.muted = false;
   a.volume = 1;
   a.currentTime = 0;
@@ -164,7 +187,11 @@ export function BookingFilm({
     const giveUp = window.setTimeout(() => !begun && finish(), 7000);
 
     v.currentTime = 0;
-    v.muted = !sfx.active;
+    // the film always carries its own sound (the interface-sound switch is
+    // only for the site's small clicks and chimes)
+    audioSession("playback");
+    window.clearTimeout(soundtrackDone);
+    v.muted = false;
     v.volume = 1;
     v.play().catch(() => {
       // sound not allowed: play the picture silently
