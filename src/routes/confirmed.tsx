@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Copy, Download, MapPin, MessageCircle } from "lucide-react";
 import { guestToSalonText, waLink } from "@/lib/whatsapp-link";
 import { AddToCalendar } from "@/components/add-to-calendar";
+import { RemindMe } from "@/components/remind-me";
 import { sfx, type ScoreControl } from "@/lib/sfx";
 import { useChangeDeadline } from "@/lib/change-deadline";
 import { prettyPhone } from "@/components/desktop";
@@ -555,6 +556,8 @@ function ConfirmedScreen() {
           >
             {/* free reminders: the guest's own calendar app reminds them */}
             <AddToCalendar booking={booking} tone="dark" />
+            {/* or a reminder on this phone (free web push), where the browser can */}
+            <RemindMe booking={booking} tone="dark" />
             {/* free: opens WhatsApp with the booking written out, to the salon's number */}
             <a
               href={waLink(
