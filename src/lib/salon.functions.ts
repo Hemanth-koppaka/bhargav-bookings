@@ -587,6 +587,13 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
         extra["staff_choice"] = choice === "any" ? "any" : "specific";
         // kept in meta as well, which works on every database version
         base["meta"] = metaWithStaff(base["meta"] ?? current.meta, check.staffId, choice === "any" ? "any" : "specific");
+        // and the stylist's name, so summaries and alerts name the new stylist
+        if (check.staffId) {
+          const { stable } = await import("./staff-store.server");
+          const { data: st } = await stable("staff").select("name").eq("id", check.staffId).maybeSingle();
+          const name = (st as { name?: string } | null)?.name;
+          if (name) base["meta"] = { ...(base["meta"] as Record<string, unknown>), staff_name: name };
+        }
       }
       if (moved) {
         base["date"] = p.date ?? current.date;

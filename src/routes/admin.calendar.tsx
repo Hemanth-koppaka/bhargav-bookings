@@ -34,6 +34,9 @@ export const Route = createFileRoute("/admin/calendar")({
 
 type View = "day" | "week" | "month";
 
+/** One colour per stylist column (initials and the booking's edge). */
+const STYLIST_COLOURS = ["#6250d6", "#1baf7a", "#eb6834", "#2a78d6", "#e87ba4", "#eda100"];
+
 const addDays = (iso: string, n: number) => {
   const d = fromISO(iso);
   d.setDate(d.getDate() + n);
@@ -174,10 +177,11 @@ function DayView({
 }) {
   const { pin } = useAdmin();
   const { data, loading, error, reload } = useAdminData((p) => adminDay({ data: { pin: p, date } }), [date]);
-  const [drag, setDrag] = useState<{ ref: string; dy: number } | null>(null);
-  const [move, setMove] = useState<{ b: AdminBooking; to: number } | null>(null);
+  const [drag, setDrag] = useState<{ ref: string; dy: number; dx: number } | null>(null);
+  // a move: new time, and (dragged sideways) another stylist
+  const [move, setMove] = useState<{ b: AdminBooking; to: number; staffId?: string; staffName?: string } | null>(null);
   const [saving, setSaving] = useState(false);
-  const origin = useRef<{ y: number; moved: boolean } | null>(null);
+  const origin = useRef<{ y: number; x: number; moved: boolean } | null>(null);
 
   if (!data) return <LoadState loading={loading} error={error} onRetry={reload} />;
   const { plan, interval } = data;
@@ -198,31 +202,45 @@ function DayView({
   const onDown = (e: RPointerEvent, b: AdminBooking) => {
     if (!movable(b)) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    origin.current = { y: e.clientY, moved: false };
-    setDrag({ ref: b.reference, dy: 0 });
+    origin.current = { y: e.clientY, x: e.clientX, moved: false };
+    setDrag({ ref: b.reference, dy: 0, dx: 0 });
   };
   const onMove = (e: RPointerEvent) => {
     if (!origin.current || !drag) return;
     const dy = e.clientY - origin.current.y;
-    if (Math.abs(dy) > 4) origin.current.moved = true;
-    setDrag({ ...drag, dy });
+    const dx = e.clientX - origin.current.x;
+    if (Math.abs(dy) > 4 || Math.abs(dx) > 8) origin.current.moved = true;
+    setDrag({ ...drag, dy, dx });
   };
-  const onUp = (b: AdminBooking) => {
+  const onUp = (b: AdminBooking, e: RPointerEvent) => {
     const o = origin.current;
     origin.current = null;
     const dy = drag?.dy ?? 0;
     setDrag(null);
     if (!o?.moved) return onOpen(b.reference);
     const to = Math.max(start, Math.min(end - b.minutes, snap(b.time + dy / PX_PER_MIN)));
-    if (to !== b.time) setMove({ b, to });
+    // dropped in another stylist's column?
+    // (looking past the card being dragged, which still belongs to its old column)
+    const card = e.currentTarget as HTMLElement;
+    const col = document
+      .elementsFromPoint(e.clientX, e.clientY)
+      .filter((el) => !card.contains(el))
+      .map((el) => (el as HTMLElement).closest?.("[data-col-staff]") as HTMLElement | null)
+      .find(Boolean);
+    const target = col?.dataset["colStaff"];
+    const other = target && target !== b.staffId ? target : undefined;
+    if (to !== b.time || other)
+      setMove({ b, to, ...(other ? { staffId: other, staffName: col?.dataset["colName"] ?? "" } : {}) });
   };
 
   const confirmMove = async () => {
     if (!move) return;
     setSaving(true);
     try {
-      await adminUpsertBooking({ data: { pin, reference: move.b.reference, patch: { date, time: move.to } } });
-      toast.success(`Moved to ${minuteLabel(move.to)}.`);
+      await adminUpsertBooking({
+        data: { pin, reference: move.b.reference, patch: { date, time: move.to, ...(move.staffId ? { staffId: move.staffId } : {}) } },
+      });
+      toast.success(`Moved to ${minuteLabel(move.to)}${move.staffName ? ` with ${move.staffName}` : ""}.`);
       setMove(null);
       onChanged();
     } catch (e) {
@@ -257,9 +275,19 @@ function DayView({
           <div className="sticky top-0 z-30 flex border-b border-hairline bg-card">
             <div className="w-16 shrink-0" />
             {columns.map((c) => (
-              <div key={c.id} className="min-w-[9rem] flex-1 border-l border-hairline px-3 py-2 first:border-l-0">
-                <div className="truncate text-[0.88rem] font-medium">{c.name}</div>
-                <div className="text-[0.7rem] text-muted-foreground">{c.note} · {c.bookings.length} booked</div>
+              <div key={c.id} className="flex min-w-[9rem] flex-1 items-center gap-2.5 border-l border-hairline px-3 py-2 first:border-l-0">
+                {c.staffId ? (
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[0.75rem] font-medium text-white"
+                    style={{ background: STYLIST_COLOURS[columns.indexOf(c) % STYLIST_COLOURS.length] }}
+                  >
+                    {c.name.slice(0, 1).toUpperCase()}
+                  </span>
+                ) : null}
+                <span className="min-w-0">
+                  <span className="block truncate text-[0.88rem] font-medium">{c.name}</span>
+                  <span className="block text-[0.7rem] text-muted-foreground">{c.note} · {c.bookings.length} booked</span>
+                </span>
               </div>
             ))}
           </div>
@@ -274,7 +302,11 @@ function DayView({
             ))}
           </div>
           {columns.map((col) => (
-            <div key={col.id} className="relative min-w-[9rem] flex-1 border-l border-hairline first:border-l-0">
+            <div
+              key={col.id}
+              {...(col.staffId ? { "data-col-staff": col.staffId, "data-col-name": col.name } : {})}
+              className="relative min-w-[9rem] flex-1 border-l border-hairline first:border-l-0"
+            >
               {hours.map((m) => (
                 <span key={m} className="absolute inset-x-0 border-t border-hairline" style={{ top: y(m) }} />
               ))}
@@ -322,13 +354,14 @@ function DayView({
               {col.bookings.map((b) => {
                 const dragging = drag?.ref === b.reference;
                 const top = y(b.time) + (dragging ? drag.dy : 0);
+                const left = dragging ? drag.dx : 0;
                 const ghost = dragging ? snap(b.time + drag.dy / PX_PER_MIN) : null;
                 return (
                   <div
                     key={b.reference}
                     onPointerDown={(e) => onDown(e, b)}
                     onPointerMove={onMove}
-                    onPointerUp={() => (drag ? onUp(b) : onOpen(b.reference))}
+                    onPointerUp={(e) => (drag ? onUp(b, e) : onOpen(b.reference))}
                     onPointerCancel={() => {
                       origin.current = null;
                       setDrag(null);
@@ -342,7 +375,12 @@ function DayView({
                       movable(b) ? "cursor-grab touch-none" : "cursor-pointer",
                       dragging && "z-30 cursor-grabbing shadow-lg ring-2 ring-bronze/40",
                     )}
-                    style={{ top, height: Math.max(26, b.minutes * PX_PER_MIN - 2) }}
+                    style={{
+                      top,
+                      height: Math.max(26, b.minutes * PX_PER_MIN - 2),
+                      ...(left ? { transform: `translateX(${left}px)` } : {}),
+                      ...(col.staffId ? { borderLeft: `3px solid ${STYLIST_COLOURS[columns.indexOf(col) % STYLIST_COLOURS.length]}` } : {}),
+                    }}
                   >
                     <div className="flex items-baseline justify-between gap-2 text-[0.8rem]">
                       <span className="truncate font-medium">{b.customer.name}</span>
@@ -359,7 +397,7 @@ function DayView({
         </div>
       </div>
       <p className="mt-2 text-[0.75rem] text-muted-foreground">
-        Drag a pending or confirmed appointment to move it · click empty time to book · every move is re-checked for clashes.
+        Drag an appointment up or down to change its time, or sideways to another stylist · click empty time to book · every move is re-checked for clashes.
       </p>
 
       <Dialog open={Boolean(move)} onOpenChange={(o) => !o && setMove(null)}>
@@ -367,7 +405,9 @@ function DayView({
           <DialogHeader>
             <DialogTitle className="font-display text-[1.5rem] font-normal">Move appointment?</DialogTitle>
             <DialogDescription>
-              {move ? `${move.b.customer.name}: ${minuteLabel(move.b.time)} → ${minuteLabel(move.to)}` : ""}
+              {move
+                ? `${move.b.customer.name}: ${minuteLabel(move.b.time)}${move.b.staffName ? ` with ${move.b.staffName}` : ""} → ${minuteLabel(move.to)}${move.staffName ? ` with ${move.staffName}` : ""}`
+                : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
