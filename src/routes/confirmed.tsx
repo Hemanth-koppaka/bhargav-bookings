@@ -11,6 +11,7 @@ import { prettyPhone } from "@/components/desktop";
 import { LogoReveal } from "@/components/motion";
 import { useBooking, servicesOf, type Booking } from "@/lib/booking-store";
 import { BUSINESS, formatDuration, formatLongDate, fromISO, minuteLabel } from "@/lib/salon";
+import { isSignature } from "@/lib/service-photos";
 import portrait from "@/assets/portrait.jpg.asset.json";
 import logo from "@/assets/logo.png.asset.json";
 
@@ -34,6 +35,16 @@ export const Route = createFileRoute("/confirmed")({
 });
 
 /* ── helpers ─────────────────────────────────────────────── */
+
+/**
+ * Bhargav's own moment (his film and portrait) is only for guests who chose him:
+ * picked as their stylist, or booked his Signature. Any other stylist, or
+ * "any available", gets the simple confirmation.
+ */
+function isBhargavBooking(b: Booking | undefined) {
+  if (!b || !/^bhargav\b/i.test(b.stylist ?? "")) return false;
+  return Boolean(b.stylistChosen) || servicesOf(b).some((s) => isSignature(s));
+}
 
 function loadImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -63,7 +74,8 @@ async function renderConfirmationImage(
   ctx.fillStyle = "#0B0B0B";
   ctx.fillRect(0, 0, W, H);
 
-  try {
+  const withBhargav = isBhargavBooking(booking);
+  if (withBhargav) try {
     const img = await loadImage(portrait.url);
     const scale = Math.max(W / img.width, H / img.height);
     const w = img.width * scale;
@@ -160,7 +172,7 @@ async function renderConfirmationImage(
   ctx.fillText("Your chair is waiting.", W / 2, 1182);
   ctx.fillStyle = gold;
   ctx.font = "300 32px 'Cormorant Garamond', Georgia, serif";
-  ctx.fillText("— Bhargav", W / 2, 1234);
+  ctx.fillText(withBhargav ? "— Bhargav" : "— Hair by Bhargav", W / 2, 1234);
 
   try {
     return await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
@@ -216,7 +228,8 @@ function ConfirmedScreen() {
   const { ref, seq } = Route.useSearch();
   const { bookings, hydrated, resetDraft } = useBooking();
   const booking = bookings.find((b) => b.reference === ref);
-  const cinematic = seq === 1;
+  const withBhargav = isBhargavBooking(booking);
+  const cinematic = seq === 1 && withBhargav;
   const [stage, setStage] = useState(cinematic ? 0 : FINAL);
   // the film (Bhargav getting ready → the reserved chair) opens a fresh
   // confirmation on every screen; the booking ID follows it. It is framed for
@@ -228,6 +241,14 @@ function ConfirmedScreen() {
     setFilm((f) => (f === "on" ? "leaving" : f));
     window.setTimeout(() => setFilm("off"), 700);
   }, []);
+
+  // another stylist or "any available": the simple confirmation, straight away
+  useEffect(() => {
+    if (booking && !withBhargav) {
+      setFilm("off");
+      setStage(FINAL);
+    }
+  }, [booking, withBhargav]);
 
   useEffect(() => {
     if (hydrated && booking) resetDraft();
@@ -391,22 +412,24 @@ function ConfirmedScreen() {
       onClick={() => setStage(FINAL)}
       className="relative min-h-[100svh] overflow-hidden bg-[#0B0B0B] text-[#E8E1D8]"
     >
-      {/* 4 — Bhargav, cinematic black & white */}
-      <div
-        // phones: one screen tall at the top of the page (the page scrolls past
-        // the card and calendar, so filling all of it would push his face
-        // down behind the card); laptops: the full height, on the left
-        className="pointer-events-none absolute inset-x-0 top-0 h-[100svh] max-h-full transition-opacity duration-[2400ms] ease-out lg:bottom-0 lg:h-auto lg:max-h-none"
-        style={{ opacity: stage >= 4 ? 1 : 0 }}
-      >
-        <img
-          src={portrait.url}
-          alt=""
-          aria-hidden="true"
-          className="cine-drift-top h-full w-full object-cover object-[50%_22%] opacity-60 grayscale contrast-[1.08] lg:cine-drift lg:w-[58%] lg:object-[50%_20%] lg:opacity-45"
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(11,11,11,0.35)_0%,rgba(11,11,11,0.15)_22%,rgba(11,11,11,0.55)_42%,rgba(11,11,11,0.85)_62%,#0B0B0B_100%)] lg:bg-gradient-to-r lg:from-[#0B0B0B]/30 lg:via-[#0B0B0B]/75 lg:to-[#0B0B0B]" />
-      </div>
+      {/* 4 — Bhargav, cinematic black & white (only when the guest chose him) */}
+      {withBhargav ? (
+        <div
+          // phones: one screen tall at the top of the page (the page scrolls past
+          // the card and calendar, so filling all of it would push his face
+          // down behind the card); laptops: the full height, on the left
+          className="pointer-events-none absolute inset-x-0 top-0 h-[100svh] max-h-full transition-opacity duration-[2400ms] ease-out lg:bottom-0 lg:h-auto lg:max-h-none"
+          style={{ opacity: stage >= 4 ? 1 : 0 }}
+        >
+          <img
+            src={portrait.url}
+            alt=""
+            aria-hidden="true"
+            className="cine-drift-top h-full w-full object-cover object-[50%_22%] opacity-60 grayscale contrast-[1.08] lg:cine-drift lg:w-[58%] lg:object-[50%_20%] lg:opacity-45"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(11,11,11,0.35)_0%,rgba(11,11,11,0.15)_22%,rgba(11,11,11,0.55)_42%,rgba(11,11,11,0.85)_62%,#0B0B0B_100%)] lg:bg-gradient-to-r lg:from-[#0B0B0B]/30 lg:via-[#0B0B0B]/75 lg:to-[#0B0B0B]" />
+        </div>
+      ) : null}
       {/* film grain */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-screen"
@@ -451,7 +474,7 @@ function ConfirmedScreen() {
               />
             </Link>
           </div>
-          <div className="mt-[30svh] sm:mt-9 lg:mt-14" style={reveal(stage >= 4, 14, 1500)}>
+          <div className={withBhargav ? "mt-[30svh] sm:mt-9 lg:mt-14" : "mt-9 lg:mt-14"} style={reveal(stage >= 4, 14, 1500)}>
             <h1 className="font-display text-[3.2rem] leading-none tracking-wide sm:text-6xl lg:text-[4.75rem]">
               You're booked.
             </h1>
@@ -459,7 +482,7 @@ function ConfirmedScreen() {
               Your chair is reserved.
             </p>
             <p className="mt-3 text-[0.7rem] uppercase tracking-[0.3em] text-[#C9A96A]">
-              Bhargav is waiting for you
+              We’re waiting for you
             </p>
           </div>
         </div>
