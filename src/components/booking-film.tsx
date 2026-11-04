@@ -12,14 +12,39 @@
 // allowed elements by themselves. Tap anywhere to skip; never blocks the booking.
 import { useEffect, useRef, useState } from "react";
 
-export const FILM_SRC = "/media/booking-film.mp4";
-export const FILM_WEBM = "/media/booking-film.webm";
-export const FILM_POSTER = "/media/booking-film-poster.webp";
+export type FilmAudience = "men" | "women";
+// Men: the tools sliding into the jeans pocket. Women: the brush, straightener,
+// curler, scissors and dryer tucked into the apron. Both cut into the same chair.
+const FILMS: Record<
+  FilmAudience,
+  { mp4: string; webm: string; poster: string; chairAt: number; length: number }
+> = {
+  men: {
+    mp4: "/media/booking-film.mp4",
+    webm: "/media/booking-film.webm",
+    poster: "/media/booking-film-poster.webp",
+    chairAt: 9.75, // s: the cut into the chair
+    length: 15.4,
+  },
+  women: {
+    mp4: "/media/booking-film-women.mp4",
+    webm: "/media/booking-film-women.webm",
+    poster: "/media/booking-film-women-poster.webp",
+    chairAt: 7.63,
+    length: 13.25,
+  },
+};
+let filmAudience: FilmAudience | null = null; // the film the Confirm tap readied
+const filmFor = (a: FilmAudience | null | undefined) => FILMS[a === "women" ? "women" : "men"];
+/** The film's first frame (the blurred backdrop on wide screens). */
+export const filmPoster = (a: FilmAudience | null | undefined) => filmFor(a ?? filmAudience).poster;
 const STING_SRC = "/media/logo-sting.mp3";
 
-const CHAIR_AT = 9.75; // s: the cut into the chair
-const TEXT_IN = 11.0; // s: "Your chair is being reserved"
-const TEXT_OUT = 14.2;
+// the line along the bottom: while Bhargav gets ready, then over the chair
+const READY_IN = 0.7; // s
+const READY_OUT_BEFORE_CHAIR = 0.55;
+const CHAIR_TEXT_AFTER_CUT = 1.25;
+const CHAIR_TEXT_OUT_BEFORE_END = 1.2;
 const EXIT_BEFORE_END = 0.5; // s: start the push into the confirmation
 const EXIT_MS = 480;
 
@@ -28,7 +53,8 @@ const EXIT_MS = 480;
 let film: HTMLVideoElement | null = null;
 let sting: HTMLAudioElement | null = null;
 
-function filmElement() {
+function filmElement(audience?: FilmAudience | null) {
+  const want = filmFor(audience ?? filmAudience);
   if (!film) {
     const v = (film = document.createElement("video"));
     v.preload = "auto";
@@ -37,11 +63,16 @@ function filmElement() {
     v.setAttribute("playsinline", "");
     v.setAttribute("webkit-playsinline", "");
     v.disablePictureInPicture = true;
-    v.poster = FILM_POSTER;
-    v.src = v.canPlayType("video/mp4") ? FILM_SRC : FILM_WEBM;
+  }
+  const v = film;
+  const src = v.canPlayType("video/mp4") ? want.mp4 : want.webm;
+  if (!v.src.endsWith(src)) {
+    v.poster = want.poster;
+    v.src = src;
     v.load();
   }
-  return film;
+  if (audience) filmAudience = audience;
+  return v;
 }
 function stingElement() {
   if (!sting) {
@@ -53,8 +84,8 @@ function stingElement() {
 }
 
 /** Starts downloading the film and the logo sound ahead of time (the review page). */
-export function warmBookingFilm() {
-  filmElement();
+export function warmBookingFilm(audience: FilmAudience | null) {
+  filmElement(audience);
   stingElement();
 }
 
@@ -91,10 +122,10 @@ function prime(el: HTMLMediaElement, withSound: boolean) {
 }
 
 /** Call synchronously from the "Confirm booking" tap, before anything is awaited. */
-export function primeBookingFilm() {
+export function primeBookingFilm(audience: FilmAudience | null) {
   if (typeof document === "undefined") return;
   audioSession("playback");
-  prime(filmElement(), true);
+  prime(filmElement(audience), true);
   prime(stingElement(), true);
 }
 
@@ -113,11 +144,14 @@ export function playLogoSting(): boolean {
 }
 
 export function BookingFilm({
+  audience,
   stopping = false,
   onChair,
   onDone,
   className,
 }: {
+  /** Men's or women's booking: which "getting ready" shot opens the film. */
+  audience?: FilmAudience | null;
   /** The guest skipped: fade the sound out. */
   stopping?: boolean;
   /** The cut into the chair scene. */
@@ -129,7 +163,11 @@ export function BookingFilm({
   const host = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement | null>(null);
   const [phase, setPhase] = useState<"enter" | "play" | "exit">("enter");
-  const [text, setText] = useState<"hidden" | "in" | "out">("hidden");
+  const [caption, setCaption] = useState<{
+    line: "ready" | "chair";
+    state: "hidden" | "in" | "out";
+  }>({ line: "ready", state: "hidden" });
+  const text = caption.state;
   const done = useRef(onDone);
   done.current = onDone;
   const chair = useRef(onChair);
@@ -144,9 +182,14 @@ export function BookingFilm({
   useEffect(() => {
     const box = host.current;
     if (!box) return finish();
-    const v = filmElement();
+    // the booking may still be loading: fall back to the film the Confirm tap readied
+    const spec = filmFor(audience ?? filmAudience);
+    const v = filmElement(audience);
     video.current = v;
-    v.setAttribute("aria-label", "Bhargav getting ready, then the reserved chair at Hair by Bhargav");
+    v.setAttribute(
+      "aria-label",
+      "Bhargav getting ready, then the reserved chair at Hair by Bhargav",
+    );
     v.className = "absolute inset-0 h-full w-full object-cover will-change-transform";
     box.prepend(v);
     let begun = false;
@@ -158,12 +201,32 @@ export function BookingFilm({
     // follow the film's own clock so the title and the exit stay in sync
     const tick = () => {
       const t = v.currentTime;
-      if (!atChair && t >= CHAIR_AT) {
+      if (!atChair && t >= spec.chairAt) {
         atChair = true;
         chair.current?.();
       }
-      setText(t >= TEXT_OUT ? "out" : t >= TEXT_IN ? "in" : "hidden");
-      const end = Number.isFinite(v.duration) ? v.duration : 15.4;
+      const end = Number.isFinite(v.duration) ? v.duration : spec.length;
+      const next =
+        t < spec.chairAt
+          ? ({
+              line: "ready",
+              state:
+                t >= spec.chairAt - READY_OUT_BEFORE_CHAIR
+                  ? "out"
+                  : t >= READY_IN
+                    ? "in"
+                    : "hidden",
+            } as const)
+          : ({
+              line: "chair",
+              state:
+                t >= end - CHAIR_TEXT_OUT_BEFORE_END
+                  ? "out"
+                  : t >= spec.chairAt + CHAIR_TEXT_AFTER_CUT
+                    ? "in"
+                    : "hidden",
+            } as const);
+      setCaption((c) => (c.line === next.line && c.state === next.state ? c : next));
       if (!exiting && t >= end - EXIT_BEFORE_END) {
         exiting = true;
         setPhase("exit");
@@ -245,7 +308,7 @@ export function BookingFilm({
 
   return (
     <div ref={host} className={"overflow-hidden bg-[#0B0B0B] " + (className ?? "relative")}>
-      {/* a quiet title, like a film card: never over the chair */}
+      {/* a quiet line, like a film card: never over the chair */}
       <div className="pointer-events-none absolute inset-x-0 bottom-[max(3.5%,env(safe-area-inset-bottom))] z-10 flex flex-col items-center px-6 pb-2 text-center">
         <p
           className="text-[0.68rem] font-normal uppercase text-[#F4EEE5] [text-shadow:0_1px_14px_rgb(0_0_0/0.6)] sm:text-[0.72rem]"
@@ -260,7 +323,9 @@ export function BookingFilm({
                 : "opacity 320ms cubic-bezier(0.16,1,0.3,1), transform 320ms cubic-bezier(0.16,1,0.3,1), letter-spacing 600ms cubic-bezier(0.16,1,0.3,1)",
           }}
         >
-          Your chair is being reserved
+          {caption.line === "ready"
+            ? "Bhargav is getting ready for you"
+            : "Your chair is being reserved"}
         </p>
       </div>
       {/* soft letterbox edge so the title always reads */}
