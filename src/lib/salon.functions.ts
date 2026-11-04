@@ -587,6 +587,13 @@ export const adminUpsertBooking = createServerFn({ method: "POST" })
         extra["staff_choice"] = choice === "any" ? "any" : "specific";
         // kept in meta as well, which works on every database version
         base["meta"] = metaWithStaff(base["meta"] ?? current.meta, check.staffId, choice === "any" ? "any" : "specific");
+        // and the stylist's name, so summaries and alerts name the new stylist
+        if (check.staffId) {
+          const { stable } = await import("./staff-store.server");
+          const { data: st } = await stable("staff").select("name").eq("id", check.staffId).maybeSingle();
+          const name = (st as { name?: string } | null)?.name;
+          if (name) base["meta"] = { ...(base["meta"] as Record<string, unknown>), staff_name: name };
+        }
       }
       if (moved) {
         base["date"] = p.date ?? current.date;
@@ -820,4 +827,38 @@ export const myLookPhotos = createServerFn({ method: "POST" })
     const left = date === today ? (end - nowMin) * 60 : 6 * 3600;
     const { data: signed } = await bucket.createSignedUrls(paths, Math.max(600, Math.min(left, 6 * 3600)));
     return { urls: (signed ?? []).map((s) => s.signedUrl).filter((u): u is string => Boolean(u)), over: false, ...when };
+  });
+
+/** The site's public key for phone notifications (safe to share). */
+export const pushPublicKey = createServerFn({ method: "GET" }).handler(async () => {
+  const { getVapid } = await import("./push.server");
+  return { publicKey: (await getVapid()).publicKey };
+});
+
+/** A guest asks for free reminders on this phone for their own booking. */
+export const remindMeOnPhone = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    lookup
+      .extend({
+        endpoint: z.string().url().max(1000),
+        p256dh: z.string().min(40).max(200),
+        auth: z.string().min(10).max(60),
+        origin: z.string().max(200),
+        off: z.boolean().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const sb = await db();
+    const { data: r } = await sb.from("bookings").select("*").eq("reference", data.reference.toUpperCase()).maybeSingle();
+    if (!r || !(await owns(r, data))) return { ok: false as const, error: "We couldn't find that booking." };
+    if (!/^https:\/\//.test(data.endpoint)) return { ok: false as const, error: "This browser can't receive reminders." };
+    const meta = ((r as Record<string, unknown>)["meta"] ?? {}) as Record<string, unknown>;
+    const subs = ((meta["push"] as { endpoint: string }[] | undefined) ?? []).filter((x) => x.endpoint !== data.endpoint);
+    const next = data.off
+      ? subs
+      : [...subs, { endpoint: data.endpoint, keys: { p256dh: data.p256dh, auth: data.auth }, origin: data.origin }].slice(-3);
+    const { error } = await sb.from("bookings").update({ meta: { ...meta, push: next } as never }).eq("reference", r.reference);
+    if (error) return { ok: false as const, error: "Couldn't save that. Please try again." };
+    return { ok: true as const, on: !data.off };
   });

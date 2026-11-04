@@ -232,3 +232,66 @@ export async function pushBookingEvent(
   const body = `${services || "Appointment"} · ${when}${staff ? ` · ${staff}` : ""}`;
   return pushToSalon({ title, body, url: `/admin/appointments?ref=${encodeURIComponent(reference)}`, tag: reference });
 }
+
+/* ── guests: free reminders before their appointment ──────────── */
+
+type GuestSub = Pick<PushSub, "endpoint" | "keys" | "origin">;
+
+/** Sends one message to one guest phone; false when the phone has unsubscribed. */
+export async function pushToGuest(sub: GuestSub, msg: PushMessage) {
+  const v = await getVapid();
+  try {
+    const status = await sendOne({ ...sub, device: "guest", at: 0 }, msg, v);
+    return status !== 404 && status !== 410;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Reminders for guests who asked for them on their phone: one about a day
+ * before (from 24 hours ahead) and one 2 hours before. Each is sent once per
+ * appointment time (a moved appointment gets fresh reminders). Run by the
+ * same schedule as the other booking messages.
+ */
+export async function guestReminders() {
+  const now = new Date(Date.now() + 330 * 60_000);
+  const today = now.toISOString().slice(0, 10);
+  const tomorrow = new Date(now.getTime() + 86_400_000).toISOString().slice(0, 10);
+  const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const { data: rows } = await sb.from("bookings").select("*").gte("date", today).lte("date", tomorrow);
+  let sent = 0;
+  for (const r of (rows ?? []) as Record<string, unknown>[]) {
+    const meta = (r["meta"] ?? {}) as Record<string, unknown>;
+    const subs = (meta["push"] as GuestSub[] | undefined) ?? [];
+    if (!subs.length) continue;
+    const st = (meta["status"] as string | undefined) ?? "";
+    if (r["status"] === "cancelled" || ["cancelled", "no-show", "completed", "in-chair"].includes(st)) continue;
+    const time = r["time"] as number;
+    const until = (r["date"] === today ? 0 : 1440) + time - nowMin;
+    const kind = until > 0 && until <= 120 ? "2h" : until > 180 && until <= 1440 ? "24h" : null;
+    if (!kind) continue;
+    const stamp = `${r["date"] as string}|${time}|${kind}`;
+    const done = (meta["push_sent"] as string[] | undefined) ?? [];
+    if (done.includes(stamp)) continue;
+    const services = ((r["services_snapshot"] as { name: string }[] | null) ?? []).map((x) => x.name).join(", ");
+    const staff = (meta["staff_name"] as string) || "";
+    const when = `${r["date"] === today ? "today" : "tomorrow"} at ${clock(time)}`;
+    const msg: PushMessage = {
+      title: kind === "2h" ? `See you at ${clock(time)} today` : `Your appointment is ${when}`,
+      body: `${services || "Your appointment"}${staff ? ` with ${staff}` : ""} · Hair by Bhargav. Tap to view or change.`,
+      url: `/manage?ref=${encodeURIComponent(r["reference"] as string)}`,
+      tag: `${r["reference"] as string}-${kind}`,
+    };
+    const alive: GuestSub[] = [];
+    for (const s of subs) if (await pushToGuest(s, msg)) alive.push(s);
+    sent++;
+    // mark it sent (and forget phones that turned reminders off); same date and
+    // time, so the booking guard lets the update through untouched
+    await sb
+      .from("bookings")
+      .update({ meta: { ...meta, push: alive, push_sent: [...done, stamp].slice(-8) } as never })
+      .eq("reference", r["reference"] as string);
+  }
+  return sent;
+}

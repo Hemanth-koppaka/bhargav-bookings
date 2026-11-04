@@ -670,8 +670,15 @@ async function scheduleReminders(r: Row, s: NotifySettings, facts: BookingFacts,
  * requests. Returns counts for the cron log.
  */
 export async function dispatchDue(limit = 40) {
+  // guests' free phone reminders (independent of the message settings)
+  const guestPush = await import("../push.server")
+    .then((P) => P.guestReminders())
+    .catch((e) => {
+      console.error("guest reminders failed", e);
+      return -1;
+    });
   const s = await loadSettings();
-  if (!s) return { ok: false, reason: "notifications not set up" };
+  if (!s) return { ok: false, reason: "notifications not set up", guestPush };
   const nowIso = new Date().toISOString();
   const counts = { reminders: 0, retries: 0, stale: 0, cancelled: 0 };
   const location = await locationText();
@@ -811,7 +818,7 @@ export async function dispatchDue(limit = 40) {
       () => undefined,
       () => undefined,
     );
-  return { ok: true, ...counts };
+  return { ok: true, ...counts, guestPush };
 }
 
 /* ── owner's morning summary ─────────────────────────────────── */

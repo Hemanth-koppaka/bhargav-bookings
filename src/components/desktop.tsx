@@ -226,11 +226,17 @@ export function CallButton({ withNumber = true }: { withNumber?: boolean }) {
 }
 
 /** Sticky summary bar at the bottom of each desktop step. */
+/**
+ * The booking summary on laptops: a floating pill, centred and lifted off the
+ * bottom edge (not a full-width band). It keeps its own space below the page,
+ * so nothing is ever hidden behind it.
+ */
 export function DesktopBar({ children }: { children: ReactNode }) {
   return (
-    <div className="shrink-0 border-t border-hairline bg-card shadow-[0_-12px_32px_-24px_color-mix(in_oklab,var(--ink)_35%,transparent)]">
-      {/* compact (~80px): the page content stays dominant */}
-      <div className="flex items-center gap-5 px-6 py-3 lg:gap-8 lg:px-10 xl:px-16">{children}</div>
+    <div className="desk-pill-wrap pointer-events-none relative z-30 shrink-0 px-6 pt-2 pb-4">
+      <div className="desk-pill fade-rise pointer-events-auto mx-auto flex w-full max-w-5xl items-center gap-4 rounded-2xl border border-foreground/10 bg-card/92 py-2 pr-2 pl-4 shadow-[0_18px_44px_-22px_color-mix(in_oklab,var(--ink)_55%,transparent)] backdrop-blur-md lg:gap-6 lg:pl-5">
+        {children}
+      </div>
     </div>
   );
 }
