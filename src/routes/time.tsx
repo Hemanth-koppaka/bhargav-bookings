@@ -28,7 +28,7 @@ import {
 } from "@/components/desktop";
 import { useBooking } from "@/lib/booking-store";
 import { YourAppointment, BookingDock } from "@/components/booking-dock";
-import { DayArc } from "@/components/day-arc";
+import { useDaySky } from "@/components/day-arc";
 import { getAvailability } from "@/lib/salon.functions";
 import type { DayAvailability } from "@/lib/engine.server";
 import {
@@ -120,6 +120,8 @@ function TimeScreen() {
   const day = forStylist(rawDay, draft.staffId ?? rawDay.data?.preferred?.id, Boolean(rawDay.data?.preferred) && !draft.staffId);
   const slots = day.data?.slots ?? [];
   const selectedBreaks = day.data?.breaks ?? [];
+  // the page takes the colour of the part of the day being chosen (after a solar dial)
+  const sky = useDaySky(day.data, draft.time);
 
   // Services changed after a time was chosen: check that time again with the new
   // length and stylist. Keep it quietly if it still works (nothing for the guest
@@ -144,7 +146,7 @@ function TimeScreen() {
     <>
       <DesktopTime days={days} day={day} rawDay={rawDay} timeNote={timeNote} />
       <div className="md:hidden">
-        <Page>
+        <Page sky={sky}>
           <StepHeader back="/services" step={3} />
           <Screen className="px-5">
             <StepIntro
@@ -756,21 +758,9 @@ function SlotGroups({ day }: { day: DayState }) {
       />
     );
 
-  const freeTimes = visible.filter((x) => x.available).map((x) => x.minute);
-  const salonToday = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
 
   return (
     <>
-      {day.data ? (
-        <DayArc
-          className="mt-5"
-          open={day.data.open}
-          close={day.data.close}
-          free={freeTimes}
-          selected={draft.time ?? null}
-          today={day.data.date === salonToday}
-        />
-      ) : null}
       {pref && !draft.staffId && !prefFree && othersFree ? (
         <p className="mt-5 text-[0.9rem] text-muted-foreground">
           {pref.name} isn't available on this day. Pick a time to continue with another stylist, or choose another date.
@@ -1068,6 +1058,7 @@ function DesktopTime({
   const slots = day.data?.slots ?? [];
   const { draft, totalMinutes, totalPrice, hasFromPricing, selected } = useBooking();
   const navigate = useNavigate();
+  const sky = useDaySky(day.data, draft.time);
   // After the guest picks a day, glide down to its times.
   const slotsRef = useRef<HTMLDivElement>(null);
   const toSlots = () =>
@@ -1080,7 +1071,7 @@ function DesktopTime({
   const [compact, setCompact] = useState(false);
 
   return (
-    <DesktopPage>
+    <DesktopPage sky={sky}>
       <DesktopStepHeader back="/services" step={3} />
 
       {/* tablet portrait: one column (calendar, then times); from lg the calendar and the times sit side by side */}
