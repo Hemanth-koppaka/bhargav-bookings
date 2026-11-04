@@ -898,3 +898,19 @@ export const remindMeOnPhone = createServerFn({ method: "POST" })
     if (error) return { ok: false as const, error: "Couldn't save that. Please try again." };
     return { ok: true as const, on: !data.off };
   });
+
+/** One step of the booking journey reached (counted once per visitor per day; no cookies). */
+export const trackStep = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ step: z.enum(["home", "book", "services", "time", "details", "review", "booked"]) }).parse(d))
+  .handler(async ({ data }) => {
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      const h = getRequest().headers;
+      const ip = (h.get("cf-connecting-ip") ?? h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0] ?? "").trim();
+      const { recordVisit } = await import("./visits.server");
+      await recordVisit(data.step, ip, h.get("user-agent") ?? "");
+    } catch {
+      /* counting never affects the site */
+    }
+    return { ok: true };
+  });

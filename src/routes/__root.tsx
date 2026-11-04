@@ -16,6 +16,7 @@ import { BookingProvider } from "../lib/booking-store";
 import { AdminProvider } from "../lib/admin-store";
 import { getSalonConfig } from "../lib/salon.functions";
 import { salonJsonLd } from "@/lib/seo";
+import { trackStep } from "@/lib/salon.functions";
 import { applyConfig } from "../lib/salon";
 import { sfx } from "../lib/sfx";
 
@@ -161,6 +162,28 @@ const FLOW: Record<string, number> = {
 };
 
 /** Installs interface sound once and gives every route change its sound. */
+/** Counts which booking steps visitors reach (once per page view; no cookies). */
+const TRACKED: Record<string, "home" | "book" | "services" | "time" | "details" | "review" | "booked"> = {
+  "/": "home",
+  "/book": "book",
+  "/services": "services",
+  "/time": "time",
+  "/details": "details",
+  "/review": "review",
+  "/confirmed": "booked",
+};
+
+function JourneyCounter() {
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  useEffect(() => {
+    const step = TRACKED[path.replace(/\/$/, "") || "/"];
+    if (!step || navigator.webdriver) return;
+    const t = window.setTimeout(() => void trackStep({ data: { step } }).catch(() => {}), 800);
+    return () => window.clearTimeout(t);
+  }, [path]);
+  return null;
+}
+
 function SoundDirector() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const prev = useRef<string | null>(null);
@@ -195,6 +218,7 @@ function RootComponent() {
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
           <SoundDirector />
+          <JourneyCounter />
         </AdminProvider>
       </BookingProvider>
     </QueryClientProvider>

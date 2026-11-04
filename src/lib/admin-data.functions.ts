@@ -216,7 +216,10 @@ export const adminDashboard = createServerFn({ method: "POST" })
     const done30 = window30.filter((b) => b.status === "completed");
 
     const live = todays.filter(isLive);
+    const { journey } = await import("./visits.server");
+    const visits = await journey(7).catch(() => null);
     return {
+      visits,
       today,
       nowMinute: now.minute,
       plan,
