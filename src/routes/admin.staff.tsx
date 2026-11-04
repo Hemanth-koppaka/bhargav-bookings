@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { CalendarOff, Clock, Plus, Trash2, UserPlus } from "lucide-react";
 import { AdminShell, Empty, Panel, TinyButton, inputClass } from "@/components/admin";
 import { LoadState, salonToday, useAdminData } from "@/components/admin-ops";
+import { adminSetStylistCode, adminStylistCodes } from "@/lib/stylist.functions";
 import { useAdmin } from "@/lib/admin-store";
 import {
   adminAddLeave,
@@ -473,6 +474,7 @@ function StaffEditor({
           </div>
 
           {f.id ? <TimeOff member={f} onChanged={onSaved} /> : null}
+          {f.id ? <StylistCode staffId={f.id} name={f.name} /> : null}
         </div>
       </SheetContent>
     </Sheet>
@@ -669,5 +671,61 @@ function TimeOff({ member, onChanged }: { member: StaffMember; onChanged: () => 
         </div>
       ) : null}
     </Panel>
+  );
+}
+
+
+/** The stylist's own code for "My day" on their phone (/stylist). */
+function StylistCode({ staffId, name }: { staffId: string; name: string }) {
+  const { pin } = useAdmin();
+  const [has, setHas] = useState<boolean | null>(null);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    adminStylistCodes({ data: { pin } })
+      .then((r) => setHas(r.withCode.includes(staffId)))
+      .catch(() => setHas(false));
+  }, [pin, staffId]);
+  const save = async (value: string) => {
+    setBusy(true);
+    try {
+      const r = await adminSetStylistCode({ data: { pin, staffId, code: value } });
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      setHas(Boolean(value));
+      setCode("");
+      toast.success(value ? `${name} can now open My day with this code.` : `${name}'s code removed.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section
+      title="My day on their phone"
+      hint={`${name} opens ${typeof window !== "undefined" ? window.location.origin : ""}/stylist, signs in with this code and sees only their own appointments. A new code signs them out everywhere.`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          className={inputClass + " max-w-[14rem]"}
+          type="text"
+          autoComplete="off"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder={has ? "New code" : "Set a code (6+ characters)"}
+          aria-label="Stylist code"
+        />
+        <TinyButton tone="primary" disabled={busy || code.trim().length < 6} onClick={() => void save(code)}>
+          {has ? "Change code" : "Set code"}
+        </TinyButton>
+        {has ? (
+          <TinyButton tone="danger" disabled={busy} onClick={() => void save("")}>
+            Remove
+          </TinyButton>
+        ) : null}
+        <span className="text-[0.78rem] text-muted-foreground">{has == null ? "" : has ? "Code set" : "No code yet"}</span>
+      </div>
+    </Section>
   );
 }

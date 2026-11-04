@@ -153,9 +153,23 @@ const notify = async (...a: Parameters<typeof import("./notify/service.server").
           new Promise((r) => setTimeout(r, 5000)),
         ]).catch(() => undefined)
       : Promise.resolve();
+  // a freed time: tell guests waiting for that day (cancelled, or moved away)
+  const freed = event === "BOOKING_CANCELLED" || event === "BOOKING_RESCHEDULED"
+    ? Promise.race([
+        (async () => {
+          const W = await import("./waitlist.server");
+          const prev = (ctx as { previous?: { date: string } } | undefined)?.previous?.date;
+          if (event === "BOOKING_RESCHEDULED" && prev) return W.timeFreedOn(prev);
+          const { data: r } = await (await db()).from("bookings").select("date").eq("reference", reference).maybeSingle();
+          return r ? W.timeFreedOn((r as { date: string }).date) : 0;
+        })(),
+        new Promise((r) => setTimeout(r, 6000)),
+      ]).catch(() => undefined)
+    : Promise.resolve();
   await Promise.all([
     (await import("./notify/service.server")).notifySoon(...a).catch(() => undefined),
     phone,
+    freed,
   ]);
 };
 
@@ -913,4 +927,37 @@ export const trackStep = createServerFn({ method: "POST" })
       /* counting never affects the site */
     }
     return { ok: true };
+  });
+
+/** A guest asks to be told if a time that fits opens up on a full day (free phone notification). */
+export const joinWaitlist = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z
+      .object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        audience: z.enum(["men", "women"]),
+        serviceIds: z.array(z.string().max(80)).min(1).max(20),
+        staffId: z.string().uuid().optional(),
+        endpoint: z.string().url().max(1000),
+        p256dh: z.string().min(40).max(200),
+        auth: z.string().min(10).max(60),
+        origin: z.string().max(200),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    if (!/^https:\/\//.test(data.endpoint)) return { ok: false as const };
+    const today = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
+    if (data.date < today) return { ok: false as const };
+    const W = await import("./waitlist.server");
+    const ok = await W.joinWaitlist(data.date, {
+      endpoint: data.endpoint,
+      keys: { p256dh: data.p256dh, auth: data.auth },
+      origin: data.origin,
+      audience: data.audience,
+      serviceIds: data.serviceIds,
+      ...(data.staffId ? { staffId: data.staffId } : {}),
+      at: Date.now(),
+    });
+    return { ok };
   });

@@ -19,11 +19,13 @@ import { Route as DetailsRouteImport } from './routes/details'
 import { Route as FilmRouteImport } from './routes/film'
 import { Route as HoursRouteImport } from './routes/hours'
 import { Route as ManageRouteImport } from './routes/manage'
+import { Route as OpenTimeRouteImport } from './routes/open-time'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ServicesRouteImport } from './routes/services'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as StudioRouteImport } from './routes/studio'
+import { Route as StylistRouteImport } from './routes/stylist'
 import { Route as TimeRouteImport } from './routes/time'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminActivityRouteImport } from './routes/admin.activity'
@@ -93,6 +95,11 @@ const ManageRoute = ManageRouteImport.update({
   path: '/manage',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OpenTimeRoute = OpenTimeRouteImport.update({
+  id: '/open-time',
+  path: '/open-time',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReviewRoute = ReviewRouteImport.update({
   id: '/review',
   path: '/review',
@@ -116,6 +123,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const StudioRoute = StudioRouteImport.update({
   id: '/studio',
   path: '/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StylistRoute = StylistRouteImport.update({
+  id: '/stylist',
+  path: '/stylist',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TimeRoute = TimeRouteImport.update({
@@ -221,11 +233,13 @@ export interface FileRoutesByFullPath {
   '/film': typeof FilmRoute
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
+  '/open-time': typeof OpenTimeRoute
   '/review': typeof ReviewRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/services': typeof ServicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/studio': typeof StudioRoute
+  '/stylist': typeof StylistRoute
   '/time': typeof TimeRoute
   '/admin/activity': typeof AdminActivityRoute
   '/admin/appointments': typeof AdminAppointmentsRoute
@@ -255,11 +269,13 @@ export interface FileRoutesByTo {
   '/film': typeof FilmRoute
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
+  '/open-time': typeof OpenTimeRoute
   '/review': typeof ReviewRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/services': typeof ServicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/studio': typeof StudioRoute
+  '/stylist': typeof StylistRoute
   '/time': typeof TimeRoute
   '/admin/activity': typeof AdminActivityRoute
   '/admin/appointments': typeof AdminAppointmentsRoute
@@ -291,11 +307,13 @@ export interface FileRoutesById {
   '/film': typeof FilmRoute
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
+  '/open-time': typeof OpenTimeRoute
   '/review': typeof ReviewRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/services': typeof ServicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/studio': typeof StudioRoute
+  '/stylist': typeof StylistRoute
   '/time': typeof TimeRoute
   '/admin/activity': typeof AdminActivityRoute
   '/admin/appointments': typeof AdminAppointmentsRoute
@@ -328,11 +346,13 @@ export interface FileRouteTypes {
     | '/film'
     | '/hours'
     | '/manage'
+    | '/open-time'
     | '/review'
     | '/robots.txt'
     | '/services'
     | '/sitemap.xml'
     | '/studio'
+    | '/stylist'
     | '/time'
     | '/admin/activity'
     | '/admin/appointments'
@@ -362,11 +382,13 @@ export interface FileRouteTypes {
     | '/film'
     | '/hours'
     | '/manage'
+    | '/open-time'
     | '/review'
     | '/robots.txt'
     | '/services'
     | '/sitemap.xml'
     | '/studio'
+    | '/stylist'
     | '/time'
     | '/admin/activity'
     | '/admin/appointments'
@@ -397,11 +419,13 @@ export interface FileRouteTypes {
     | '/film'
     | '/hours'
     | '/manage'
+    | '/open-time'
     | '/review'
     | '/robots.txt'
     | '/services'
     | '/sitemap.xml'
     | '/studio'
+    | '/stylist'
     | '/time'
     | '/admin/activity'
     | '/admin/appointments'
@@ -433,11 +457,13 @@ export interface RootRouteChildren {
   FilmRoute: typeof FilmRoute
   HoursRoute: typeof HoursRoute
   ManageRoute: typeof ManageRoute
+  OpenTimeRoute: typeof OpenTimeRoute
   ReviewRoute: typeof ReviewRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   ServicesRoute: typeof ServicesRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   StudioRoute: typeof StudioRoute
+  StylistRoute: typeof StylistRoute
   TimeRoute: typeof TimeRoute
   ApiPhotoSweepRoute: typeof ApiPhotoSweepRoute
   ApiNotificationsDispatchRoute: typeof ApiNotificationsDispatchRoute
@@ -516,6 +542,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ManageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/open-time': {
+      id: '/open-time'
+      path: '/open-time'
+      fullPath: '/open-time'
+      preLoaderRoute: typeof OpenTimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/review': {
       id: '/review'
       path: '/review'
@@ -549,6 +582,13 @@ declare module '@tanstack/react-router' {
       path: '/studio'
       fullPath: '/studio'
       preLoaderRoute: typeof StudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stylist': {
+      id: '/stylist'
+      path: '/stylist'
+      fullPath: '/stylist'
+      preLoaderRoute: typeof StylistRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/time': {
@@ -727,11 +767,13 @@ const rootRouteChildren: RootRouteChildren = {
   FilmRoute: FilmRoute,
   HoursRoute: HoursRoute,
   ManageRoute: ManageRoute,
+  OpenTimeRoute: OpenTimeRoute,
   ReviewRoute: ReviewRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   ServicesRoute: ServicesRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   StudioRoute: StudioRoute,
+  StylistRoute: StylistRoute,
   TimeRoute: TimeRoute,
   ApiPhotoSweepRoute: ApiPhotoSweepRoute,
   ApiNotificationsDispatchRoute: ApiNotificationsDispatchRoute,
