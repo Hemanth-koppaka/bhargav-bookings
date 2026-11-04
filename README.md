@@ -928,7 +928,7 @@ THE ARTIST
 
 FOUNDER · CHIEF STYLIST
 
-D. BHARGAV
+B. BHARGAV
 
 Use the existing portrait/image assets.
 

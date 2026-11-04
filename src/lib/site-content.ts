@@ -32,7 +32,7 @@ export const DEFAULT_CONTENT: SiteContent = {
     intro:
       "Hair, beauty and makeover. Pick a time that's genuinely free — booked in under a minute.",
     introLong:
-      "Hair, beauty and makeover by D. Bhargav. Choose a service, pick a time that is genuinely free, and you're booked.",
+      "Hair, beauty and makeover by B. Bhargav. Choose a service, pick a time that is genuinely free, and you're booked.",
     ctaLabel: "Book an appointment",
   },
   policies: {

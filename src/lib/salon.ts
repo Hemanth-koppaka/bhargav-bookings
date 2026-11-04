@@ -47,7 +47,7 @@ export const BUSINESS = {
   name: "The Hair By Bhargav Unisex Salon",
   brand: "Hair by Bhargav",
   tagline: "Hair · Beauty · Makeover",
-  founder: "D. Bhargav",
+  founder: "B. Bhargav",
   locationShort: "KPHB Phase 9 · Kukatpally · Hyderabad",
   address:
     "Plot No. 1143, Raghava Avasa, Gokul Plots, Venkataramana Colony, KPHB Phase 9, Kukatpally, Hyderabad – 500072",

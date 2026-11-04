@@ -86,7 +86,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Book hair, beauty and makeover appointments with D. Bhargav at KPHB Phase 9, Kukatpally, Hyderabad.",
+          "Book hair, beauty and makeover appointments with B. Bhargav at KPHB Phase 9, Kukatpally, Hyderabad.",
       },
       { property: "og:site_name", content: "Hair by Bhargav" },
       { property: "og:locale", content: "en_IN" },

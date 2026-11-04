@@ -7,13 +7,13 @@ import founder from "@/assets/founder.jpg.asset.json";
 export const Route = createFileRoute("/artist")({
   head: () => ({
     meta: [
-      { title: "The artist, D. Bhargav — Hair by Bhargav" },
+      { title: "The artist, B. Bhargav — Hair by Bhargav" },
       {
         name: "description",
         content:
-          "Meet D. Bhargav, founder and chief stylist of The Hair By Bhargav Unisex Salon in KPHB Phase 9, Kukatpally.",
+          "Meet B. Bhargav, founder and chief stylist of The Hair By Bhargav Unisex Salon in KPHB Phase 9, Kukatpally.",
       },
-      { property: "og:title", content: "The artist, D. Bhargav — Hair by Bhargav" },
+      { property: "og:title", content: "The artist, B. Bhargav — Hair by Bhargav" },
       { property: "og:description", content: "Founder and chief stylist." },
       { property: "og:image", content: founder.url },
       { name: "twitter:image", content: founder.url },
@@ -45,7 +45,7 @@ function ArtistScreen() {
       <div className="relative overflow-hidden rounded-xl bg-ink lg:hidden">
         <img
           src={founder.url}
-          alt="D. Bhargav, founder and chief stylist"
+          alt="B. Bhargav, founder and chief stylist"
           className="aspect-4/5 w-full object-cover grayscale"
           decoding="async"
         />
