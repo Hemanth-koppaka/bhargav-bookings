@@ -22,6 +22,7 @@ import { sfx } from "@/lib/sfx";
 import { ServiceIconTile, serviceKind } from "@/components/service-icons";
 import { BUSINESS, SERVICE_RULES, STYLISTS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
 import { preferredFor } from "@/lib/service-rules";
+import { warmBookingFilm } from "@/components/booking-film";
 
 export const Route = createFileRoute("/review")({
   head: () => ({
@@ -59,10 +60,9 @@ function ReviewScreen() {
     if (hydrated && !ready) navigate({ to: "/book" });
   }, [hydrated, ready, navigate]);
 
-  // warm the confirmation film's photo so it starts the moment the guest confirms
+  // warm the confirmation film so it starts the moment the guest confirms
   useEffect(() => {
-    const img = new Image();
-    img.src = "/media/barber-kit.webp";
+    warmBookingFilm();
   }, []);
 
   // the guest's promise to come, or to tell the salon in advance

@@ -1,12 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CinematicKit } from "@/components/cinematic-kit";
-import { CHAIR_SRC, CHAIR_WEBM, ChairReserve } from "@/components/chair-reserve";
+import { BookingFilm } from "@/components/booking-film";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Copy, Download, MapPin, MessageCircle } from "lucide-react";
 import { guestToSalonText, waLink } from "@/lib/whatsapp-link";
 import { AddToCalendar } from "@/components/add-to-calendar";
 import { RemindMe } from "@/components/remind-me";
-import { sfx, type ScoreControl } from "@/lib/sfx";
+import { sfx } from "@/lib/sfx";
 import { useChangeDeadline } from "@/lib/change-deadline";
 import { prettyPhone } from "@/components/desktop";
 import { LogoReveal } from "@/components/motion";
@@ -219,11 +218,11 @@ function ConfirmedScreen() {
   const booking = bookings.find((b) => b.reference === ref);
   const cinematic = seq === 1;
   const [stage, setStage] = useState(cinematic ? 0 : FINAL);
-  // the barber-kit film opens a fresh confirmation; the booking ID follows it
-  // The film is framed for phones (9:16): it plays on phones and portrait
-  // tablets; wide screens go straight to the confirmation.
-  // on (tools film) → chair (the reserved chair) → off (confirmation)
-  const [film, setFilm] = useState<"on" | "chair" | "leaving" | "off">(() =>
+  // the film (Bhargav getting ready → the reserved chair) opens a fresh
+  // confirmation; the booking ID follows it. It is framed for phones (9:16):
+  // it plays on phones and portrait tablets; wide screens go straight to the
+  // confirmation.
+  const [film, setFilm] = useState<"on" | "leaving" | "off">(() =>
     cinematic &&
     (typeof window === "undefined" ||
       window.matchMedia("(max-width: 767px), (orientation: portrait) and (max-width: 1100px)")
@@ -231,25 +230,12 @@ function ConfirmedScreen() {
       ? "on"
       : "off",
   );
-  const score = useRef<ScoreControl | null>(null);
-  const [chairSeen, setChairSeen] = useState(false);
-  const endFilm = useCallback(() => {
-    setFilm((f) => (f === "on" || f === "chair" ? "leaving" : f));
+  const [inChair, setInChair] = useState(false);
+  // skipping fades the film's sound and picture into the confirmation
+  const skipFilm = useCallback(() => {
+    setFilm((f) => (f === "on" ? "leaving" : f));
     window.setTimeout(() => setFilm("off"), 700);
   }, []);
-  // the tools film ends → the chair scene (pushed through, with its own sound)
-  const toChair = useCallback(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return endFilm();
-    sfx.chairEnter();
-    setChairSeen(true);
-    setFilm((f) => (f === "on" ? "chair" : f));
-  }, [endFilm]);
-  // skipping fades the music; letting it play lets it resolve into the confirmation
-  const skipFilm = useCallback(() => {
-    score.current?.stop();
-    endFilm();
-  }, [endFilm]);
-  useEffect(() => () => score.current?.stop(), []);
 
   useEffect(() => {
     if (hydrated && booking) resetDraft();
@@ -257,7 +243,7 @@ function ConfirmedScreen() {
   }, [hydrated, Boolean(booking)]);
 
   useEffect(() => {
-    if (!cinematic || film === "on" || film === "chair") return;
+    if (!cinematic || film === "on") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setStage(FINAL);
       return;
@@ -269,13 +255,13 @@ function ConfirmedScreen() {
     );
     return () => timers.forEach(window.clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cinematic, film === "on" || film === "chair"]);
+  }, [cinematic, film === "on"]);
 
   // sound follows the picture: soft impact + bloom as the logo appears,
   // a quiet press as the seal stamps the card
   const heard = useRef(0);
   useEffect(() => {
-    if (!cinematic || film === "on" || film === "chair") return;
+    if (!cinematic || film === "on") return;
     if (stage >= 1 && heard.current < 1) {
       heard.current = 1;
       sfx.bookingConfirm();
@@ -708,42 +694,14 @@ function ConfirmedScreen() {
             skipFilm();
           }}
         >
-          {/* the tools: pushed through (scale, blur) as the chair arrives */}
-          <div
-            className="flex h-full w-full items-center justify-center"
-            style={{
-              transform: film === "on" ? "none" : "scale(1.14) translateY(-2%)",
-              filter: film === "on" ? "none" : "blur(9px)",
-              opacity: film === "on" ? 1 : 0,
-              transition:
-                "transform 340ms cubic-bezier(0.5,0,0.75,0), filter 340ms ease-in, opacity 300ms ease-in 60ms",
-            }}
-          >
-            <CinematicKit
-              className="h-auto w-[min(100vw,calc(100svh*9/16))]"
-              alt="Bhargav's tools: comb, clipper, round brush, scissors and razor"
-              onDone={toChair}
-              onStart={() => {
-                score.current = sfx.score();
-              }}
-            />
-          </div>
-          {film === "on" ? (
-            // warm the chair footage while the tools play
-            <video preload="auto" muted playsInline className="hidden" aria-hidden>
-              <source src={CHAIR_SRC} type="video/mp4" />
-              <source src={CHAIR_WEBM} type="video/webm" />
-            </video>
-          ) : null}
-          {chairSeen && (film === "chair" || film === "leaving") ? (
-            <ChairReserve
-              className="absolute inset-0 mx-auto h-full w-[min(100vw,calc(100svh*9/16))]"
-              onStart={() => score.current?.chair()}
-              onDone={() => setFilm("off")}
-            />
-          ) : null}
+          <BookingFilm
+            className="absolute inset-0 mx-auto h-full w-[min(100vw,calc(100svh*9/16))]"
+            stopping={film === "leaving"}
+            onChair={() => setInChair(true)}
+            onDone={() => setFilm("off")}
+          />
           <div className="pointer-events-none absolute inset-x-0 bottom-6 text-center text-[0.6rem] uppercase tracking-[0.3em] text-[#E8E1D8]/40">
-            {film === "on" ? "Preparing your chair · tap to skip" : ""}
+            {film === "on" && !inChair ? "Preparing your chair · tap to skip" : ""}
           </div>
         </div>
       ) : null}
