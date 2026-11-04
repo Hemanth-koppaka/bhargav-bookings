@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import type { Sky } from "@/components/day-arc";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png.asset.json";
@@ -80,9 +81,12 @@ export function Screen({
   );
 }
 
-export function Page({ children, sky }: { children: ReactNode; sky?: string | undefined }) {
+export function Page({ children, sky }: { children: ReactNode; sky?: Sky | undefined }) {
   return (
-    <div className="day-sky flex min-h-[100svh] flex-col bg-background" style={sky ? { backgroundColor: sky } : undefined}>
+    <div
+      className={cn("flex min-h-[100svh] flex-col bg-background", sky && "day-sky", sky?.dark && "dark sky-night")}
+      style={sky ? ({ "--sky-top": sky.top, "--sky-bottom": sky.bottom } as CSSProperties) : undefined}
+    >
       {children}
     </div>
   );
