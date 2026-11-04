@@ -297,8 +297,9 @@ export function BookingFilm({
     const t0 = performance.now();
     let raf = 0;
     const step = (now: number) => {
-      const k = Math.min(1, (now - t0) / 450);
-      v.volume = from * (1 - k);
+      // rAF's timestamp can be slightly earlier than t0, so keep k within 0–1
+      const k = Math.min(1, Math.max(0, (now - t0) / 450));
+      v.volume = Math.min(1, Math.max(0, from * (1 - k)));
       if (k < 1) raf = requestAnimationFrame(step);
       else v.muted = true; // iOS ignores volume
     };

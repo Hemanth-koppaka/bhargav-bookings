@@ -402,9 +402,9 @@ function ConfirmedScreen() {
           src={portrait.url}
           alt=""
           aria-hidden="true"
-          className="cine-drift-top h-full w-full object-cover object-[50%_15%] opacity-45 grayscale contrast-[1.08] lg:cine-drift lg:w-[58%] lg:object-[50%_20%]"
+          className="cine-drift-top h-full w-full object-cover object-[50%_22%] opacity-60 grayscale contrast-[1.08] lg:cine-drift lg:w-[58%] lg:object-[50%_20%] lg:opacity-45"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0B0B0B]/55 via-[#0B0B0B]/75 to-[#0B0B0B] lg:bg-gradient-to-r lg:from-[#0B0B0B]/30 lg:via-[#0B0B0B]/75 lg:to-[#0B0B0B]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(11,11,11,0.35)_0%,rgba(11,11,11,0.15)_22%,rgba(11,11,11,0.55)_42%,rgba(11,11,11,0.85)_62%,#0B0B0B_100%)] lg:bg-gradient-to-r lg:from-[#0B0B0B]/30 lg:via-[#0B0B0B]/75 lg:to-[#0B0B0B]" />
       </div>
       {/* film grain */}
       <div
@@ -438,13 +438,19 @@ function ConfirmedScreen() {
             className="flex justify-center lg:justify-start"
             style={{ ...reveal(stage >= 2, 10, 1200), transitionDelay: "450ms" }}
           >
-            <img
-              src={logo.url}
-              alt="Hair by Bhargav"
-              className="h-12 w-auto object-contain brightness-0 invert lg:h-14"
-            />
+            <Link
+              to="/"
+              aria-label="Hair by Bhargav: go to home"
+              className="rounded-sm transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-[#C9A96A] active:scale-[0.97]"
+            >
+              <img
+                src={logo.url}
+                alt="Hair by Bhargav"
+                className="h-12 w-auto object-contain brightness-0 invert lg:h-14"
+              />
+            </Link>
           </div>
-          <div className="mt-9 lg:mt-14" style={reveal(stage >= 4, 14, 1500)}>
+          <div className="mt-[30svh] sm:mt-9 lg:mt-14" style={reveal(stage >= 4, 14, 1500)}>
             <h1 className="font-display text-[3.2rem] leading-none tracking-wide sm:text-6xl lg:text-[4.75rem]">
               You're booked.
             </h1>
