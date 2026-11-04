@@ -45,6 +45,9 @@ export function BookingFilm({
   const video = useRef<HTMLVideoElement>(null);
   const [phase, setPhase] = useState<"enter" | "play" | "exit">("enter");
   const [text, setText] = useState<"hidden" | "in" | "out">("hidden");
+  // the phone refused to start the film by itself (iPhone Low Power Mode,
+  // Android Data Saver…): show a play button instead of skipping it
+  const [blocked, setBlocked] = useState(false);
   const done = useRef(onDone);
   done.current = onDone;
   const chair = useRef(onChair);
@@ -94,14 +97,19 @@ export function BookingFilm({
     v.addEventListener("ended", ended);
     // if the film can't start at all (very slow connection), go straight to
     // the confirmation; the guest can also tap to skip while it loads
-    const giveUp = window.setTimeout(() => !begun && finish(), 7000);
+    let refused = false;
+    const giveUp = window.setTimeout(() => !begun && !refused && finish(), 7000);
 
     v.muted = !sfx.active;
     v.volume = 1;
     v.play().catch(() => {
       // the phone won't play sound without a tap: play the picture silently
       v.muted = true;
-      v.play().catch(() => finish());
+      v.play().catch(() => {
+        // it won't play at all without a tap: wait for the guest to press play
+        refused = true;
+        setBlocked(true);
+      });
     });
     return () => {
       window.clearTimeout(giveUp);
@@ -132,7 +140,7 @@ export function BookingFilm({
 
   const filmStyle =
     phase === "enter"
-      ? { transform: "scale(1.04)", filter: "brightness(0.8)", opacity: 0 }
+      ? { transform: "scale(1.04)", filter: "brightness(0.8)", opacity: blocked ? 1 : 0 }
       : phase === "play"
         ? { transform: "none", filter: "brightness(1)", opacity: 1 }
         : // leaving: a gentle forward push, softening into the confirmation
@@ -160,6 +168,33 @@ export function BookingFilm({
         <source src={FILM_SRC} type="video/mp4" />
         <source src={FILM_WEBM} type="video/webm" />
       </video>
+      {blocked && phase === "enter" ? (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 bg-[#0B0B0B]/40">
+          <button
+            type="button"
+            aria-label="Play the film"
+            onClick={(e) => {
+              e.stopPropagation(); // a tap elsewhere skips the film
+              const v = video.current;
+              if (!v) return finish();
+              setBlocked(false);
+              v.muted = !sfx.active;
+              v.play().catch(() => {
+                v.muted = true;
+                v.play().catch(() => finish());
+              });
+            }}
+            className="press flex h-20 w-20 items-center justify-center rounded-full border border-[#C9A96A]/60 bg-black/45 backdrop-blur-sm"
+          >
+            <svg viewBox="0 0 24 24" className="ml-1 h-8 w-8 fill-[#F4EEE5]" aria-hidden>
+              <path d="M8 5.5v13l10.5-6.5z" />
+            </svg>
+          </button>
+          <span className="text-[0.62rem] uppercase tracking-[0.3em] text-[#E8E1D8]/70">
+            Play · or tap anywhere to skip
+          </span>
+        </div>
+      ) : null}
       {/* a quiet title, like a film card: never over the chair */}
       <div className="pointer-events-none absolute inset-x-0 bottom-[max(3.5%,env(safe-area-inset-bottom))] z-10 flex flex-col items-center px-6 pb-2 text-center">
         <p

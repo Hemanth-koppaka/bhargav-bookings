@@ -23,11 +23,15 @@ const RETIRED = new RegExp(
   RETIRED_NUMBERS.map((n) => `(?:\\+?91[\\s-]*)?${n.slice(0, 5)}[\\s-]*${n.slice(5)}`).join("|"),
   "g",
 );
+// The founder is B. Bhargav: older saved details or wording that still say
+// "D. Bhargav" are corrected wherever they appear.
+const OLD_NAME = /\bD\.?\s+(Bhargav|BHARGAV)\b/g;
 /** Removes retired numbers from saved details and wording (phone lists drop them). */
 function scrubRetired<T>(v: T): T {
   if (typeof v === "string") {
+    v = v.replace(OLD_NAME, "B. $1") as T & string;
     RETIRED.lastIndex = 0;
-    if (!RETIRED.test(v)) return v;
+    if (!RETIRED.test(v as string)) return v;
     return v.replace(RETIRED, "").replace(/[ \t]{2,}/g, " ").replace(/\s*([·,/|]\s*)+$/, "").trim() as T;
   }
   if (Array.isArray(v))
