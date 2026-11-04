@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookingFilm, FILM_POSTER } from "@/components/booking-film";
+import { BookingFilm, FILM_POSTER, playLogoSting } from "@/components/booking-film";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Copy, Download, MapPin, MessageCircle } from "lucide-react";
 import { guestToSalonText, waLink } from "@/lib/whatsapp-link";
@@ -256,7 +256,8 @@ function ConfirmedScreen() {
     if (!cinematic || film === "on") return;
     if (stage >= 1 && heard.current < 1) {
       heard.current = 1;
-      sfx.bookingConfirm();
+      // the logo's own sound (readied by the Confirm tap); the interface chime otherwise
+      if (!playLogoSting()) sfx.bookingConfirm();
     }
     if (stage >= 3 && stage < FINAL && heard.current < 3) {
       heard.current = 3;

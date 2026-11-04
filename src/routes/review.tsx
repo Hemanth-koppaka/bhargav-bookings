@@ -22,7 +22,7 @@ import { sfx } from "@/lib/sfx";
 import { ServiceIconTile, serviceKind } from "@/components/service-icons";
 import { BUSINESS, SERVICE_RULES, STYLISTS, formatDuration, fromISO, inr, minuteLabel } from "@/lib/salon";
 import { preferredFor } from "@/lib/service-rules";
-import { warmBookingFilm } from "@/components/booking-film";
+import { primeBookingFilm, warmBookingFilm } from "@/components/booking-film";
 
 export const Route = createFileRoute("/review")({
   head: () => ({
@@ -92,6 +92,8 @@ function ReviewScreen() {
       });
       return;
     }
+    // inside the tap itself: lets the phone play the film and the logo's sound next
+    primeBookingFilm();
     setSaving(true);
     sending.current = true;
     setSaveError("");
@@ -105,7 +107,6 @@ function ReviewScreen() {
       return;
     }
     haptic(15);
-    sfx.ambience(); // the room breathes in as the confirmation film begins
     navigate({ to: "/confirmed", search: { ref: res.booking.reference, seq: 1 } });
   };
   const c = draft.customer;
