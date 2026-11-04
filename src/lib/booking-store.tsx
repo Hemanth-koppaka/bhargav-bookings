@@ -58,6 +58,8 @@ export type Booking = {
   snapshot?: BookingSnapshot | undefined;
   /** The stylist assigned when the booking was confirmed. */
   stylist?: string | null | undefined;
+  /** The guest picked this stylist themselves (not "any available"). */
+  stylistChosen?: boolean;
 };
 
 export type BookingSnapshot = {
@@ -216,6 +218,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
           booking.reference = res.reference; // issued by the salon (random, e.g. HB-7KQ2MX)
           if ("snapshot" in res && res.snapshot) booking.snapshot = res.snapshot;
           if ("stylist" in res) booking.stylist = res.stylist ?? null;
+          booking.stylistChosen = Boolean(draft.staffId);
         } catch {
           return { error: "We couldn't reach the salon. Check your connection and try again." };
         }
