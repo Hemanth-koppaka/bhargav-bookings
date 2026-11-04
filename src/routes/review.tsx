@@ -62,8 +62,8 @@ function ReviewScreen() {
 
   // warm the confirmation film so it starts the moment the guest confirms
   useEffect(() => {
-    warmBookingFilm();
-  }, []);
+    warmBookingFilm(draft.audience);
+  }, [draft.audience]);
 
   // the guest's promise to come, or to tell the salon in advance
   const [pledged, setPledged] = useState(false);
@@ -93,7 +93,7 @@ function ReviewScreen() {
       return;
     }
     // inside the tap itself: lets the phone play the film and the logo's sound next
-    primeBookingFilm();
+    primeBookingFilm(draft.audience);
     setSaving(true);
     sending.current = true;
     setSaveError("");

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookingFilm, FILM_POSTER, playLogoSting } from "@/components/booking-film";
+import { BookingFilm, filmPoster, playLogoSting } from "@/components/booking-film";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Copy, Download, MapPin, MessageCircle } from "lucide-react";
 import { guestToSalonText, waLink } from "@/lib/whatsapp-link";
@@ -222,7 +222,6 @@ function ConfirmedScreen() {
   // confirmation on every screen; the booking ID follows it. It is framed for
   // phones (9:16); wide screens show it centred over a soft blurred backdrop.
   const [film, setFilm] = useState<"on" | "leaving" | "off">(cinematic ? "on" : "off");
-  const [inChair, setInChair] = useState(false);
   // skipping fades the film's sound and picture into the confirmation
   const skipFilm = useCallback(() => {
     setFilm((f) => (f === "on" ? "leaving" : f));
@@ -692,19 +691,20 @@ function ConfirmedScreen() {
         >
           {/* wide screens: the film's own first frame, blurred, fills the sides */}
           <img
-            src={FILM_POSTER}
+            src={filmPoster(booking?.audience)}
             alt=""
             aria-hidden
             className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-35 blur-2xl"
           />
           <BookingFilm
+            audience={booking?.audience}
             className="absolute inset-0 mx-auto h-full w-[min(100vw,calc(100svh*9/16))]"
             stopping={film === "leaving"}
-            onChair={() => setInChair(true)}
             onDone={() => setFilm("off")}
           />
-          <div className="pointer-events-none absolute inset-x-0 bottom-6 text-center text-[0.6rem] uppercase tracking-[0.3em] text-[#E8E1D8]/40">
-            {film === "on" && !inChair ? "Preparing your chair · tap to skip" : ""}
+          {/* top of the screen, so it never sits on the film's own line at the bottom */}
+          <div className="pointer-events-none absolute inset-x-0 top-[max(1.25rem,env(safe-area-inset-top))] z-10 text-center text-[0.6rem] uppercase tracking-[0.3em] text-[#E8E1D8]/55 [text-shadow:0_1px_10px_rgb(0_0_0/0.6)]">
+            {film === "on" ? "Tap to skip" : ""}
           </div>
         </div>
       ) : null}
