@@ -392,16 +392,19 @@ function ConfirmedScreen() {
     >
       {/* 4 — Bhargav, cinematic black & white */}
       <div
-        className="pointer-events-none absolute inset-0 transition-opacity duration-[2400ms] ease-out"
+        // phones: one screen tall at the top of the page (the page scrolls past
+        // the card and calendar, so filling all of it would push his face
+        // down behind the card); laptops: the full height, on the left
+        className="pointer-events-none absolute inset-x-0 top-0 h-[100svh] max-h-full transition-opacity duration-[2400ms] ease-out lg:bottom-0 lg:h-auto lg:max-h-none"
         style={{ opacity: stage >= 4 ? 1 : 0 }}
       >
         <img
           src={portrait.url}
           alt=""
           aria-hidden="true"
-          className="cine-drift h-full w-full object-cover object-[50%_20%] opacity-45 grayscale contrast-[1.08] lg:w-[58%]"
+          className="cine-drift-top h-full w-full object-cover object-[50%_15%] opacity-45 grayscale contrast-[1.08] lg:cine-drift lg:w-[58%] lg:object-[50%_20%]"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0B0B0B]/70 via-[#0B0B0B]/80 to-[#0B0B0B] lg:bg-gradient-to-r lg:from-[#0B0B0B]/30 lg:via-[#0B0B0B]/75 lg:to-[#0B0B0B]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0B0B0B]/55 via-[#0B0B0B]/75 to-[#0B0B0B] lg:bg-gradient-to-r lg:from-[#0B0B0B]/30 lg:via-[#0B0B0B]/75 lg:to-[#0B0B0B]" />
       </div>
       {/* film grain */}
       <div

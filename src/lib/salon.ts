@@ -595,6 +595,8 @@ export function applyConfig(cfg: SalonConfig | null | undefined) {
   if (key === appliedKey) return;
   appliedKey = key;
   Object.assign(BUSINESS, DEFAULTS.business, full.business);
+  // the founder's name isn't edited in the console: always the one set here
+  BUSINESS.founder = DEFAULTS.business.founder;
   replaceArray(WEEK, full.week);
   for (const k of Object.keys(EXCEPTIONS)) delete EXCEPTIONS[k];
   Object.assign(EXCEPTIONS, full.exceptions);
