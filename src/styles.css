@@ -774,9 +774,7 @@ html:not(.intro-seen) .after-intro > *:nth-child(n + 6) { animation-delay: 2.75s
 @keyframes smReduced { from { opacity: .6; } to { opacity: 1; } }
 
 
-/* Time step: the day arc's sky and sun move smoothly; the chosen time's bubble. */
-.day-arc { transition: background-color 700ms ease, color 700ms ease; }
-.day-arc-sun { transition: transform 900ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+/* Time step: the chosen time's bubble. */
 .slot-bubble {
   position: absolute;
   left: 50%;
@@ -795,6 +793,9 @@ html:not(.intro-seen) .after-intro > *:nth-child(n + 6) { animation-delay: 2.75s
   100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .day-arc, .day-arc-sun { transition: none; }
   .slot-bubble { animation: none; opacity: 0; }
 }
+
+/* Time step: the page colour follows the part of the day being chosen. */
+.day-sky { transition: background-color 900ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+@media (prefers-reduced-motion: reduce) { .day-sky { transition: none; } }

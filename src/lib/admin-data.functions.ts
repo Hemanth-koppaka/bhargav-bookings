@@ -152,6 +152,10 @@ export const adminDashboard = createServerFn({ method: "POST" })
     // alerts that need a decision
     const alerts: { level: "info" | "warn"; text: string; to?: string }[] = [];
     if (!rules.accepting) alerts.push({ level: "warn", text: "Online bookings are paused.", to: "/admin/settings" });
+    // stylists in parallel needs database update 0009; say so plainly when it's missing
+    const { hasPerStylistGuard } = await import("./staff-store.server");
+    if (!(await hasPerStylistGuard()))
+      alerts.push({ level: "warn", text: "Only one booking per time slot: the database update for stylists working in parallel (0009) isn't applied yet.", to: "/admin/system" });
     const pending = all.filter((b) => b.status === "pending" && b.date >= today).length;
     if (pending) alerts.push({ level: "warn", text: `${pending} booking${pending > 1 ? "s" : ""} waiting for confirmation.`, to: "/admin/appointments" });
     const overlapping = todays.filter(active).some((a, i, list) => list.some((b, j) => j > i && a.time < b.end && b.time < a.end && (!a.staffId || !b.staffId || a.staffId === b.staffId)));

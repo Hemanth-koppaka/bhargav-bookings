@@ -80,8 +80,12 @@ export function Screen({
   );
 }
 
-export function Page({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-[100svh] flex-col bg-background">{children}</div>;
+export function Page({ children, sky }: { children: ReactNode; sky?: string | undefined }) {
+  return (
+    <div className="day-sky flex min-h-[100svh] flex-col bg-background" style={sky ? { backgroundColor: sky } : undefined}>
+      {children}
+    </div>
+  );
 }
 
 export function StickyBar({ children }: { children: ReactNode }) {

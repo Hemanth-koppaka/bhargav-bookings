@@ -72,9 +72,12 @@ export const prettyPhone = (p: string) => {
 };
 
 /** Full-height desktop shell: header, scrolling body, sticky footer bar. */
-export function DesktopPage({ children }: { children: ReactNode }) {
+export function DesktopPage({ children, sky }: { children: ReactNode; sky?: string | undefined }) {
   return (
-    <div className="hidden h-[100svh] min-h-[600px] flex-col overflow-hidden bg-background md:flex">
+    <div
+      className="day-sky hidden h-[100svh] min-h-[600px] flex-col overflow-hidden bg-background md:flex"
+      style={sky ? { backgroundColor: sky } : undefined}
+    >
       {children}
     </div>
   );
