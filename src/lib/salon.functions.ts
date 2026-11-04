@@ -70,7 +70,8 @@ type PersistedBreaks = Record<string, { start: string; end: string }[]>;
 const loadConfig = async () => (await import("./config.server")).loadConfig();
 
 export const getSalonConfig = createServerFn({ method: "GET" }).handler(async () => {
-  return { configJson: JSON.stringify(await loadConfig()) };
+  // the site's own address too, for search engines (absolute links)
+  return { configJson: JSON.stringify(await loadConfig()), origin: await requestOrigin() };
 });
 
 // Booking writes live in a server-only module (also exercised by tests).

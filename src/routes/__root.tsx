@@ -15,6 +15,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { BookingProvider } from "../lib/booking-store";
 import { AdminProvider } from "../lib/admin-store";
 import { getSalonConfig } from "../lib/salon.functions";
+import { salonJsonLd } from "@/lib/seo";
 import { applyConfig } from "../lib/salon";
 import { sfx } from "../lib/sfx";
 
@@ -73,7 +74,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
+  head: ({ loaderData }) => ({
     meta: [
       { charSet: "utf-8" },
       {
@@ -84,8 +85,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Book hair, beauty and makeover appointments with B. Bhargav at KPHB Phase 9, Kukatpally, Hyderabad.",
+          "Book hair, beauty and makeover appointments with D. Bhargav at KPHB Phase 9, Kukatpally, Hyderabad.",
       },
+      { property: "og:site_name", content: "Hair by Bhargav" },
+      { property: "og:locale", content: "en_IN" },
+      ...(loaderData?.origin
+        ? [
+            { property: "og:image", content: `${loaderData.origin}/brand/hb-emblem.webp` },
+            { name: "twitter:image", content: `${loaderData.origin}/brand/hb-emblem.webp` },
+          ]
+        : []),
       { name: "theme-color", content: "#FBF8F3" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -100,12 +109,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "icon", type: "image/png", href: "/favicon.png" },
     ],
+    // the salon for search engines (name, address, hours, services, prices)
+    scripts: loaderData?.configJson
+      ? [{ type: "application/ld+json", children: salonJsonLd(loaderData.configJson, loaderData.origin ?? "") }]
+      : [],
   }),
   loader: async () => {
     try {
       return await getSalonConfig();
     } catch {
-      return { configJson: "{}" };
+      return { configJson: "{}", origin: "" };
     }
   },
   staleTime: 60_000,

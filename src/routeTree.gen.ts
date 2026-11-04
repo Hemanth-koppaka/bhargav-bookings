@@ -20,7 +20,9 @@ import { Route as FilmRouteImport } from './routes/film'
 import { Route as HoursRouteImport } from './routes/hours'
 import { Route as ManageRouteImport } from './routes/manage'
 import { Route as ReviewRouteImport } from './routes/review'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ServicesRouteImport } from './routes/services'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as TimeRouteImport } from './routes/time'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
@@ -96,9 +98,19 @@ const ReviewRoute = ReviewRouteImport.update({
   path: '/review',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ServicesRoute = ServicesRouteImport.update({
   id: '/services',
   path: '/services',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StudioRoute = StudioRouteImport.update({
@@ -210,7 +222,9 @@ export interface FileRoutesByFullPath {
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
   '/review': typeof ReviewRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/services': typeof ServicesRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/studio': typeof StudioRoute
   '/time': typeof TimeRoute
   '/admin/activity': typeof AdminActivityRoute
@@ -242,7 +256,9 @@ export interface FileRoutesByTo {
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
   '/review': typeof ReviewRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/services': typeof ServicesRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/studio': typeof StudioRoute
   '/time': typeof TimeRoute
   '/admin/activity': typeof AdminActivityRoute
@@ -276,7 +292,9 @@ export interface FileRoutesById {
   '/hours': typeof HoursRoute
   '/manage': typeof ManageRoute
   '/review': typeof ReviewRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/services': typeof ServicesRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/studio': typeof StudioRoute
   '/time': typeof TimeRoute
   '/admin/activity': typeof AdminActivityRoute
@@ -311,7 +329,9 @@ export interface FileRouteTypes {
     | '/hours'
     | '/manage'
     | '/review'
+    | '/robots.txt'
     | '/services'
+    | '/sitemap.xml'
     | '/studio'
     | '/time'
     | '/admin/activity'
@@ -343,7 +363,9 @@ export interface FileRouteTypes {
     | '/hours'
     | '/manage'
     | '/review'
+    | '/robots.txt'
     | '/services'
+    | '/sitemap.xml'
     | '/studio'
     | '/time'
     | '/admin/activity'
@@ -376,7 +398,9 @@ export interface FileRouteTypes {
     | '/hours'
     | '/manage'
     | '/review'
+    | '/robots.txt'
     | '/services'
+    | '/sitemap.xml'
     | '/studio'
     | '/time'
     | '/admin/activity'
@@ -410,7 +434,9 @@ export interface RootRouteChildren {
   HoursRoute: typeof HoursRoute
   ManageRoute: typeof ManageRoute
   ReviewRoute: typeof ReviewRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
   ServicesRoute: typeof ServicesRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   StudioRoute: typeof StudioRoute
   TimeRoute: typeof TimeRoute
   ApiPhotoSweepRoute: typeof ApiPhotoSweepRoute
@@ -497,11 +523,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/services': {
       id: '/services'
       path: '/services'
       fullPath: '/services'
       preLoaderRoute: typeof ServicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/studio': {
@@ -688,7 +728,9 @@ const rootRouteChildren: RootRouteChildren = {
   HoursRoute: HoursRoute,
   ManageRoute: ManageRoute,
   ReviewRoute: ReviewRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
   ServicesRoute: ServicesRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   StudioRoute: StudioRoute,
   TimeRoute: TimeRoute,
   ApiPhotoSweepRoute: ApiPhotoSweepRoute,
