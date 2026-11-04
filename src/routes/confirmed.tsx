@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookingFilm } from "@/components/booking-film";
+import { BookingFilm, FILM_POSTER } from "@/components/booking-film";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Copy, Download, MapPin, MessageCircle } from "lucide-react";
 import { guestToSalonText, waLink } from "@/lib/whatsapp-link";
@@ -219,17 +219,9 @@ function ConfirmedScreen() {
   const cinematic = seq === 1;
   const [stage, setStage] = useState(cinematic ? 0 : FINAL);
   // the film (Bhargav getting ready → the reserved chair) opens a fresh
-  // confirmation; the booking ID follows it. It is framed for phones (9:16):
-  // it plays on phones and portrait tablets; wide screens go straight to the
-  // confirmation.
-  const [film, setFilm] = useState<"on" | "leaving" | "off">(() =>
-    cinematic &&
-    (typeof window === "undefined" ||
-      window.matchMedia("(max-width: 767px), (orientation: portrait) and (max-width: 1100px)")
-        .matches)
-      ? "on"
-      : "off",
-  );
+  // confirmation on every screen; the booking ID follows it. It is framed for
+  // phones (9:16); wide screens show it centred over a soft blurred backdrop.
+  const [film, setFilm] = useState<"on" | "leaving" | "off">(cinematic ? "on" : "off");
   const [inChair, setInChair] = useState(false);
   // skipping fades the film's sound and picture into the confirmation
   const skipFilm = useCallback(() => {
@@ -694,6 +686,13 @@ function ConfirmedScreen() {
             skipFilm();
           }}
         >
+          {/* wide screens: the film's own first frame, blurred, fills the sides */}
+          <img
+            src={FILM_POSTER}
+            alt=""
+            aria-hidden
+            className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-35 blur-2xl"
+          />
           <BookingFilm
             className="absolute inset-0 mx-auto h-full w-[min(100vw,calc(100svh*9/16))]"
             stopping={film === "leaving"}
