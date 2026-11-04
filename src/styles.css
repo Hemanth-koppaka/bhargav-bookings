@@ -796,6 +796,37 @@ html:not(.intro-seen) .after-intro > *:nth-child(n + 6) { animation-delay: 2.75s
   .slot-bubble { animation: none; opacity: 0; }
 }
 
-/* Time step: the page colour follows the part of the day being chosen. */
-.day-sky { transition: background-color 900ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+/* Time step: the real sky for the chosen time (top of the sky → horizon).
+   The two colours are registered so the gradient itself can change smoothly. */
+@property --sky-top { syntax: "<color>"; inherits: true; initial-value: #3f8fdc; }
+@property --sky-bottom { syntax: "<color>"; inherits: true; initial-value: #bfe0f7; }
+.day-sky {
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%) fixed;
+  transition: --sky-top 1.1s cubic-bezier(0.22, 0.61, 0.36, 1), --sky-bottom 1.1s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+/* by day the sky shows through; headers and the summary bar stay readable glass */
+.day-sky header, .day-sky [data-glass] { background-color: color-mix(in oklab, var(--background) 72%, transparent); }
+/* evening and night: the page switches to light text on deep blue glass */
+.sky-night {
+  --background: oklch(0.2 0.045 265);
+  --card: oklch(0.26 0.05 265 / 0.78);
+  --muted: oklch(0.28 0.04 265 / 0.6);
+  --secondary: oklch(0.28 0.04 265 / 0.6);
+  --muted-foreground: oklch(0.82 0.02 260);
+  --hairline: oklch(0.98 0.01 85 / 16%);
+  --border: oklch(0.98 0.01 85 / 16%);
+  --bronze: oklch(0.8 0.08 65);
+  color: var(--foreground);
+}
+/* the phone's summary bar keeps its light day colours, so its text stays crisp */
+.sky-night [data-keep-light] {
+  --foreground: oklch(0.19 0.006 60);
+  --muted-foreground: oklch(0.52 0.012 70);
+  --background: transparent;
+  --card: oklch(0.992 0.005 90);
+  --hairline: oklch(0.19 0.006 60 / 12%);
+  --border: oklch(0.19 0.006 60 / 12%);
+  --bronze: oklch(0.52 0.075 55);
+  color: var(--foreground);
+}
 @media (prefers-reduced-motion: reduce) { .day-sky { transition: none; } }

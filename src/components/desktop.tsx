@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -20,6 +21,7 @@ import {
   Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Sky } from "@/components/day-arc";
 import { BUSINESS, CLOSE_MINUTE, OPEN_MINUTE, WEEK, minuteLabel, type Audience, type Service } from "@/lib/salon";
 import { Wordmark } from "@/components/screen";
 import { ScissorsLine, useRewindBack } from "@/components/scissors-line";
@@ -72,11 +74,15 @@ export const prettyPhone = (p: string) => {
 };
 
 /** Full-height desktop shell: header, scrolling body, sticky footer bar. */
-export function DesktopPage({ children, sky }: { children: ReactNode; sky?: string | undefined }) {
+export function DesktopPage({ children, sky }: { children: ReactNode; sky?: Sky | undefined }) {
   return (
     <div
-      className="day-sky hidden h-[100svh] min-h-[600px] flex-col overflow-hidden bg-background md:flex"
-      style={sky ? { backgroundColor: sky } : undefined}
+      className={cn(
+        "hidden h-[100svh] min-h-[600px] flex-col overflow-hidden bg-background md:flex",
+        sky && "day-sky",
+        sky?.dark && "dark sky-night",
+      )}
+      style={sky ? ({ "--sky-top": sky.top, "--sky-bottom": sky.bottom } as CSSProperties) : undefined}
     >
       {children}
     </div>

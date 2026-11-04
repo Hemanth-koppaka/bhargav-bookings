@@ -148,6 +148,7 @@ export function BookingDock({
   return (
     <div
       ref={root}
+      data-keep-light=""
       className={cn(
         "sticky bottom-0 z-30 mt-auto bg-gradient-to-t from-background via-background/95 to-background/0 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden",
         className,
