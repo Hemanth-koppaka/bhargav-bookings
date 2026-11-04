@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -157,31 +158,8 @@ function ServicesScreen() {
                 className="min-w-0 flex-1"
                 hint={men ? "haircut, beard, colour…" : "haircut, facial, colour…"}
               />
-              {/* sort: a quiet icon over the phone's own picker */}
-              <label
-                className={
-                  "press relative flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full border bg-card transition-colors " +
-                  (mSort === "popular" ? "border-foreground/12" : "border-bronze/60 text-bronze")
-                }
-              >
-                <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={1.25} />
-                <span className="sr-only">Sort services</span>
-                <select
-                  value={mSort}
-                  onChange={(e) => {
-                    sfx.filterPick();
-                    setMSort(e.target.value as SortKey);
-                  }}
-                  className="absolute inset-0 cursor-pointer appearance-none opacity-0"
-                  aria-label="Sort services"
-                >
-                  {SORTS.map((o) => (
-                    <option key={o.key} value={o.key}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {/* sort: a quiet icon that opens our own sheet (not the phone's picker) */}
+              <SortPicker value={mSort} onChange={setMSort} variant="icon" />
             </div>
 
             <div
@@ -968,29 +946,132 @@ function usePopularity() {
 }
 
 function SortMenu({ value, onChange }: { value: SortKey; onChange: (k: SortKey) => void }) {
+  return <SortPicker value={value} onChange={onChange} variant="pill" />;
+}
+
+/**
+ * The sort choice in the salon's own look (never the phone's or computer's
+ * native picker): on phones a small ivory sheet from the bottom, on laptops a
+ * menu under the "Sort by" pill. Closes on choosing, outside tap or Esc.
+ */
+function SortPicker({ value, onChange, variant }: { value: SortKey; onChange: (k: SortKey) => void; variant: "icon" | "pill" }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const current = SORTS.find((o) => o.key === value) ?? SORTS[0]!;
+  const choose = (k: SortKey) => {
+    sfx.filterPick();
+    haptic();
+    onChange(k);
+    setOpen(false);
+  };
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (variant === "pill" && box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", key);
+    };
+  }, [open, variant]);
+  const toggle = () => {
+    if (!open) sfx.filterOpen();
+    setOpen((v) => !v);
+  };
+  const options = (
+    <ul role="listbox" aria-label="Sort services" className="py-1">
+      {SORTS.map((o) => {
+        const on = o.key === value;
+        return (
+          <li key={o.key}>
+            <button
+              type="button"
+              role="option"
+              aria-selected={on}
+              onClick={() => choose(o.key)}
+              className={
+                "press flex w-full items-center justify-between gap-4 px-5 text-left transition-colors hover:bg-foreground/[0.04] " +
+                (variant === "icon" ? "min-h-14 text-[1rem]" : "min-h-11 text-[0.92rem]") +
+                (on ? " text-foreground" : " text-foreground/75")
+              }
+            >
+              {o.label}
+              <span
+                className={
+                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors " +
+                  (on ? "border-bronze bg-bronze text-ivory" : "border-foreground/25")
+                }
+              >
+                {on ? <Check className="h-3 w-3" strokeWidth={2.5} /> : null}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  if (variant === "icon")
+    return (
+      <>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-label={`Sort services: ${current.label}`}
+          className={
+            "press relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full border bg-card transition-colors " +
+            (value === "popular" ? "border-foreground/12" : "border-bronze/60 text-bronze")
+          }
+        >
+          <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={1.25} />
+        </button>
+        {open
+          ? createPortal(
+              <div className="fixed inset-0 z-[70] flex items-end" role="dialog" aria-modal aria-label="Sort services">
+                <button type="button" aria-label="Close" className="soft-fade absolute inset-0 bg-ink/35" onClick={() => setOpen(false)} />
+                <div className="slide-in relative w-full rounded-t-2xl border-t border-hairline bg-background pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-18px_40px_-20px_rgba(30,20,10,0.45)]">
+                  <span aria-hidden className="mx-auto mb-2 block h-1 w-10 rounded-full bg-foreground/15" />
+                  <div className="flex items-center justify-between px-5 pb-1">
+                    <span className="text-[0.66rem] uppercase tracking-[0.28em] text-muted-foreground">Sort services</span>
+                    <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="press -mr-2 flex h-9 w-9 items-center justify-center rounded-full hover:bg-foreground/5">
+                      <X className="h-4 w-4" strokeWidth={1.5} />
+                    </button>
+                  </div>
+                  {options}
+                </div>
+              </div>,
+              document.body,
+            )
+          : null}
+      </>
+    );
+
   return (
-    <label className="group relative flex h-12 shrink-0 cursor-pointer flex-col justify-center rounded-full border border-foreground/12 bg-card pr-10 pl-5 transition-colors hover:border-foreground/35 focus-within:border-foreground/45">
-      <span className="text-[0.62rem] leading-none text-muted-foreground">Sort by</span>
-      <select
-        value={value}
-        onPointerDown={() => sfx.filterOpen()}
-        onChange={(e) => {
-          sfx.filterPick();
-          onChange(e.target.value as SortKey);
-        }}
-        className="mt-1 cursor-pointer appearance-none bg-transparent pr-1 text-[0.9rem] leading-none outline-none"
-        aria-label="Sort services"
+    <div ref={box} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="group relative flex h-12 flex-col justify-center rounded-full border border-foreground/12 bg-card pr-10 pl-5 text-left transition-colors hover:border-foreground/35"
       >
-        {SORTS.map((o) => (
-          <option key={o.key} value={o.key}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown
-        className="pointer-events-none absolute top-1/2 right-4 h-4 w-4 -translate-y-1/2 text-foreground/60"
-        strokeWidth={1.5}
-      />
-    </label>
+        <span className="text-[0.62rem] leading-none text-muted-foreground">Sort by</span>
+        <span className="mt-1 text-[0.9rem] leading-none">{current.label}</span>
+        <ChevronDown
+          className={"pointer-events-none absolute top-1/2 right-4 h-4 w-4 -translate-y-1/2 text-foreground/60 transition-transform " + (open ? "rotate-180" : "")}
+          strokeWidth={1.5}
+        />
+      </button>
+      {open ? (
+        <div className="fade-rise absolute right-0 z-40 mt-2 w-60 overflow-hidden rounded-xl border border-hairline bg-background shadow-[0_18px_40px_-20px_rgba(30,20,10,0.45)]">
+          {options}
+        </div>
+      ) : null}
+    </div>
   );
 }
