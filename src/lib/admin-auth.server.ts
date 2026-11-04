@@ -128,6 +128,7 @@ export async function assertAdmin(token: string) {
     throw new Error("Session not valid");
   }
   if (!claims.exp || claims.exp < Date.now()) throw new Error("Session expired");
+  if ((claims as { kind?: string }).kind === "stylist") throw new Error("Session not valid");
   const [secret, epoch] = await Promise.all([readSecret(), readEpoch()]);
   if (claims.v !== (await codeVersion(secret))) throw new Error("Session revoked");
   if (epoch && (claims.iat ?? 0) < epoch) throw new Error("Session revoked");
@@ -223,4 +224,80 @@ export async function changeCode(token: string, current: string, next: string) {
   const { error } = await supabaseAdmin.from("admin_secret").update({ pin: hashed }).eq("id", 1);
   if (error) return { ok: false as const, error: "Couldn't save the new code." };
   return { ok: true as const, ...(await issueToken(hashed, false)) };
+}
+
+
+/* ── stylists: their own code, their own day ─────────────────── */
+
+const STYLIST_CODES = "stylist_codes";
+const STYLIST_GUARD = "stylist_guard";
+
+async function stylistCodes(): Promise<Record<string, string>> {
+  const { data } = await supabaseAdmin.from("site_settings").select("value").eq("key", STYLIST_CODES).maybeSingle();
+  return ((data?.value ?? {}) as Record<string, string>) ?? {};
+}
+
+/** Which stylists have a code (never the codes themselves). */
+export async function stylistsWithCodes(): Promise<string[]> {
+  return Object.keys(await stylistCodes());
+}
+
+/** Sets (or with an empty code, removes) a stylist's access code; signs that stylist out everywhere. */
+export async function setStylistCode(staffId: string, code: string) {
+  const codes = await stylistCodes();
+  if (code) codes[staffId] = await hashCode(code);
+  else delete codes[staffId];
+  const { error } = await supabaseAdmin.from("site_settings").upsert({ key: STYLIST_CODES, value: codes as never });
+  return !error;
+}
+
+async function readStylistGuard(): Promise<Guard> {
+  const { data } = await supabaseAdmin.from("site_settings").select("value").eq("key", STYLIST_GUARD).maybeSingle();
+  const v = (data?.value ?? {}) as Partial<Guard>;
+  return { fails: v.fails ?? 0, lockedUntil: v.lockedUntil ?? 0 };
+}
+
+/** A stylist's code → a session for their own day only (same lockout rules as the console). */
+export async function stylistSignIn(code: string): Promise<
+  { ok: true; token: string; expiresAt: number; staffId: string } | { ok: false; lockedFor?: number; attemptsLeft?: number }
+> {
+  const guard = await readStylistGuard();
+  const now = Date.now();
+  if (guard.lockedUntil > now) return { ok: false, lockedFor: Math.ceil((guard.lockedUntil - now) / 1000) };
+  const codes = await stylistCodes();
+  let staffId: string | null = null;
+  for (const [id, stored] of Object.entries(codes)) if (await matches(code, stored)) staffId = id;
+  if (!staffId) {
+    const fails = guard.fails + 1;
+    const rounds = Math.floor(fails / FREE_ATTEMPTS);
+    const lockedUntil = fails % FREE_ATTEMPTS === 0 ? now + Math.min(BASE_LOCK_MS * 2 ** (rounds - 1), MAX_LOCK_MS) : 0;
+    await supabaseAdmin.from("site_settings").upsert({ key: STYLIST_GUARD, value: { fails, lockedUntil } as never });
+    return lockedUntil
+      ? { ok: false, lockedFor: Math.ceil((lockedUntil - now) / 1000) }
+      : { ok: false, attemptsLeft: FREE_ATTEMPTS - (fails % FREE_ATTEMPTS) };
+  }
+  if (guard.fails || guard.lockedUntil)
+    await supabaseAdmin.from("site_settings").upsert({ key: STYLIST_GUARD, value: { fails: 0, lockedUntil: 0 } as never });
+  const exp = now + 14 * 3600_000;
+  const body = b64(enc.encode(JSON.stringify({ kind: "stylist", sid: staffId, exp, iat: now, v: await codeVersion(codes[staffId]!) })));
+  return { ok: true, token: `${body}.${await hmac(body)}`, expiresAt: exp, staffId };
+}
+
+/** Checks a stylist session; returns the stylist's id. A new code or "sign out everywhere" ends it. */
+export async function assertStylist(token: string): Promise<string> {
+  const [body, sig] = token.split(".");
+  if (!body || !sig || !same(sig, await hmac(body))) throw new Error("Session not valid");
+  let claims: { kind?: string; sid?: string; exp?: number; iat?: number; v?: string };
+  try {
+    claims = JSON.parse(new TextDecoder().decode(unb64(body)));
+  } catch {
+    throw new Error("Session not valid");
+  }
+  if (claims.kind !== "stylist" || !claims.sid) throw new Error("Session not valid");
+  if (!claims.exp || claims.exp < Date.now()) throw new Error("Session expired");
+  const [codes, epoch] = await Promise.all([stylistCodes(), readEpoch()]);
+  const stored = codes[claims.sid];
+  if (!stored || claims.v !== (await codeVersion(stored))) throw new Error("Session revoked");
+  if (epoch && (claims.iat ?? 0) < epoch) throw new Error("Session revoked");
+  return claims.sid;
 }

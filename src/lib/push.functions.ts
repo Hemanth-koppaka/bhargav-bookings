@@ -70,5 +70,5 @@ export const adminPushTest = createServerFn({ method: "POST" })
       body: "New bookings, moves and cancellations will appear here.",
       url: "/admin",
       tag: "test",
-    });
+    }, { ownersOnly: true });
   });

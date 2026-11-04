@@ -14,6 +14,7 @@ Disallow: /admin
 Disallow: /api/
 Disallow: /_serverFn/
 Disallow: /confirmed
+Disallow: /stylist
 
 Sitemap: ${origin}/sitemap.xml
 `;

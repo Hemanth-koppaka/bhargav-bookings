@@ -24,6 +24,7 @@ import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ServicesRouteImport } from './routes/services'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as StudioRouteImport } from './routes/studio'
+import { Route as StylistRouteImport } from './routes/stylist'
 import { Route as TimeRouteImport } from './routes/time'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminActivityRouteImport } from './routes/admin.activity'
@@ -116,6 +117,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const StudioRoute = StudioRouteImport.update({
   id: '/studio',
   path: '/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StylistRoute = StylistRouteImport.update({
+  id: '/stylist',
+  path: '/stylist',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TimeRoute = TimeRouteImport.update({
@@ -226,6 +232,7 @@ export interface FileRoutesByFullPath {
   '/services': typeof ServicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/studio': typeof StudioRoute
+  '/stylist': typeof StylistRoute
   '/time': typeof TimeRoute
   '/admin/activity': typeof AdminActivityRoute
   '/admin/appointments': typeof AdminAppointmentsRoute
@@ -260,6 +267,7 @@ export interface FileRoutesByTo {
   '/services': typeof ServicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/studio': typeof StudioRoute
+  '/stylist': typeof StylistRoute
   '/time': typeof TimeRoute
   '/admin/activity': typeof AdminActivityRoute
   '/admin/appointments': typeof AdminAppointmentsRoute
@@ -296,6 +304,7 @@ export interface FileRoutesById {
   '/services': typeof ServicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/studio': typeof StudioRoute
+  '/stylist': typeof StylistRoute
   '/time': typeof TimeRoute
   '/admin/activity': typeof AdminActivityRoute
   '/admin/appointments': typeof AdminAppointmentsRoute
@@ -333,6 +342,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/sitemap.xml'
     | '/studio'
+    | '/stylist'
     | '/time'
     | '/admin/activity'
     | '/admin/appointments'
@@ -367,6 +377,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/sitemap.xml'
     | '/studio'
+    | '/stylist'
     | '/time'
     | '/admin/activity'
     | '/admin/appointments'
@@ -402,6 +413,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/sitemap.xml'
     | '/studio'
+    | '/stylist'
     | '/time'
     | '/admin/activity'
     | '/admin/appointments'
@@ -438,6 +450,7 @@ export interface RootRouteChildren {
   ServicesRoute: typeof ServicesRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   StudioRoute: typeof StudioRoute
+  StylistRoute: typeof StylistRoute
   TimeRoute: typeof TimeRoute
   ApiPhotoSweepRoute: typeof ApiPhotoSweepRoute
   ApiNotificationsDispatchRoute: typeof ApiNotificationsDispatchRoute
@@ -549,6 +562,13 @@ declare module '@tanstack/react-router' {
       path: '/studio'
       fullPath: '/studio'
       preLoaderRoute: typeof StudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stylist': {
+      id: '/stylist'
+      path: '/stylist'
+      fullPath: '/stylist'
+      preLoaderRoute: typeof StylistRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/time': {
@@ -732,6 +752,7 @@ const rootRouteChildren: RootRouteChildren = {
   ServicesRoute: ServicesRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   StudioRoute: StudioRoute,
+  StylistRoute: StylistRoute,
   TimeRoute: TimeRoute,
   ApiPhotoSweepRoute: ApiPhotoSweepRoute,
   ApiNotificationsDispatchRoute: ApiNotificationsDispatchRoute,

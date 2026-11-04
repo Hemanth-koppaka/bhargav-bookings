@@ -20,6 +20,8 @@ export type PushSub = {
   /** the site the phone subscribed from (VAPID contact) */
   origin: string;
   at: number;
+  /** a stylist's phone: only their own bookings (none = the salon: everything) */
+  staffId?: string;
 };
 
 export type PushMessage = { title: string; body: string; url?: string; tag?: string };
@@ -177,8 +179,11 @@ async function sendOne(sub: PushSub, msg: PushMessage, v: Vapid) {
 }
 
 /** Sends to every phone that turned alerts on; forgets phones that unsubscribed. */
-export async function pushToSalon(msg: PushMessage) {
-  const subs = await listSubs();
+export async function pushToSalon(msg: PushMessage, only?: { staffId?: string | null; ownersOnly?: boolean }) {
+  // the salon's phones get everything; a stylist's phone only their own bookings
+  const subs = (await listSubs()).filter((s) =>
+    !s.staffId ? true : only?.ownersOnly ? false : Boolean(only?.staffId) && s.staffId === only?.staffId,
+  );
   if (!subs.length) return { sent: 0, failed: 0 };
   const v = await getVapid();
   let sent = 0;
@@ -187,7 +192,8 @@ export async function pushToSalon(msg: PushMessage) {
   await Promise.all(
     subs.map(async (s) => {
       try {
-        const status = await sendOne(s, msg, v);
+        // a stylist's phone opens their own day
+        const status = await sendOne(s, s.staffId ? { ...msg, url: "/stylist" } : msg, v);
         if (status === 404 || status === 410) gone.push(s.endpoint);
         else if (status >= 200 && status < 300) sent++;
         else failed++;
@@ -223,6 +229,8 @@ export async function pushBookingEvent(
     timeZone: "UTC",
   });
   const when = `${day}, ${clock(row["time"] as number)}`;
+  const staffId =
+    (row["staff_id"] as string | null) ?? ((row["meta"] as Record<string, unknown> | null)?.["staff_id"] as string | null) ?? null;
   const title =
     event === "BOOKING_CANCELLED"
       ? `Cancelled: ${c.name ?? "a guest"}`
@@ -230,7 +238,7 @@ export async function pushBookingEvent(
         ? `Moved: ${c.name ?? "a guest"} → ${when}`
         : `New booking: ${c.name ?? "a guest"}`;
   const body = `${services || "Appointment"} · ${when}${staff ? ` · ${staff}` : ""}`;
-  return pushToSalon({ title, body, url: `/admin/appointments?ref=${encodeURIComponent(reference)}`, tag: reference });
+  return pushToSalon({ title, body, url: `/admin/appointments?ref=${encodeURIComponent(reference)}`, tag: reference }, { staffId });
 }
 
 /* ── guests: free reminders before their appointment ──────────── */
