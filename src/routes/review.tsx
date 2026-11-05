@@ -262,14 +262,26 @@ const stylistLabel = (id: string | null | undefined, serviceIds: string[] = []) 
   return pref ? `with ${pref.preferredName}` : "any available stylist";
 };
 
-function Card({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+function Card({
+  title,
+  action,
+  children,
+  className,
+  bodyClassName,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  bodyClassName?: string;
+}) {
   return (
-    <section className="rounded-md border border-hairline bg-card">
+    <section className={cn("rounded-md border border-hairline bg-card", className)}>
       <div className="mx-4 flex items-center justify-between hairline-b py-3.5 lg:mx-7 lg:py-4">
         <h2 className="font-sans text-[0.68rem] font-normal uppercase tracking-[0.3em] lg:text-[0.78rem]">{title}</h2>
         {action}
       </div>
-      <div className="px-4 py-4 lg:px-7">{children}</div>
+      <div className={cn("px-4 py-4 lg:px-7", bodyClassName)}>{children}</div>
     </section>
   );
 }
@@ -315,8 +327,8 @@ function DesktopReview({
             Please check your details below. You can edit them if needed.
           </p>
 
-          {/* 50 / 50: appointment + you on the left, studio + confirmation on the right */}
-          <div className="mt-6 grid grid-cols-1 items-start gap-5 min-[901px]:grid-cols-2 [@media(min-width:1024px)_and_(max-height:800px)]:mt-4 [@media(min-width:1024px)_and_(max-height:800px)]:gap-4">
+          {/* 50 / 50: appointment, you and the confirmation on the left; the studio and its map fill the right */}
+          <div className="mt-6 grid grid-cols-1 items-stretch gap-5 min-[901px]:grid-cols-2 [@media(min-width:1024px)_and_(max-height:800px)]:mt-4 [@media(min-width:1024px)_and_(max-height:800px)]:gap-4">
             <div className="grid gap-5 [@media(min-width:1024px)_and_(max-height:800px)]:gap-4">
               <Card title="Appointment details" action={<EditLink to="/services" />}>
                 <div className="flex gap-5">
@@ -390,11 +402,16 @@ function DesktopReview({
                 ) : null}
                 <PhotoStrip />
               </Card>
+
+              {draft.timeStale ? <StaleTime /> : null}
+              {pledge}
             </div>
 
-            <div className="grid gap-5 [@media(min-width:1024px)_and_(max-height:800px)]:gap-4">
+            <div className="flex flex-col">
               <Card
                 title="Studio location"
+                className="flex flex-1 flex-col"
+                bodyClassName="flex flex-1 flex-col gap-5"
                 action={
                   <a href={mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-[0.85rem] text-bronze lg:text-[0.95rem]">
                     <span className="underline underline-offset-4">Directions</span>
@@ -402,8 +419,7 @@ function DesktopReview({
                   </a>
                 }
               >
-                <div className="grid grid-cols-[minmax(0,11fr)_minmax(0,9fr)] items-center gap-5">
-                  <address className="text-[0.98rem] not-italic leading-relaxed">
+                <address className="text-[0.98rem] not-italic leading-relaxed">
                     <span className="block font-display text-[1.2rem] leading-tight">{BUSINESS.name || "Hair by Bhargav"}</span>
                     <span className="mt-1 block text-muted-foreground">
                       {line1},
@@ -411,18 +427,15 @@ function DesktopReview({
                       KPHB{line2.join(", KPHB")}
                     </span>
                   </address>
-                  <iframe
-                    title="Map to the studio"
-                    src={embedUrl}
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                    className="h-32 w-full rounded-sm border-0 bg-muted grayscale"
-                  />
-                </div>
+                {/* the map sits under the address and fills the rest of the column */}
+                <iframe
+                  title="Map to the studio"
+                  src={embedUrl}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  className="min-h-56 w-full flex-1 rounded-sm border-0 bg-muted grayscale"
+                />
               </Card>
-
-              {draft.timeStale ? <StaleTime /> : null}
-              {pledge}
             </div>
           </div>
         </main>
