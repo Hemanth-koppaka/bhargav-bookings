@@ -47,6 +47,8 @@ export type AdminBooking = {
   /** Assigned stylist (multi-stylist salons). */
   staffId: string | null;
   staffName: string;
+  /** The stylist's photo, for quick recognition. */
+  staffPhoto: string | null;
   staffChosen: boolean;
 };
 
@@ -92,12 +94,14 @@ function toAdmin(r: Row, menuLookup: (aud: string, id: string) => { name: string
     history: (r["history"] as AdminBooking["history"]) ?? [],
     staffId: staffIdOf(r),
     staffName: (staffIdOf(r) ? staffNames.get(staffIdOf(r)!) : undefined) ?? "",
+    staffPhoto: (staffIdOf(r) ? staffPhotoMap.get(staffIdOf(r)!) : undefined) ?? null,
     staffChosen: staffChoiceOf(r) === "specific",
   };
 }
 
 /** Stylist names, refreshed by lookup() for each request. */
 const staffNames = new Map<string, string>();
+const staffPhotoMap = new Map<string, string>();
 
 async function lookup() {
   const { findService } = await import("./salon");
@@ -106,6 +110,12 @@ async function lookup() {
   const { stable } = await import("./staff-store.server");
   const { data: st, error } = await stable("staff").select("id, name");
   if (!error) for (const r of (st ?? []) as { id: string; name: string }[]) staffNames.set(r.id, r.name);
+  if (!error) {
+    const { staffPhotos } = await import("./staff-photos.server");
+    const photos = await staffPhotos((st ?? []) as { id: string; name: string }[]).catch(() => ({}) as Record<string, string>);
+    staffPhotoMap.clear();
+    for (const [id, url] of Object.entries(photos)) staffPhotoMap.set(id, url);
+  }
   return (aud: string, id: string) => {
     const s = findService(aud as "men" | "women", id);
     return s ? { name: s.name, price: s.price, minutes: s.minutes } : null;
@@ -282,6 +292,7 @@ export const adminDay = createServerFn({ method: "POST" })
             return {
               id: st.id,
               name: st.name,
+              photo: staffPhotoMap.get(st.id) ?? null,
               working: Boolean(w),
               start: w?.start ?? null,
               end: w?.end ?? null,

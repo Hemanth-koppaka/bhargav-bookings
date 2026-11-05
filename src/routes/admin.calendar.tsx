@@ -14,6 +14,7 @@ import {
 } from "@/components/admin-ops";
 import { useAdmin, type ApptStatus } from "@/lib/admin-store";
 import { adminDay, adminRange, type AdminBooking } from "@/lib/admin-data.functions";
+import { StaffAvatar } from "@/components/staff-avatar";
 import { adminUpsertBooking } from "@/lib/salon.functions";
 import { fromISO, hoursFor, isClosed, minuteLabel, toISO } from "@/lib/salon";
 import { cn } from "@/lib/utils";
@@ -251,13 +252,14 @@ function DayView({
   };
 
   // one column per stylist (and one for any booking without a stylist)
-  type Col = { id: string; staffId: string | undefined; name: string; note: string; off: { start: number; end: number }[]; breaks: { start: number; end: number; label?: string }[]; blocks: { start: number; end: number; label?: string }[]; bookings: AdminBooking[] };
+  type Col = { id: string; staffId: string | undefined; name: string; photo?: string | null; note: string; off: { start: number; end: number }[]; breaks: { start: number; end: number; label?: string }[]; blocks: { start: number; end: number; label?: string }[]; bookings: AdminBooking[] };
   const team = data.team ?? [];
   const columns: Col[] = team.length
     ? team.map((t) => ({
         id: t.id,
         staffId: t.id,
         name: t.name,
+        photo: t.photo,
         note: t.working && t.start != null && t.end != null ? `${minuteLabel(t.start)}–${minuteLabel(t.end)}` : "Off today",
         off: !t.working || t.start == null || t.end == null ? [{ start, end }] : [...(t.start > start ? [{ start, end: t.start }] : []), ...(t.end < end ? [{ start: t.end, end }] : [])],
         breaks: t.breaks,
@@ -277,12 +279,7 @@ function DayView({
             {columns.map((c) => (
               <div key={c.id} className="flex min-w-[9rem] flex-1 items-center gap-2.5 border-l border-hairline px-3 py-2 first:border-l-0">
                 {c.staffId ? (
-                  <span
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[0.75rem] font-medium text-white"
-                    style={{ background: STYLIST_COLOURS[columns.indexOf(c) % STYLIST_COLOURS.length] }}
-                  >
-                    {c.name.slice(0, 1).toUpperCase()}
-                  </span>
+                  <StaffAvatar name={c.name} photo={c.photo} colour={STYLIST_COLOURS[columns.indexOf(c) % STYLIST_COLOURS.length]} className="h-9 w-9" />
                 ) : null}
                 <span className="min-w-0">
                   <span className="block truncate text-[0.88rem] font-medium">{c.name}</span>

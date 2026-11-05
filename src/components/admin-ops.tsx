@@ -40,6 +40,7 @@ import { adminReferencePhotos } from "@/lib/photos.functions";
 import { adminNotificationLogs, type NotifyLog } from "@/lib/admin-notify.functions";
 import { messageText, type BookingFacts, type NotifyEvent } from "@/lib/notify/messages";
 import { waLink as whatsapp } from "@/lib/whatsapp-link";
+import { StaffAvatar } from "@/components/staff-avatar";
 
 /* ── small shared bits ─────────────────────────────────────── */
 
@@ -318,9 +319,12 @@ export function BookingDrawer({
                 ))}
               </ul>
               {b.staffName ? (
-                <p className="mt-3 text-[0.85rem]">
-                  Stylist: <b className="font-medium">{b.staffName}</b>
-                  <span className="text-muted-foreground"> · {b.staffChosen ? "chosen by guest" : "assigned automatically"}</span>
+                <p className="mt-3 flex items-center gap-2.5 text-[0.85rem]">
+                  <StaffAvatar name={b.staffName} photo={b.staffPhoto} className="h-9 w-9" />
+                  <span>
+                    Stylist: <b className="font-medium">{b.staffName}</b>
+                    <span className="text-muted-foreground"> · {b.staffChosen ? "chosen by guest" : "assigned automatically"}</span>
+                  </span>
                 </p>
               ) : null}
               {b.cancelReason ? <p className="mt-3 text-[0.82rem] text-destructive">Cancelled: {b.cancelReason}</p> : null}

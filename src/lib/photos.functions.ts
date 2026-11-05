@@ -80,7 +80,7 @@ export const adminReferencePhotos = createServerFn({ method: "POST" })
 
 /* ── salon media: service & category photos ──────────────────── */
 
-const mediaKey = z.string().regex(/^(svc|cat):[A-Za-z0-9_-]{1,80}$/);
+const mediaKey = z.string().regex(/^(svc|cat|staff):[A-Za-z0-9_-]{1,80}$/);
 
 /** Uploads (or with no dataUrl, removes) the photo shown for a service or category. */
 export const adminSaveMedia = createServerFn({ method: "POST" })
