@@ -42,6 +42,10 @@ export type StaffMember = {
   order: number;
   services: string[];
   hours: StaffHours[];
+  /** Uploaded photo, or the built-in one for this name. */
+  photo: string | null;
+  /** True when the photo was uploaded in the console (it can be removed). */
+  photoUploaded: boolean;
   breaks: StaffBreak[];
   leave: { id: string; start: string; end: string; reason: string }[];
   blocks: { id: string; date: string; start: number; end: number; reason: string }[];
@@ -109,6 +113,8 @@ export const adminStaffList = createServerFn({ method: "POST" })
         order: (r["display_order"] as number) ?? 0,
         services: by(svc.data as Row[], id).map((x) => x["service_id"] as string),
         hours,
+        photo: null,
+        photoUploaded: false,
         breaks: by(brk.data as Row[], id).map((x) => ({
           id: x["id"] as string,
           day: (x["day_of_week"] as number | null) ?? null,
@@ -138,6 +144,9 @@ export const adminStaffList = createServerFn({ method: "POST" })
         ).length,
       };
     });
+    const { staffPhotos, defaultStaffPhoto } = await import("./staff-photos.server");
+    const photos = await staffPhotos(staff).catch(() => ({}) as Record<string, string>);
+    for (const m of staff) { m.photo = photos[m.id] ?? null; m.photoUploaded = Boolean(m.photo && m.photo !== defaultStaffPhoto(m.name)); }
     return {
       available: true as const,
       staff,

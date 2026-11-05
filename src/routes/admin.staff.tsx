@@ -17,6 +17,7 @@ import {
   type StaffMember,
 } from "@/lib/admin-staff.functions";
 import { minuteLabel } from "@/lib/salon";
+import { StaffAvatar, StaffPhotoEditor } from "@/components/staff-avatar";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -56,6 +57,8 @@ const blank = (n: number): StaffMember => ({
   leave: [],
   blocks: [],
   upcoming: 0,
+  photo: null,
+  photoUploaded: false,
 });
 
 function StaffScreen() {
@@ -95,7 +98,8 @@ function StaffScreen() {
               )}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <StaffAvatar name={s.name} photo={s.photo} className="h-14 w-14 text-[1.2rem]" />
+                <div className="min-w-0 flex-1">
                   <div className="font-display text-[1.5rem] leading-tight">{s.name}</div>
                   <div className="text-[0.8rem] text-muted-foreground">
                     {s.specialties ||
@@ -268,6 +272,20 @@ function StaffEditor({
           </SheetDescription>
         </SheetHeader>
         <div className="space-y-4 px-5 py-5">
+          {f.id ? (
+            <StaffPhotoEditor
+              staffId={f.id}
+              name={f.name}
+              photo={f.photo}
+              uploaded={f.photoUploaded}
+              onChange={(url) => {
+                set({ photo: url ?? null, photoUploaded: Boolean(url) });
+                onSaved();
+              }}
+            />
+          ) : (
+            <p className="text-[0.8rem] text-muted-foreground">You can add a photo after saving.</p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-[0.62rem] uppercase tracking-[0.2em] text-muted-foreground">
