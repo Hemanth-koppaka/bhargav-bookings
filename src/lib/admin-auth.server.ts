@@ -234,7 +234,10 @@ const STYLIST_GUARD = "stylist_guard";
 
 async function stylistCodes(): Promise<Record<string, string>> {
   const { data } = await supabaseAdmin.from("site_settings").select("value").eq("key", STYLIST_CODES).maybeSingle();
-  return ((data?.value ?? {}) as Record<string, string>) ?? {};
+  const value = data?.value;
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, string>)
+    : {};
 }
 
 /** Which stylists have a code (never the codes themselves). */
