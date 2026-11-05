@@ -424,7 +424,7 @@ function ConfirmedScreen() {
             src={portrait.url}
             alt=""
             aria-hidden="true"
-            className="cine-drift-top h-full w-full object-cover object-[60%_15%] opacity-45 grayscale contrast-[1.08] lg:cine-drift lg:w-[58%] lg:object-[50%_20%]"
+            className="cine-drift-top h-full w-full object-cover object-[50%_15%] opacity-45 grayscale contrast-[1.08] lg:cine-drift lg:w-[58%] lg:object-[50%_20%]"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-[#0B0B0B]/55 via-[#0B0B0B]/75 to-[#0B0B0B] lg:bg-gradient-to-r lg:from-[#0B0B0B]/30 lg:via-[#0B0B0B]/75 lg:to-[#0B0B0B]" />
         </div>
@@ -454,7 +454,7 @@ function ConfirmedScreen() {
         ) : null}
       </div>
 
-      <div className="relative z-10 mx-auto grid min-h-[100svh] max-w-md content-center gap-y-12 px-6 py-12 sm:max-w-lg lg:max-w-6xl lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-x-20 lg:px-14">
+      <div className="relative z-10 mx-auto grid min-h-[100svh] max-w-md content-center gap-y-12 px-6 py-12 [@media(max-width:639px)_and_(max-height:800px)]:gap-y-7 [@media(max-width:639px)_and_(max-height:800px)]:pb-8 [@media(max-width:639px)_and_(max-height:800px)]:pt-7 sm:max-w-lg lg:max-w-6xl lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-x-20 lg:px-14">
         {/* 4 — message */}
         <div className="text-center lg:text-left">
           <div
@@ -469,18 +469,18 @@ function ConfirmedScreen() {
               <img
                 src={logo.url}
                 alt="Hair by Bhargav"
-                className="h-12 w-auto object-contain brightness-0 invert lg:h-14"
+                className="h-12 w-auto object-contain brightness-0 invert [@media(max-width:639px)_and_(max-height:800px)]:h-10 lg:h-14"
               />
             </Link>
           </div>
-          <div className="mt-9 lg:mt-14" style={reveal(stage >= 4, 14, 1500)}>
-            <h1 className="font-display text-[3.2rem] leading-none tracking-wide sm:text-6xl lg:text-[4.75rem]">
+          <div className="mt-9 [@media(max-width:639px)_and_(max-height:800px)]:mt-5 lg:mt-14" style={reveal(stage >= 4, 14, 1500)}>
+            <h1 className="font-display text-[3.2rem] leading-none tracking-wide [@media(max-width:639px)_and_(max-height:800px)]:text-[2.75rem] sm:text-6xl lg:text-[4.75rem]">
               You're booked.
             </h1>
-            <p className="mt-4 font-display text-2xl italic text-[#E8E1D8]/80 lg:text-[2rem]">
+            <p className="mt-4 font-display text-2xl italic text-[#E8E1D8]/80 [@media(max-width:639px)_and_(max-height:800px)]:mt-2.5 [@media(max-width:639px)_and_(max-height:800px)]:text-xl lg:text-[2rem]">
               Your chair is reserved.
             </p>
-            <p className="mt-3 text-[0.7rem] uppercase tracking-[0.3em] text-[#C9A96A]">
+            <p className="mt-3 text-[0.7rem] uppercase tracking-[0.3em] text-[#C9A96A] [@media(max-width:639px)_and_(max-height:800px)]:mt-2">
               {/^bhargav\b/i.test(booking.stylist ?? "") ? "Bhargav is waiting for you" : "We’re waiting for you"}
             </p>
           </div>
