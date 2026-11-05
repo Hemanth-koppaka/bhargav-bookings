@@ -37,7 +37,7 @@ function ArtistScreen() {
       panelEyebrow="Founder · Chief Stylist"
       panelTitle={
         <>
-          D. <span className="italic text-champagne">Bhargav</span>
+          B. <span className="italic text-champagne">Bhargav</span>
         </>
       }
       panelSub="A haircut is a conversation first."
@@ -55,7 +55,7 @@ function ArtistScreen() {
       <div className="stagger mt-8 lg:mt-0">
         <div className="text-[0.62rem] uppercase tracking-[0.3em] text-bronze lg:text-[0.72rem]">Founder · Chief Stylist</div>
         <h1 className="mt-3 font-display text-[clamp(3rem,13vw,3.6rem)] leading-[0.95] lg:text-[4.5rem]">
-          D. <span className="italic text-bronze">Bhargav</span>
+          B. <span className="italic text-bronze">Bhargav</span>
         </h1>
         <blockquote className="mt-7 border-l-2 border-bronze/50 pl-5 font-display text-[1.45rem] italic leading-snug text-foreground/85 lg:text-[1.75rem]">
           “A haircut is a conversation before it is a service.”
