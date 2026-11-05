@@ -424,7 +424,7 @@ function ConfirmedScreen() {
             src={portrait.url}
             alt=""
             aria-hidden="true"
-            className="cine-drift-top h-full w-full object-cover object-[60%_15%] opacity-45 grayscale contrast-[1.08] lg:cine-drift lg:w-[58%] lg:object-[50%_20%]"
+            className="cine-drift-top h-full w-full object-cover object-[50%_15%] opacity-45 grayscale contrast-[1.08] lg:cine-drift lg:w-[58%] lg:object-[50%_20%]"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-[#0B0B0B]/55 via-[#0B0B0B]/75 to-[#0B0B0B] lg:bg-gradient-to-r lg:from-[#0B0B0B]/30 lg:via-[#0B0B0B]/75 lg:to-[#0B0B0B]" />
         </div>
