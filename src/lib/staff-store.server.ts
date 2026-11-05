@@ -61,7 +61,8 @@ async function seed(): Promise<Store> {
   s.staff = team;
   const sig = (n: string) => /^bhargav.?s signature/i.test(n);
   for (const x of (svcs ?? []) as { id: string; name: string; gender: string }[]) {
-    if (x.gender === "men" || sig(x.name)) s.staff_services.push({ staff_id: b["id"], service_id: x.id });
+    // Bhargav takes men's and women's guests (and his Signature)
+    s.staff_services.push({ staff_id: b["id"], service_id: x.id });
     if (x.gender === "men" && !sig(x.name)) s.staff_services.push({ staff_id: m["id"], service_id: x.id });
     if (x.gender === "women" && !sig(x.name)) s.staff_services.push({ staff_id: f["id"], service_id: x.id });
   }
