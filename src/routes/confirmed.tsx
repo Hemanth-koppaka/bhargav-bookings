@@ -481,7 +481,7 @@ function ConfirmedScreen() {
               Your chair is reserved.
             </p>
             <p className="mt-3 text-[0.7rem] uppercase tracking-[0.3em] text-[#C9A96A]">
-              We’re waiting for you
+              {/^bhargav\b/i.test(booking.stylist ?? "") ? "Bhargav is waiting for you" : "We’re waiting for you"}
             </p>
           </div>
         </div>
