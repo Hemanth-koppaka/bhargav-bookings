@@ -94,6 +94,8 @@ export type Database = {
           site_origin: string
           slots: number
           source: string
+          staff_choice: string
+          staff_id: string | null
           status: string
           time: number
           updated_at: string
@@ -123,6 +125,8 @@ export type Database = {
           site_origin?: string
           slots?: number
           source?: string
+          staff_choice?: string
+          staff_id?: string | null
           status?: string
           time: number
           updated_at?: string
@@ -152,6 +156,8 @@ export type Database = {
           site_origin?: string
           slots?: number
           source?: string
+          staff_choice?: string
+          staff_id?: string | null
           status?: string
           time?: number
           updated_at?: string
