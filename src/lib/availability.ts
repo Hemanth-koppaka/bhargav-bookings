@@ -85,7 +85,11 @@ export type StaffDay = {
   busy: Range[]; // their active appointments (incl. buffers)
 };
 
-export type StaffSlot = Slot & { staff: string[] };
+export type StaffSlot = Slot & {
+  staff: string[];
+  /** Stylists on a break (lunch etc.) at this time: the time is not offered with them. */
+  onBreak?: string[];
+};
 
 export type StaffAvailabilityInput = Omit<AvailabilityInput, "busy"> & {
   /** Eligible stylists for the chosen services who work that day. */
@@ -133,17 +137,29 @@ export function computeStaffSlots(i: StaffAvailabilityInput): StaffSlot[] {
       continue;
     }
     const free: string[] = [];
+    const resting: string[] = [];
     const why: SlotReason[] = [];
     for (const s of pool) {
       const r = staffReason(s, m, serviceEnd, heldEnd, allowOverrun);
       if (r === null) free.push(s.id);
       else why.push(r);
+      if (r === "break") resting.push(s.id);
     }
-    if (free.length) out.push({ minute: m, available: true, reason: null, staff: free });
+    const onBreak = resting.length ? { onBreak: resting } : {};
+    if (free.length)
+      out.push({ minute: m, available: true, reason: null, staff: free, ...onBreak });
     else {
       // the most useful explanation: booked > break > blocked > not working
-      const r = (["booked", "break", "blocked", "closing"] as const).find((x) => why.includes(x)) ?? "closing";
-      out.push({ minute: m, available: false, reason: pool.length ? r : "closing", staff: [] });
+      const r =
+        (["booked", "break", "blocked", "closing"] as const).find((x) => why.includes(x)) ??
+        "closing";
+      out.push({
+        minute: m,
+        available: false,
+        reason: pool.length ? r : "closing",
+        staff: [],
+        ...onBreak,
+      });
     }
   }
   return out;
