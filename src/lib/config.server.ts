@@ -29,10 +29,11 @@ const OLD_NAME = /\bD\.?\s+(Bhargav|BHARGAV)\b/g;
 /** Removes retired numbers from saved details and wording (phone lists drop them). */
 function scrubRetired<T>(v: T): T {
   if (typeof v === "string") {
-    v = v.replace(OLD_NAME, "B. $1") as T & string;
+    let text: string = v;
+    text = text.replace(OLD_NAME, "B. $1");
     RETIRED.lastIndex = 0;
-    if (!RETIRED.test(v as string)) return v;
-    return v.replace(RETIRED, "").replace(/[ \t]{2,}/g, " ").replace(/\s*([·,/|]\s*)+$/, "").trim() as T;
+    if (!RETIRED.test(text)) return text as T;
+    return text.replace(RETIRED, "").replace(/[ \t]{2,}/g, " ").replace(/\s*([·,/|]\s*)+$/, "").trim() as T;
   }
   if (Array.isArray(v))
     return v
