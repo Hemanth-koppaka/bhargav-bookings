@@ -1,7 +1,34 @@
 import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
-import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+
+/**
+ * Same job as the generated `attachSupabaseAuth`, without putting the whole
+ * Supabase client in every page's first download. The site never signs anyone
+ * in through Supabase in the browser (admin uses its own PIN session), so the
+ * client is only fetched when a Supabase session could exist: a saved `sb-…`
+ * login in this browser, or inside the Lovable editor preview (which keeps
+ * its login elsewhere).
+ */
+function maySupabaseSession(): boolean {
+  try {
+    if (window.self !== window.top) return true;
+    for (let i = 0; i < localStorage.length; i++) {
+      if (localStorage.key(i)?.startsWith("sb-")) return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+const attachSupabaseAuth = createMiddleware({ type: "function" }).client(async ({ next }) => {
+  if (!maySupabaseSession()) return next();
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return next({ headers: token ? { Authorization: `Bearer ${token}` } : {} });
+});
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
