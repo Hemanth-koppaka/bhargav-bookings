@@ -817,8 +817,16 @@ function SlotGroups({ day }: { day: DayState }) {
   const slots = day.data?.slots ?? [];
   const interval = day.data?.interval ?? SLOT_MINUTES;
   const breaks = day.data?.breaks ?? [];
-  // Times that fall inside a break are never bookable, so they're replaced by a divider.
-  const visible = slots.filter((x) => !breaks.some((b) => x.minute >= b.start && x.minute < b.end));
+  // Times that fall inside a break are never bookable, so they're replaced by a divider:
+  // the salon's own breaks, and a stylist's lunch (the chosen stylist's, or everyone's
+  // when any stylist will do) are not shown as greyed-out slots.
+  const who = draft.staffId ?? day.data?.preferred?.id ?? null;
+  const resting = (x: (typeof slots)[number]) => {
+    const off = (x as { onBreak?: string[] }).onBreak;
+    if (!off?.length || x.available) return false;
+    return who ? off.includes(who) : x.reason === "break";
+  };
+  const visible = slots.filter((x) => !breaks.some((b) => x.minute >= b.start && x.minute < b.end) && !resting(x));
   const groups = PERIODS.map((p) => ({ p, items: visible.filter((x) => p.test(x.minute)) })).filter(
     (g) => g.items.length > 0,
   );

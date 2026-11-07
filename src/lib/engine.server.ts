@@ -296,7 +296,7 @@ export type DayAvailability = {
   close: number;
   interval: number;
   breaks: Range[];
-  slots: (Slot & { staff?: string[] })[];
+  slots: (Slot & { staff?: string[]; onBreak?: string[] })[];
   bookable: boolean;
   message?: string;
   /** Stylists who can do the chosen services (multi-stylist salons). */
